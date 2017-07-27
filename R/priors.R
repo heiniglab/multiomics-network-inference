@@ -11,49 +11,26 @@
 #'
 get.link.priors <- function(sentinel) {
 
-  if(CACHE & !exists("GENE.ANNOTATION")){
-    cat("Loading gene annotation.\n");
-    f_annot.cache <- paste0(RESULT.BASE, "/gene.annotation.RData");
-    if(file.exists(f_annot.cache)){
-      load(f_annot.cache)
+  library(pheatmap)
 
-    } else {
-      GENE.ANNOTATION <- get.gene.annotation();
-      save(file=f_annot.cache, GENE.ANNOTATION);
-    }
-    # set as global var
-    assign("GENE.ANNOTATION", GENE.ANNOTATION, envir=.GlobalEnv);
-
-    cat("Done.\n");
-  }
-
-  # default window (needed for distance calculation)
-  wnd <- 0;
-  # if a window variable is set (global var) then use it for scaling
-  if(exists("WINDOW")) {
-    wnd <- WINDOW
-  } else {
-    stop("WINDOW size must be set!\n");
-  }
-  # load gtex based priors
-  # number of bins to use
+  # default window (needed for distance calculation) and number of bins
+  wnd <- 1e6;
   nbins <- 200;
-  load.gtex.priors(nbins, wnd);
+  load.gtex.priors();
 
   # get distances to all genes for cpgs and snps
-  cpg.dists <- get.nearby.ranges(sentinel$cpgs, GENE.ANNOTATION, map.distance = T)
- if(SENTINEL_ONLY){
-    snp.dists <- get.nearby.ranges(sentinel$sentinel.range,
-                                 GENE.ANNOTATION, map.distance=T);
-  } else {
-    snp.dists <- get.nearby.ranges(c(sentinel$snp.ranges, sentinel$sentinel.range),
-                                 GENE.ANNOTATION, map.distance=T);
-  }
-
+  cpg.dists <- get.nearby.ranges(sentinel$cpgs, 
+                                 promoters(sentinel$cpg.genes))
+  temp <- sentinel$snp.genes
+  temp$distance <- distance(sentinel$sentinel.range,
+                                 promoters(sentinel$snp.genes));
+  snp.dists <- list()
+  snp.dists[[id]] <- temp
+  
   all.dists <- append(cpg.dists, snp.dists);
 
   # get all entities which are being processed by the algorithm
-  cdata <- colnames(sentinel$data)
+  cdata <- colnames(data.matrix)
 
   if(!all(names(all.dists) %in% cdata)){
     cat("Some elements were not available in data:\n")
@@ -61,7 +38,8 @@ get.link.priors <- function(sentinel) {
     cat(na[which(!na %in% cdata)])
     stop("Some data misteriously went missing..")
   }
-  # now build the prior matrix using  a pseudo prior
+  
+  # now build the prior matrix using a pseudo prior
   pseudo.prior <- 0.0000001
   priors <- matrix(data = pseudo.prior, nrow = length(cdata), ncol=length(cdata))
   colnames(priors) <- rownames(priors) <- cdata
@@ -71,17 +49,17 @@ get.link.priors <- function(sentinel) {
   bins <- seq(0,wnd-step, by=step);
 
   # load annotation needed for cpg2gene priors
-  epigen.states <- read.table(paste0(RESULT.BASE, 
-                          "/epigenetic_state_annotation_weighted_all_sentinels.txt"), 
+  epigen.states <- read.table("data/epigenetic_state_annotation_weighted_all_sentinels.txt", 
                         header = T, sep="\t", row.names = 1)
   
   for(i in names(all.dists)){
 
-    ranges <- all.dists[[i]];
+    gene.ranges <- all.dists[[i]];
 
     # indicator whether the current distance is related to a cpg
     isCpGDist <- grepl("^cg", i);
-    temp <- lapply(ranges, function(r) {
+    
+    temp <- lapply(gene.ranges, function(r) {
       s <- r$SYMBOL;
       if(s %in% colnames(priors)) {
         # set the basic prior based on distance (the larger the distance, the lower the prior should be)
@@ -91,11 +69,11 @@ get.link.priors <- function(sentinel) {
         # distance based priors for snps (gtex eQTLs)
         if(!isCpGDist) {
            idx <- findInterval(dist, bins);
-           p <- GTEX.DIST.PRIORS[idx];
+           p <- gtex.eqtl.priors[idx];
         }
         else {
           # if the cpg is in range of the tss (within 200bp), 
-          # set a specific prior for active TSS... elsewise set 
+          # set a specific prior for active TSS... 
           p <- pseudo.prior
           if(dist <= 200){
             # set the cpg.state prior
@@ -103,9 +81,6 @@ get.link.priors <- function(sentinel) {
                                         "Flanking.Active.TSS", 
                                         "Bivalent.Poised.TSS",
                                         "Flanking.Bivalent.TSS.Enh")])
-            if(is.na(p)){
-              p <- pseudo.prior
-            }
           }
         }
 
@@ -122,19 +97,20 @@ get.link.priors <- function(sentinel) {
   load.string.db();
 
   # get subset of edges which are in our current graph
-  edges <- STRING.EDGES[names(STRING.EDGES) %in% genes]
-  edges.prior <- GTEX.GG.PRIOR;
+  STRING.SUB <- subGraph(intersect(STRING.NODES, genes),STRING.DB)
+  edges <- edgeL(STRING.SUB)
+  nodes <- nodes(STRING.SUB)
+  edges.prior <- gtex.gg.prior
   
   temp <- lapply(names(edges), function(n) {
-    l <- edges[[n]];
-    # add PPI priors
-    ingc <- which(l %in% genes);
-    if (length(ingc) > 0) {
-      lapply(ingc, function(i) {
-        m <- l[i]
+    l <- edges[[n]]$edges;
+    if (length(l) > 0) {
+      temp2 <- sapply(l, function(i) {
+        m <- nodes[i]
         # set priors for those validated connections found in STRING
         return(list(g1=m, g2=n, prior=edges.prior));
       });
+      temp2
     }
   });
 
@@ -168,64 +144,70 @@ get.link.priors <- function(sentinel) {
     }
   }
   
+  pdf(paste0("results/prior_plots/", id, ".priors.raw.pdf"))
+  pheatmap(priors)
+  dev.off()
+  
   # define weights for our priors
-  tf.cpg.weight <- 0.34
-  cg.gene.weight <- 0.15;
-  snp.gene.weight <- 0.15;
-  gene.gene.weight <- 0.34;
-  rest.weight <- 1-(cg.gene.weight + snp.gene.weight + gene.gene.weight + tf.cpg.weight);
+  # do we need those? discard for now
+  #tf.cpg.weight <- 0.34
+  #cg.gene.weight <- 0.15;
+  #snp.gene.weight <- 0.15;
+  #gene.gene.weight <- 0.34;
+  #rest.weight <- 1- (cg.gene.weight + snp.gene.weight + 
+  #                     gene.gene.weight + tf.cpg.weight)
 
-  cat("Prior weights used: \n")
-  cat("\ttf.cpg:", tf.cpg.weight, "\n")
-  cat("\tcg.gene:", cg.gene.weight, "\n")
-  cat("\tsnp.gene:", snp.gene.weight, "\n")
-  cat("\tgene.gene:", gene.gene.weight, "\n")
-  cat("\trest.gene:", rest.weight, "\n")
+  #cat("Prior weights used: \n")
+  #cat("\ttf.cpg:", tf.cpg.weight, "\n")
+  #cat("\tcg.gene:", cg.gene.weight, "\n")
+  #cat("\tsnp.gene:", snp.gene.weight, "\n")
+  #cat("\tgene.gene:", gene.gene.weight, "\n")
+  #cat("\trest.gene:", rest.weight, "\n")
 
   # build weighted prior matrix
-  priors.w <- priors
-  for(j in 2:ncol(priors)){
-    c <- colnames(priors)[j]
-    for(i in 1:(nrow(priors)-1)){
-      r <- rownames(priors)[i]
+  #priors.w <- priors
+  #for(j in 2:ncol(priors)){
+  #  c <- colnames(priors)[j]
+  #  for(i in 1:(nrow(priors)-1)){
+  #    r <- rownames(priors)[i]
       
       # check which prior to use for this current link
       
       # cg-tf
-      if(grepl("cg", c) & r %in% sentinel$enriched.tfs$SYMBOL) {
-        priors.w[i,j] <- priors[i,j] * tf.cpg.weight
-      } else if(grepl("cg", c) & r %in% sentinel$cpg.genes$SYMBOL) {
+  #    if(grepl("cg", c) & r %in% sentinel$enriched.tfs$SYMBOL) {
+  #      priors.w[i,j] <- priors[i,j] * tf.cpg.weight
+  #    } else if(grepl("cg", c) & r %in% sentinel$cpg.genes$SYMBOL) {
       # cg-gene
-        priors.w[i,j] <- priors[i,j] * cg.gene.weight
-      } else if(grepl("rs", c) & r %in% sentinel$snp.genes$SYMBOL) { 
+  #      priors.w[i,j] <- priors[i,j] * cg.gene.weight
+  #    } else if(grepl("rs", c) & r %in% sentinel$snp.genes$SYMBOL) { 
       # snp-gene
-        priors.w[i,j] <- priors[i,j] * snp.gene.weight
-      } else if(c %in% genes & r %in% genes) {
+  #      priors.w[i,j] <- priors[i,j] * snp.gene.weight
+  #    } else if(c %in% genes & r %in% genes) {
       # gene-gene
-        priors.w[i,j] <- priors[i,j] * gene.gene.weight
-      } else {
+  #      priors.w[i,j] <- priors[i,j] * gene.gene.weight
+  #    } else {
       # rest
-        priors.w[i,j] <- priors[i,j] * rest.weight
-      }
-    }
-  }
-  
-  colnames(priors.w) <- rownames(priors.w) <- colnames(priors)
+  #      priors.w[i,j] <- priors[i,j] * rest.weight
+  #    }
+  #  }
+  #}
+  #colnames(priors.w) <- rownames(priors.w) <- colnames(priors)
   
   # copy upper tri matrix to lower tri
-  for(i in 1:nrow(priors.w)) {
-    for(j in 1:(i-1)) {
-      priors.w[i,j] <- priors.w[j,i];
-    }
-  }
+  #for(i in 1:nrow(priors.w)) {
+  #  for(j in 1:(i-1)) {
+  #    priors.w[i,j] <- priors.w[j,i];
+  #  }
+  #}
 
   # scale to overall increase priors.
-  # TODO check whether this is even allowed. however, this would
-  # increase the relevance of priors for the bdgraph algorithm...
+  # TODO check whether this is even allowed. this would
+  # increase the relevance of priors for the bdgraph algorithm?
   #priors.w <- priors.w / (max(priors.w) + 0.1)
 
-  return(list(priors=priors.w))
+  return(priors)
 }
+
 #' Gets priors for the GGMs from the GTEX dataset
 #'
 #' Creates binned priors based on the distances of SNPs and their cis genes as well
@@ -358,7 +340,7 @@ create.priors <- function(nbins, window) {
   gene.matrix <- t(gene.matrix[which(rownames(gene.matrix) %in% STRING.NODES),]);
   gene.matrix <- log10(gene.matrix+10)
   gene.matrix <- get.residuals(as.data.frame(gene.matrix),
-                               samples[rownames(gene.matrix),]))
+                               samples[rownames(gene.matrix),])
   
   # calculate correlations for priors
   cat("Calculating gene-wise correlations.\n");
@@ -399,29 +381,16 @@ create.priors <- function(nbins, window) {
   save(file=paste0("results/gtex.gg.prior.RData"), gtex.gg.cors,
        gtex.gg.prior)
 }
+
 #' Load gtex priors into environment
-#'
-#' @param nbins The number of bins used for distance priors
-#' @param window The WINDOW size for which to load the priors
 #'
 #' @return nothing
 #'
-load.gtex.priors <- function(nbins, window) {
-
-  # create filepath for results
-  gtex.cache <- paste0(RESULT.BASE, "/gtex.priors.", 
-                       nbins, ".", 
-                       window, ".RData")
-  cat("GTEX cache file is: ", gtex.cache, "\n");
-  if(!file.exists(gtex.cache)){
-    warning("Could not load GTEX priors from cache. Cache file not available.")
-    create.gtex.priors(nbins=nbins, window = window/2)
-    save(file=gtex.cache, GTEX.DIST.PRIORS, GTEX.GG.PRIOR, GTEX.GG.CORS);
-  } else {
-    load(gtex.cache);
-  }
-  assign("GTEX.DIST.PRIORS", GTEX.DIST.PRIORS, .GlobalEnv);
-  assign("GTEX.GG.PRIOR", GTEX.GG.PRIOR, .GlobalEnv);
-  assign("GTEX.GG.CORS", GTEX.GG.CORS, .GlobalEnv);
+load.gtex.priors <- function() {
+  load("results/gtex.eqtl.priors.RData");
+  load("results/gtex.gg.prior.RData");
+  
+  assign("gtex.eqtl.priors", gtex.eqtl.priors, .GlobalEnv);
+  assign("gtex.gg.prior", gtex.gg.prior, .GlobalEnv);
 }
 

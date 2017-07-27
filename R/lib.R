@@ -38,7 +38,6 @@ get.gene.annotation <- function(drop.nas=TRUE, verbose=TRUE) {
   return(gene.ranges)
 }
 
-
 #'
 #' Define a convenience function to get linear model p-values
 #'
@@ -53,7 +52,6 @@ lmp <- function (modelobject) {
     attributes(p) <- NULL
     return(p)
 }
-
 
 #' Gets a single snp range from the gtex snp database
 #' 
@@ -82,7 +80,7 @@ get.snp.range <- function(snp){
 #' @author Johann Hawe
 #' 
 get.chipseq.context <- function(cpgs){
-  load("data/current/cpgs_with_chipseq_context_100.RData")
+  load("data/cpgs_with_chipseq_context_100.RData")
   tfbs.ann <- tfbs.ann[rownames(tfbs.ann) %in% cpgs,,drop=F]
   
   return(tfbs.ann[cpgs,,drop=F])
@@ -97,13 +95,33 @@ get.chipseq.context <- function(cpgs){
 #'
 #' @author Johann Hawe
 #'
-graphNEL.from.result <- function(result, cutoff){
+graphNEL.from.result <- function(result, cutoff, ranges){
   library(BDgraph)
   library(graph)
   library(igraph)
+  
   g.adj <- BDgraph::select(result, cut = cutoff)
-  graph.bd <- as_graphnel(graph.adjacency(g.adj, mode="undirected", diag=F));
-  return(graph.bd)
+  g <- as_graphnel(graph.adjacency(g.adj, mode="undirected", diag=F));
+  gn <- nodes(g)
+  nodeDataDefaults(g,"cpg") <- F
+  nodeData(g, gn, "cpg") <- grepl("^cg", gn)
+  
+  nodeDataDefaults(g,"snp") <- F
+  nodeData(g, gn, "snp") <- grepl("^rs", gn)
+  
+  nodeDataDefaults(g,"snp.gene") <- F
+  nodeData(g, gn, "snp.gene") <- gn %in% ranges$snp.genes$SYMBOL
+  
+  nodeDataDefaults(g,"cpg.gene") <- F
+  nodeData(g, gn, "cpg.gene") <- gn %in% ranges$cpg.genes$SYMBOL
+  
+  nodeDataDefaults(g, "tf") <- F
+  nodeData(g, gn, "tf") <- gn %in% ranges$enriched.tfs$SYMBOL
+  
+  nodeDataDefaults(g, "sp.gene") <- F
+  nodeData(g, gn, "sp.gene") <- gn %in% ranges$shortestpath.genes$SYMBOL
+  
+  return(g)
 }
 
 #' Plot a GGM result graph
@@ -115,18 +133,15 @@ graphNEL.from.result <- function(result, cutoff){
 #' @param graph: Graph to be plotted (graphNEL)
 #'
 #' @param id The Id of the sentinel snp
-#' @param sentinel The list of sentinel associated ranges (we need snp.genes 
+#' @param ranges The list of sentinel associated ranges (we need snp.genes 
 #' and cpg.genes, enriched.tfs etc.)
-#' @param pdf.out File name for plot output
-#' @param dot.out File name for dot output
-#' @param plot.on.device Whether to plot on Rdevice, in case pdf.out=NULL
+#' @param dot.out File to which to write the graph in dot format
 #' 
 #' @return List of plot graph attributes and the underlying graph structure
 #' 
 #' @author Johann Hawe
 #'
-plot.ggm.graph <- function(graph, id, sentinel, pdf.out=NULL, dot.out=NULL, 
-                       plot.on.device=T){
+plot.ggm <- function(graph, id, ranges, dot.out=NULL){
   library(graph)
   library(Rgraphviz)
   library(GenomicRanges)
@@ -136,22 +151,23 @@ plot.ggm.graph <- function(graph, id, sentinel, pdf.out=NULL, dot.out=NULL,
   if(any(graph::degree(graph) == 0)){
     graph <- removeNode(names(which(graph::degree(graph) == 0)), graph)
   }
+  
   # add sentinel to network if its is not in there yet or it has been removed
   if(!(id %in% nodes(graph))) {
     graph <- graph::addNode(c(id), graph)
   }
   
   # get trans and cpg gene symbols
-  snp.genes <- unique(sentinel$snp.genes$SYMBOL)
-  cpg.genes <- unique(sentinel$cpg.genes$SYMBOL)
+  snp.genes <- unique(ranges$snp.genes$SYMBOL)
+  cpg.genes <- unique(ranges$cpg.genes$SYMBOL)
   tfs <- NULL
-  if("enriched.tfs" %in% names(sentinel)){
-    tfs <-unique(sentinel$enriched.tfs$SYMBOL)
+  if("enriched.tfs" %in% names(ranges)){
+    tfs <-unique(ranges$enriched.tfs$SYMBOL)
   }
   # prepare plot-layout
   attrs <- list(node=list(fixedsize=TRUE, fontsize=10, 
                           style="filled", fontname="helvetica"), 
-                graph=list(overlap="true", root=id, outputorder="edgesfirst"))
+                graph=list(overlap="false", root=id, outputorder="edgesfirst"))
 
   shape = rep("ellipse", numNodes(graph))
   names(shape) = nodes(graph)
@@ -208,35 +224,15 @@ plot.ggm.graph <- function(graph, id, sentinel, pdf.out=NULL, dot.out=NULL,
   names(dir) = edgeNames(graph)
 
   eAttrs = list(color=ecol, dir=dir)
-  
-  if(!is.null(pdf.out)) {
-    # direct plotting plots edges over nodes
-    pdf(file=pdf.out, width=15, height=15)
-  }
+ 
+  plot(graph, "twopi", nodeAttrs=nAttrs, edgeAttrs=eAttrs, attrs=attrs)
 
-  # TODO we are not grouping currently due to issues with the cytoscape dot-import app.
-  # This app currently does not support grouped graphs.
-
-  # build subgraphs to potential better cluster the nodes
-  #  sgSNPS <- subGraph(snodes = nodes(graph)[grepl("^rs", nodes(graph))],graph = graph)
-  #  sgCPGS <- subGraph(snodes = nodes(graph)[grepl("^cg", nodes(graph))],graph = graph)
-  #  sgs <- vector(mode="list", length=2)
-  #  sgs[[1]] <- list(graph=sgSNPS)
-  #  sgs[[2]] <- list(graph=sgCPGS)
-
-  #  plot(graph, "twopi", nodeAttrs=nAttrs, edgeAttrs=eAttrs, attrs=attrs,subGList=sgs)
-  if(plot.on.device | !is.null(pdf.out)) {
-    plot(graph, "twopi", nodeAttrs=nAttrs, edgeAttrs=eAttrs, attrs=attrs)
-  }
-
-  if(!is.null(pdf.out)) {
-    dev.off();
-  }
   if(!is.null(dot.out)){
     # output the dot-information
     #    toDot(graph, dot.out, nodeAttrs=nAttrs, edgeAttrs=eAttrs, attrs=attrs, subGList=sgs)
     toDot(graph, dot.out, nodeAttrs=nAttrs, edgeAttrs=eAttrs, attrs=attrs)
   }
+  
   # return the list of created plotattributes and the possibly modified graph 
   # object
   return(list(graph=graph, nodeAttrs=nAttrs, edgeAttrs=eAttrs, attrs=attrs))
@@ -280,6 +276,43 @@ load.string.db <- function() {
   assign("STRING.EDGES", STRING.EDGES, envir=.GlobalEnv);
 
   cat("Done.\n");
+}
+
+#' Gets ranges in one object close by a set of other ranges
+#'
+#' Gets the first ranges in subject, which are up-/down-stream and overlapping
+#' a range in the query
+#'
+#' @param query ranges for which to get nearby genes
+#' @param subject ranges in which to look for nearby genes
+#' @param idxs flag whether to return the indices of the hits in subject only. default: false
+#'
+#' @return Either the idx of the hits in the subject if idxs=T, or the identified ranges (idxs=F)
+#'
+get.nearby.ranges <- function(query, subject) {
+
+  nearby <- function(q,s){
+    # get preceding, following and ovberlapping instances of any range in query within subject ranges
+    pre <- precede(q, s, select="all")
+    fol <- follow(q, s, select="all")
+    ove <- findOverlaps(q, s, select="all")
+    # combine hits
+    h <- unique(c(subjectHits(pre), subjectHits(fol), subjectHits(ove)))
+
+    return(list(hits=h, ranges=s[h]))
+  }
+
+  #return a list, where each query gets its nearby ranges annotated with their distance
+  res <- lapply(query, function(q) {
+    n <- nearby(q, subject);
+    n$ranges$distance <- rep(-1, times=length(n$ranges));
+    for(i in 1:length(n$ranges)) {
+      d <- distance(q,n$ranges[i]);
+      n$ranges[i]$distance <- d;
+    }
+    return(n$ranges);
+  });
+  return(res);
 }
 
 #' Quantile normalization

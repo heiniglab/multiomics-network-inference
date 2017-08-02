@@ -47,13 +47,13 @@ g.start <- create.g.start(nodes,
                           em)
 
 # currently not implemented...
-# priors <- get.link.priors(ranges)
+priors <- get.link.priors(ranges)
 
 ggm.fit <- bdgraph(data.matrix, 
         method="gcgm", 
-        iter=100000, 
+        iter=50000, 
         burnin=20000,
-        save.all=T, g.start = g.start)
+        save.all=T, g.start = g.start, link.priors = priors)
 save(file="results/ggm.fit.100k.full.RData", ggm.fit, ranges, data.matrix)
 #traceplot(ggm.fit)
 #plotcoda(ggm.fit)

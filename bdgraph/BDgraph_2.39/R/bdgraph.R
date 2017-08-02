@@ -3,7 +3,8 @@
 ## ----------------------------------------------------------------------------|
 bdgraph = function( data, n = NULL, method = "ggm", algorithm = "bdmcmc", 
 					iter = 5000, burnin = iter / 2, g.start = "empty", g.space = NULL, 
-					prior.df = 3, multi.update = NULL, save.all = FALSE, print = 1000 )
+					prior.df = 3, multi.update = NULL, save.all = FALSE, print = 1000, 
+					link.priors = NULL )
 {
 	burnin    = floor( burnin )
 	
@@ -68,7 +69,12 @@ bdgraph = function( data, n = NULL, method = "ggm", algorithm = "bdmcmc",
 	Ds     = D + S
 	Ts     = chol( solve( Ds ) )
 	Ti     = chol( solve( D ) )   # only for double Metropolic-Hastings algorithms 
-
+  P      = link.priors
+  
+  if(is.null(P)){
+    stop("Prior is needed for calculations!\n")
+  }
+  
 	if( class( g.start ) == "bdgraph" ) 
 	{
 		G <- g.start $ last_graph
@@ -100,13 +106,16 @@ bdgraph = function( data, n = NULL, method = "ggm", algorithm = "bdmcmc",
 		K      = matrix ( result $ K, p, p ) 
 	}	
 
+	# seems like we can plug in any incidence matrix due to this part
 	if( is.matrix( g.start ) )
 	{
+	  cat("Using custom g.start.\n")
 		G       = g.start
 		diag(G) = 0
 		
 		K      = matrix( 0, p, p )
-		result = .C( "rgwish_c", as.integer(G), as.double(Ts), K = as.double(K), as.integer(b_star), as.integer(p), PACKAGE = "BDgraph" )
+		result = .C( "rgwish_c", as.integer(G), as.double(Ts), K = as.double(K), 
+		             as.integer(b_star), as.integer(p), PACKAGE = "BDgraph" )
 		K      = matrix ( result $ K, p, p ) 	
 	}
 			
@@ -133,8 +142,10 @@ bdgraph = function( data, n = NULL, method = "ggm", algorithm = "bdmcmc",
 	last_graph = K_hat
 	last_K     = K_hat
 
-	if( ( is.null( multi.update ) ) && ( p > 10 & iter > ( 5000 / p ) ) )
-		multi.update = floor( p / 10 )
+	# we do not want multiupdate for now, since we first have to check whether or not
+	# it destroys our assumptions for the priors
+	#if( ( is.null( multi.update ) ) && ( p > 10 & iter > ( 5000 / p ) ) )
+	#	multi.update = floor( p / 10 )
 	
 	if( is.null( multi.update ) ) multi.update = 1
 	multi_update = multi.update
@@ -143,7 +154,7 @@ bdgraph = function( data, n = NULL, method = "ggm", algorithm = "bdmcmc",
 	if( multi_update > min( p, sqrt( p * 11 ) ) ) cat( " WARNING: multi.update must be smaller " )
 	
 	mes <- paste( c( iter, " iteration is started.                    " ), collapse = "" )
-	cat( mes, "\r" )
+	cat( mes, "\n" )
 
 	if( is.null( g.space ) )
 	{
@@ -158,10 +169,12 @@ bdgraph = function( data, n = NULL, method = "ggm", algorithm = "bdmcmc",
 	{
 		if( ( method == "ggm" ) && ( algorithm == "bdmcmc" ) && ( multi_update == 1 ) )
 		{
+		  cat("Using custom BDgraph with priors.\n")
 			result = .C( "ggm_bdmcmc_map", as.integer(iter), as.integer(burnin), G = as.integer(G), as.integer(g_space), as.double(Ts), K = as.double(K), as.integer(p), 
 						all_graphs = as.integer(all_graphs), all_weights = as.double(all_weights), K_hat = as.double(K_hat), 
 						sample_graphs = as.character(sample_graphs), graph_weights = as.double(graph_weights), size_sample_g = as.integer(size_sample_g),
-						as.integer(b), as.integer(b_star), as.double(Ds), as.integer(print), PACKAGE = "BDgraph" )
+						as.integer(b), as.integer(b_star), as.double(Ds), as.integer(print),
+						as.double(P), PACKAGE = "BDgraph" )
 		}
 
 		if( ( method == "ggm" ) && ( algorithm == "bdmcmc" ) && ( multi_update != 1 ) )
@@ -183,11 +196,13 @@ bdgraph = function( data, n = NULL, method = "ggm", algorithm = "bdmcmc",
 		
 		if( ( method == "gcgm" ) && ( algorithm == "bdmcmc" ) && ( multi_update == 1 ) )
 		{
+		  cat("Using custom BDgraph with priors.\n")
 			result = .C( "gcgm_bdmcmc_map", as.integer(iter), as.integer(burnin), G = as.integer(G), as.integer(g_space), as.double(Ts), K = as.double(K), as.integer(p),
 						as.double(Z), as.integer(R), as.integer(n), as.integer(gcgm_NA),
 						all_graphs = as.integer(all_graphs), all_weights = as.double(all_weights), K_hat = as.double(K_hat), 
 						sample_graphs = as.character(sample_graphs), graph_weights = as.double(graph_weights), size_sample_g = as.integer(size_sample_g),
-						as.integer(b), as.integer(b_star), as.double(D), as.double(Ds), as.integer(print), PACKAGE = "BDgraph" )
+						as.integer(b), as.integer(b_star), as.double(D), as.double(Ds), as.integer(print), 
+						as.double(P), PACKAGE = "BDgraph" )
 		}
 
 		if( ( method == "gcgm" ) && ( algorithm == "bdmcmc" ) && ( multi_update != 1 ) )
@@ -267,9 +282,11 @@ bdgraph = function( data, n = NULL, method = "ggm", algorithm = "bdmcmc",
 		
 		if( ( method == "ggm" ) && ( algorithm == "bdmcmc" ) && ( multi_update == 1 )  )
 		{
+		  cat("Using custom BDgraph with priors.\n")
 			result = .C( "ggm_bdmcmc_ma", as.integer(iter), as.integer(burnin), G = as.integer(G), as.integer(g_space), as.double(Ts), K = as.double(K), as.integer(p), 
 						K_hat = as.double(K_hat), p_links = as.double(p_links),
-						as.integer(b), as.integer(b_star), as.double(Ds), as.integer(print), PACKAGE = "BDgraph" )
+						as.integer(b), as.integer(b_star), as.double(Ds), as.integer(print), 
+						as.double(P), PACKAGE = "BDgraph" )
 		}
 		
 		if( ( method == "ggm" ) && ( algorithm == "bdmcmc" ) && ( multi_update != 1 ) )
@@ -288,10 +305,12 @@ bdgraph = function( data, n = NULL, method = "ggm", algorithm = "bdmcmc",
 		
 		if( ( method == "gcgm" ) && ( algorithm == "bdmcmc" ) && ( multi_update == 1 )  )
 		{
+		  cat("Using custom BDgraph with priors.\n")
 			result = .C( "gcgm_bdmcmc_ma", as.integer(iter), as.integer(burnin), G = as.integer(G), as.integer(g_space), as.double(Ts), K = as.double(K), as.integer(p),
 						as.double(Z), as.integer(R), as.integer(n), as.integer(gcgm_NA),
 						K_hat = as.double(K_hat), p_links = as.double(p_links),
-						as.integer(b), as.integer(b_star), as.double(D), as.double(Ds), as.integer(print), PACKAGE = "BDgraph" )
+						as.integer(b), as.integer(b_star), as.double(D), as.double(Ds), as.integer(print), 
+						as.double(P), PACKAGE = "BDgraph" )
 		}
     
 		if( ( method == "gcgm" ) && ( algorithm == "bdmcmc" ) && ( multi_update != 1 ) )

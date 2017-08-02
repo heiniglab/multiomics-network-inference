@@ -32,7 +32,7 @@ extern "C" {
 // ----------------------------------------------------------------------------|
 void ggm_bdmcmc_ma( int *iter, int *burnin, int G[], int g_space[], double Ts[], double K[], int *p, 
 			 double K_hat[], double p_links[],
-			 int *b, int *b_star, double Ds[], int *print )
+			 int *b, int *b_star, double Ds[], int *print , double P[])
 {
 	int print_c = *print, iteration = *iter, burn_in = *burnin;
 	int index_selected_edge, selected_edge_i, selected_edge_j, selected_edge_ij;
@@ -96,7 +96,8 @@ void ggm_bdmcmc_ma( int *iter, int *burnin, int G[], int g_space[], double Ts[],
 		
 //----- STEP 1: calculating birth and death rates -----------------------------|		
 
-		rates_bdmcmc_parallel( &rates[0], G, &index_row[0], &index_col[0], &sub_qp, Ds, &Dsijj[0], &sigma[0], &K[0], b, &dim );
+		rates_bdmcmc_parallel( &rates[0], G, &index_row[0], &index_col[0], &sub_qp,
+                         Ds, &Dsijj[0], &sigma[0], &K[0], b, &dim , P);
 
 		// Selecting an edge based on birth and death rates
 		select_edge( &rates[0], &index_selected_edge, &sum_rates, &sub_qp );
@@ -157,7 +158,7 @@ void ggm_bdmcmc_ma( int *iter, int *burnin, int G[], int g_space[], double Ts[],
 void ggm_bdmcmc_map( int *iter, int *burnin, int G[], int g_space[], double Ts[], double K[], int *p, 
 			 int all_graphs[], double all_weights[], double K_hat[], 
 			 char *sample_graphs[], double graph_weights[], int *size_sample_g,
-			 int *b, int *b_star, double Ds[], int *print )
+			 int *b, int *b_star, double Ds[], int *print , double P[])
 {
 	int print_c = *print, iteration = *iter, burn_in = *burnin, count_all_g = 0;
 	int index_selected_edge, selected_edge_i, selected_edge_j, selected_edge_ij, size_sample_graph = *size_sample_g;
@@ -228,7 +229,8 @@ void ggm_bdmcmc_map( int *iter, int *burnin, int G[], int g_space[], double Ts[]
 		
 //----- STEP 1: calculating birth and death rates -----------------------------|		
 
-		rates_bdmcmc_parallel( &rates[0], G, &index_row[0], &index_col[0], &sub_qp, Ds, &Dsijj[0], &sigma[0], &K[0], b, &dim );
+		rates_bdmcmc_parallel( &rates[0], G, &index_row[0], &index_col[0], &sub_qp,
+                         Ds, &Dsijj[0], &sigma[0], &K[0], b, &dim, P );
 		
 		// Selecting an edge based on birth and death rates
 		select_edge( &rates[0], &index_selected_edge, &sum_rates, &sub_qp );
@@ -317,7 +319,7 @@ void ggm_bdmcmc_map( int *iter, int *burnin, int G[], int g_space[], double Ts[]
 // ----------------------------------------------------------------------------|
 void ggm_bdmcmc_ma_multi_update( int *iter, int *burnin, int G[], int g_space[], double Ts[], double K[], int *p, 
 			 double K_hat[], double p_links[],
-			 int *b, int *b_star, double Ds[], int *multi_update, int *print )
+			 int *b, int *b_star, double Ds[], int *multi_update, int *print , double P[])
 {
 	int print_c = *print, iteration = *iter, burn_in = *burnin, multi_update_C = *multi_update;
 	int selected_edge_i, selected_edge_j, selected_edge_ij;
@@ -387,7 +389,8 @@ void ggm_bdmcmc_ma_multi_update( int *iter, int *burnin, int G[], int g_space[],
 		
 //----- STEP 1: calculating birth and death rates -----------------------------|		
 
-		rates_bdmcmc_parallel( &rates[0], G, &index_row[0], &index_col[0], &sub_qp, Ds, &Dsijj[0], &sigma[0], &K[0], b, &dim );
+		rates_bdmcmc_parallel( &rates[0], G, &index_row[0], &index_col[0], &sub_qp,
+                         Ds, &Dsijj[0], &sigma[0], &K[0], b, &dim , P);
 
 		// Selecting multiple edges based on birth and death rates
 		select_multi_edges( &rates[0], &index_selected_edges[0], &size_index, &sum_rates, &multi_update_C, &sub_qp );
@@ -452,7 +455,7 @@ void ggm_bdmcmc_ma_multi_update( int *iter, int *burnin, int G[], int g_space[],
 void ggm_bdmcmc_map_multi_update( int *iter, int *burnin, int G[], int g_space[], double Ts[], double K[], int *p, 
 			 int all_graphs[], double all_weights[], double K_hat[], 
 			 char *sample_graphs[], double graph_weights[], int *size_sample_g, int *counter_all_g,
-			 int *b, int *b_star, double Ds[], int *multi_update, int *print )
+			 int *b, int *b_star, double Ds[], int *multi_update, int *print, double P[] )
 {
 	int print_c = *print, multi_update_C = *multi_update, iteration = *iter, burn_in = *burnin;
 	int count_all_g = *counter_all_g, selected_edge_i, selected_edge_j, selected_edge_ij, size_sample_graph = *size_sample_g;
@@ -525,7 +528,8 @@ void ggm_bdmcmc_map_multi_update( int *iter, int *burnin, int G[], int g_space[]
 		
 //----- STEP 1: calculating birth and death rates -----------------------------|		
 
-		rates_bdmcmc_parallel( &rates[0], G, &index_row[0], &index_col[0], &sub_qp, Ds, &Dsijj[0], &sigma[0], &K[0], b, &dim );
+		rates_bdmcmc_parallel( &rates[0], G, &index_row[0], &index_col[0], &sub_qp, 
+                         Ds, &Dsijj[0], &sigma[0], &K[0], b, &dim , P );
 				
 		// Selecting multiple edges based on birth and death rates
 		select_multi_edges( &rates[0], &index_selected_edges[0], &size_index, &sum_rates, &multi_update_C, &sub_qp );

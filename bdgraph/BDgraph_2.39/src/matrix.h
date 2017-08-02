@@ -52,7 +52,7 @@ extern "C" {
 	void select_multi_edges( double rates[], int index_selected_edges[], int *size_index, double *sum_rates, int *multi_update, int *qp );
 
 	void rates_bdmcmc_parallel( double rates[], int G[], int index_row[], int index_col[], int *sub_qp, double Ds[], double Dsijj[],
-					            double sigma[], double K[], int *b, int *p );
+					            double sigma[], double K[], int *b, int *p , double P[]);
 
 	void rates_cbdmcmc_parallel( double rates[], int G[], int index_row[], int index_col[], int *sub_qp, double r_Ds[], double i_Ds[],
 				            double r_sigma[], double i_sigma[], double r_K[], double i_K[], int *b, int *p );

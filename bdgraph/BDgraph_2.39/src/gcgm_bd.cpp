@@ -31,7 +31,7 @@ extern "C" {
 void gcgm_bdmcmc_ma( int *iter, int *burnin, int G[], int g_space[], double Ts[], double K[], int *p, 
 			 double Z[], int R[], int *n, int *gcgm,
 			 double K_hat[], double p_links[],
-			 int *b, int *b_star, double D[], double Ds[], int *print )
+			 int *b, int *b_star, double D[], double Ds[], int *print, double P[])
 {
 	int print_c = *print, iteration = *iter, burn_in = *burnin;
 	int index_selected_edge, selected_edge_i, selected_edge_j, selected_edge_ij;
@@ -105,10 +105,11 @@ void gcgm_bdmcmc_ma( int *iter, int *burnin, int G[], int g_space[], double Ts[]
 				
 //----- STEP 2: calculating birth and death rates -----------------------------|		
 
-		rates_bdmcmc_parallel( &rates[0], G, &index_row[0], &index_col[0], &sub_qp, Ds, &Dsijj[0], &sigma[0], &K[0], b, &dim );
+		rates_bdmcmc_parallel( &rates[0], G, &index_row[0], &index_col[0], &sub_qp, 
+                         Ds, &Dsijj[0], &sigma[0], &K[0], b, &dim, P);
 
 		// Selecting an edge based on birth and death rates
-		select_edge( &rates[0], &index_selected_edge, &sum_rates, &sub_qp );
+		select_edge( &rates[0], &index_selected_edge, &sum_rates, &sub_qp);
 		selected_edge_i = index_row[ index_selected_edge ];
 		selected_edge_j = index_col[ index_selected_edge ];
 
@@ -120,7 +121,7 @@ void gcgm_bdmcmc_ma( int *iter, int *burnin, int G[], int g_space[], double Ts[]
 			// K_hat_Cpp[i] += K[i] / sum_rates;
 			F77_NAME(daxpy)( &pxp, &weight_C, &K[0], &one, &K_hat_Cpp[0], &one );
 			
-			#pragma omp parallel for
+			#pragma omp parallel for 
 			for( i = 0; i < pxp ; i++ )
 				if( G[i] ) p_links_Cpp[i] += weight_C;
 			
@@ -145,12 +146,13 @@ void gcgm_bdmcmc_ma( int *iter, int *burnin, int G[], int g_space[], double Ts[]
 		}
 
 //------ STEP 3: Sampling from G-Wishart for new graph ------------------------|
-		rgwish_sigma( G, &size_node[0], Ts, K, &sigma[0], b_star, &dim, &sigma_start[0], &inv_C[0], &beta_star[0], &sigma_i[0], sigma_start_N_i, sigma_N_i, N_i );		
+		rgwish_sigma( G, &size_node[0], Ts, K, &sigma[0], b_star, &dim, &sigma_start[0], 
+                &inv_C[0], &beta_star[0], &sigma_i[0], sigma_start_N_i, sigma_N_i, N_i );		
 	}  
 	PutRNGstate();
 //-- End of main loop for birth-death MCMC ------------------------------------| 
 
-	#pragma omp parallel for
+	#pragma omp parallel for 
 	for( i = 0; i < pxp; i++ )
 	{	
 		p_links[i] = p_links_Cpp[i] / sum_weights;
@@ -167,9 +169,10 @@ void gcgm_bdmcmc_map( int *iter, int *burnin, int G[], int g_space[], double Ts[
 			 double Z[], int R[], int *n, int *gcgm,
 			 int all_graphs[], double all_weights[], double K_hat[], 
 			 char *sample_graphs[], double graph_weights[], int *size_sample_g,
-			 int *b, int *b_star, double D[], double Ds[], int *print )
+			 int *b, int *b_star, double D[], double Ds[], int *print, double P[])
 {
 	int print_c = *print, iteration = *iter, burn_in = *burnin, count_all_g = 0;
+  
 	int index_selected_edge, selected_edge_i, selected_edge_j, selected_edge_ij, size_sample_graph = *size_sample_g;
 	int counter = 0, ip, i, j, ij, one = 1, dim = *p, pxp = dim * dim;
 	bool this_one;
@@ -243,10 +246,11 @@ void gcgm_bdmcmc_map( int *iter, int *burnin, int G[], int g_space[], double Ts[
 		
 //----- STEP 2: calculating birth and death rates -----------------------------|		
 
-		rates_bdmcmc_parallel( &rates[0], G, &index_row[0], &index_col[0], &sub_qp, Ds, &Dsijj[0], &sigma[0], &K[0], b, &dim );
+		rates_bdmcmc_parallel( &rates[0], G, &index_row[0], &index_col[0], &sub_qp, 
+                         Ds, &Dsijj[0], &sigma[0], &K[0], b, &dim, P);
 
 		// Selecting an edge based on birth and death rates
-		select_edge( &rates[0], &index_selected_edge, &sum_rates, &sub_qp );
+		select_edge( &rates[0], &index_selected_edge, &sum_rates, &sub_qp);
 		selected_edge_i = index_row[ index_selected_edge ];
 		selected_edge_j = index_col[ index_selected_edge ];
 
@@ -306,12 +310,13 @@ void gcgm_bdmcmc_map( int *iter, int *burnin, int G[], int g_space[], double Ts[
 		}
 
 //------ STEP 3: Sampling from G-Wishart for new graph ------------------------|
-		rgwish_sigma( G, &size_node[0], Ts, K, &sigma[0], b_star, &dim, &sigma_start[0], &inv_C[0], &beta_star[0], &sigma_i[0], sigma_start_N_i, sigma_N_i, N_i );		
+		rgwish_sigma( G, &size_node[0], Ts, K, &sigma[0], b_star, &dim, &sigma_start[0], 
+                &inv_C[0], &beta_star[0], &sigma_i[0], sigma_start_N_i, sigma_N_i, N_i );		
 	}  
 	PutRNGstate();
 //-- End of main loop for birth-death MCMC ------------------------------------| 
 
-	#pragma omp parallel for
+	#pragma omp parallel for 
 	for( i = 0; i < ( iteration - burn_in ); i++ ) 
 	{
 		sample_graphs_C[i].copy( sample_graphs[i], qp, 0 );
@@ -320,7 +325,7 @@ void gcgm_bdmcmc_map( int *iter, int *burnin, int G[], int g_space[], double Ts[
 	
 	*size_sample_g = size_sample_graph;
 
-	#pragma omp parallel for
+	#pragma omp parallel for 
 	for( i = 0; i < pxp; i++ ) 
 		K_hat[i] /= sum_weights;
 }
@@ -333,7 +338,7 @@ void gcgm_bdmcmc_map( int *iter, int *burnin, int G[], int g_space[], double Ts[
 void gcgm_bdmcmc_ma_multi_update( int *iter, int *burnin, int G[], int g_space[], double Ts[], double K[], int *p, 
 			 double Z[], int R[], int *n, int *gcgm,
 			 double K_hat[], double p_links[],
-			 int *b, int *b_star, double D[], double Ds[], int *multi_update, int *print )
+			 int *b, int *b_star, double D[], double Ds[], int *multi_update, int *print , double P[])
 {
 	int print_c = *print, iteration = *iter, burn_in = *burnin, multi_update_C = *multi_update;
 	int selected_edge_i, selected_edge_j, selected_edge_ij;
@@ -409,8 +414,8 @@ void gcgm_bdmcmc_ma_multi_update( int *iter, int *burnin, int G[], int g_space[]
 			}
 				
 //----- STEP 2: calculating birth and death rates -----------------------------|		
-
-		rates_bdmcmc_parallel( &rates[0], G, &index_row[0], &index_col[0], &sub_qp, Ds, &Dsijj[0], &sigma[0], &K[0], b, &dim );
+		rates_bdmcmc_parallel( &rates[0], G, &index_row[0], &index_col[0], &sub_qp, Ds, 
+                         &Dsijj[0], &sigma[0], &K[0], b, &dim , P);
 
 		// Selecting multiple edges based on birth and death rates
 		select_multi_edges( &rates[0], &index_selected_edges[0], &size_index, &sum_rates, &multi_update_C, &sub_qp );
@@ -454,7 +459,8 @@ void gcgm_bdmcmc_ma_multi_update( int *iter, int *burnin, int G[], int g_space[]
 		}
 		
 //------ STEP 3: Sampling from G-Wishart for new graph ------------------------|
-		rgwish_sigma( G, &size_node[0], Ts, K, &sigma[0], b_star, &dim, &sigma_start[0], &inv_C[0], &beta_star[0], &sigma_i[0], sigma_start_N_i, sigma_N_i, N_i );		
+		rgwish_sigma( G, &size_node[0], Ts, K, &sigma[0], b_star, &dim, &sigma_start[0], 
+                &inv_C[0], &beta_star[0], &sigma_i[0], sigma_start_N_i, sigma_N_i, N_i);		
 	}  
 	PutRNGstate();
 //-- End of main loop for birth-death MCMC ------------------------------------| 
@@ -476,7 +482,7 @@ void gcgm_bdmcmc_map_multi_update( int *iter, int *burnin, int G[], int g_space[
 			 double Z[], int R[], int *n, int *gcgm,
 			 int all_graphs[], double all_weights[], double K_hat[], 
 			 char *sample_graphs[], double graph_weights[], int *size_sample_g, int *counter_all_g,
-			 int *b, int *b_star, double D[], double Ds[], int *multi_update, int *print )
+			 int *b, int *b_star, double D[], double Ds[], int *multi_update, int *print, double P[] )
 {
 	int print_c = *print, multi_update_C = *multi_update, iteration = *iter, burn_in = *burnin;
 	int count_all_g = *counter_all_g;
@@ -557,7 +563,8 @@ void gcgm_bdmcmc_map_multi_update( int *iter, int *burnin, int G[], int g_space[
 				
 //----- STEP 2: calculating birth and death rates -----------------------------|		
 
-		rates_bdmcmc_parallel( &rates[0], G, &index_row[0], &index_col[0], &sub_qp, Ds, &Dsijj[0], &sigma[0], &K[0], b, &dim );
+		rates_bdmcmc_parallel( &rates[0], G, &index_row[0], &index_col[0], &sub_qp, Ds, 
+                         &Dsijj[0], &sigma[0], &K[0], b, &dim , P);
 
 		// Selecting multiple edges based on birth and death rates
 		select_multi_edges( &rates[0], &index_selected_edges[0], &size_index, &sum_rates, &multi_update_C, &sub_qp );
@@ -624,7 +631,8 @@ void gcgm_bdmcmc_map_multi_update( int *iter, int *burnin, int G[], int g_space[
 		}
 
 //------ STEP 3: Sampling from G-Wishart for new graph ------------------------|
-		rgwish_sigma( G, &size_node[0], Ts, K, &sigma[0], b_star, &dim, &sigma_start[0], &inv_C[0], &beta_star[0], &sigma_i[0], sigma_start_N_i, sigma_N_i, N_i );		
+		rgwish_sigma( G, &size_node[0], Ts, K, &sigma[0], b_star, &dim, &sigma_start[0], 
+                &inv_C[0], &beta_star[0], &sigma_i[0], sigma_start_N_i, sigma_N_i, N_i);		
 	}  
 	PutRNGstate();
 //-- End of main loop for birth-death MCMC ------------------------------------| 

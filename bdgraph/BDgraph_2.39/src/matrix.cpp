@@ -427,7 +427,7 @@ void select_multi_edges( double rates[], int index_selected_edges[], int *size_i
 // Parallel Computation for birth-death rates for BD-MCMC algorithm
 // ----------------------------------------------------------------------------|
 void rates_bdmcmc_parallel( double rates[], int G[], int index_row[], int index_col[], int *sub_qp, double Ds[], double Dsijj[],
-				            double sigma[], double K[], int *b, int *p )
+				            double sigma[], double K[], int *b, int *p, double P[])
 {
 	int b1 = *b, one = 1, two = 2, dim = *p, p1 = dim - 1, p2 = dim - 2, dim1 = dim + 1, p2x2 = ( dim - 2 ) * 2;
 	double alpha = 1.0, beta = 0.0, alpha1 = -1.0, beta1 = 1.0;
@@ -460,6 +460,7 @@ void rates_bdmcmc_parallel( double rates[], int G[], int index_row[], int index_
 			jj = j * dim1;
 			
 			Dsjj = Ds[jj];
+			double Pij = P[ij];
 			
 			sub_matrices1( &sigma[0], &sigmaj12[0], &sigmaj22[0], &j, &dim );
 
@@ -507,8 +508,8 @@ void rates_bdmcmc_parallel( double rates[], int G[], int index_row[], int index_
 			nu_star = 0.5 * nu_star;
 
 			log_rate = ( G[ij] )   
-				? 0.5 * log( 2.0 * Dsjj / a11 ) + lgammafn( nu_star + 0.5 ) - lgammafn( nu_star ) - 0.5 * ( Dsijj[ij] * a11 + sum_diag )
-				: 0.5 * log( 0.5 * a11 / Dsjj ) - lgammafn( nu_star + 0.5 ) + lgammafn( nu_star ) + 0.5 * ( Dsijj[ij] * a11 + sum_diag );
+		/* death rate */		? 0.5 * log( 2.0 * Dsjj / a11 ) + log(1/Pij) + lgammafn( nu_star + 0.5 ) - lgammafn( nu_star ) - 0.5 * ( Dsijj[ij] * a11 + sum_diag )
+		/* birth rate */		: 0.5 * log( 0.5 * a11 / Dsjj ) + log(Pij) - lgammafn( nu_star + 0.5 ) + lgammafn( nu_star ) + 0.5 * ( Dsijj[ij] * a11 + sum_diag );
 
 			rates[ counter ] = ( log_rate < 0.0 ) ? exp( log_rate ) : 1.0;
 		}

@@ -67,7 +67,7 @@ counts <- list(e1=c(x1x2=x1x2,x1x3=x1x3,x1x4=x1x4,x2x3=x2x3,x2x4=x2x4,x3x4=x3x4)
 # number of nodes
 p <- 4
 # number of samples
-n <- 500
+n <- 400
 # covariance between samples to be used
 covs <- c(0.1,0.3,0.6)
 
@@ -92,7 +92,6 @@ for(co in covs){
     priors[2,3] <- priors[3,2] <- 0.9
     priors[3,4] <- priors[4,3] <- 0.5
   
-  
     bdtest <- bdgraph(dat, iter=bd.iter, method="gcgm", print=floor(bd.iter/2),
                       save.all=T, link.priors=priors)
   
@@ -102,8 +101,8 @@ for(co in covs){
     graph1 <- as_graphnel(graph.adjacency(g.adj1, mode="undirected", diag=F));
     graph2 <- as_graphnel(graph.adjacency(g.adj2, mode="undirected", diag=F));
   
-    e1 <- edges(graph1)
-    e2 <- edges(graph2)
+    e1 <- graph::edges(graph1)
+    e2 <- graph::edges(graph2)
     update.counts("e1",e1)
     update.counts("e2",e2)
   

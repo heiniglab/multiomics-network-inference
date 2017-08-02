@@ -121,6 +121,39 @@ graphNEL.from.result <- function(result, cutoff, ranges){
   nodeDataDefaults(g, "sp.gene") <- F
   nodeData(g, gn, "sp.gene") <- gn %in% ranges$shortestpath.genes$SYMBOL
   
+  # edge data information
+  edgeDataDefaults(g, "isChipSeq") <- FALSE
+  edgeDataDefaults(g, "isPPI") <- FALSE 
+  
+  # we will also set tf2cpg priors at this point, so get all TFs
+  tfs <- ranges$enriched.tfs$SYMBOL
+  # also get the chipseq context for our cpgs
+  context <- get.chipseq.context(names(ranges$cpgs))
+  
+  em <- matrix(ncol=2,nrow=0)
+  # for all cpgs
+  for(c in rownames(context)){
+    for(tf in tfs) {
+      # might be that the TF was measured in more than one cell line
+      if(any(context[c,grepl(tf, colnames(context))])) {
+       em <- rbind(em,c(c,tf))
+      }
+    }
+  }
+  em <- filter.edge.matrix(g,em)
+  if(nrow(em) > 0){
+    edgeData(g,em[,1], em[,2],"isChipSeq") <- T
+  }
+  # ppi edgedata
+  load.string.db()
+   # get subset of edges which are in our current graph
+  STRING.SUB <- subGraph(intersect(STRING.NODES, gn), STRING.DB)
+  edges <- t(edgeMatrix(STRING.SUB))
+  edges <- cbind(gn[edges[,1]], gn[edges[,2]])
+  edges <- filter.edge.matrix(g,edges)
+  if(nrow(edges) > 0){
+    edgeData(g,edges[,1], edges[,2],"isPPI") <- T
+  }
   return(g)
 }
 
@@ -141,101 +174,141 @@ graphNEL.from.result <- function(result, cutoff, ranges){
 #' 
 #' @author Johann Hawe
 #'
-plot.ggm <- function(graph, id, ranges, dot.out=NULL){
+plot.ggm <- function(g, id, dot.out=NULL){
   library(graph)
   library(Rgraphviz)
   library(GenomicRanges)
   
   # remove any unconnected nodes (primarily for bdgraph result, since
   # such nodes are already removed for genenet)
-  if(any(graph::degree(graph) == 0)){
-    graph <- removeNode(names(which(graph::degree(graph) == 0)), graph)
+  if(any(graph::degree(g) == 0)){
+    g <- removeNode(names(which(graph::degree(g) == 0)), g)
   }
   
   # add sentinel to network if its is not in there yet or it has been removed
-  if(!(id %in% nodes(graph))) {
-    graph <- graph::addNode(c(id), graph)
+  if(!(id %in% nodes(g))) {
+    g <- graph::addNode(c(id), g)
   }
   
+  n <- nodes(g)
+  
   # get trans and cpg gene symbols
-  snp.genes <- unique(ranges$snp.genes$SYMBOL)
-  cpg.genes <- unique(ranges$cpg.genes$SYMBOL)
-  tfs <- NULL
-  if("enriched.tfs" %in% names(ranges)){
-    tfs <-unique(ranges$enriched.tfs$SYMBOL)
-  }
+  snp.genes <- n[unlist(nodeData(g,n,"snp.gene"))]
+  cpg.genes <- n[unlist(nodeData(g,n,"cpg.gene"))]
+  tfs <- n[unlist(nodeData(g,n,"tf"))]
+  
   # prepare plot-layout
-  attrs <- list(node=list(fixedsize=TRUE, fontsize=10, 
+  attrs <- list(node=list(fixedsize=TRUE, fontsize=14, 
                           style="filled", fontname="helvetica"), 
                 graph=list(overlap="false", root=id, outputorder="edgesfirst"))
 
-  shape = rep("ellipse", numNodes(graph))
-  names(shape) = nodes(graph)
-  shape[grep("^cg", nodes(graph))] = "box"
-  shape[grep("^rs", nodes(graph))] = "box"
+  shape = rep("ellipse", numNodes(g))
+  names(shape) = n
+  shape[grep("^cg", n)] = "box"
+  shape[grep("^rs", n)] = "box"
 
-  width = rep(0.8, numNodes(graph))
-  names(width) = nodes(graph)
-  width[grep("cg", nodes(graph))] = 0.4
+  width = rep(0.8, numNodes(g))
+  names(width) = n
+  width[grep("cg", n)] = 0.4
 
-  height = rep(0.8, numNodes(graph))
-  names(height) = nodes(graph)
-  height[grep("cg", nodes(graph))] = 0.4
+  height = rep(0.3, numNodes(g))
+  names(height) = n
+  height[grep("cg", n)] = 0.4
 
-  label = nodes(graph)
-  names(label) = nodes(graph)
-  label[grep("cg", nodes(graph))] = ""
+  label = n
+  names(label) = n
+  label[grep("cg", n)] = ""
 
-  col = rep("#ffffff", numNodes(graph))
-  names(col) = nodes(graph)
-  col[grep("^rs", nodes(graph))] = "#ff0000";
-  col[grep("^cg", nodes(graph))] = "#00ff00";
+  col = rep("#ffffff", numNodes(g))
+  names(col) = n
+  col[grep("^rs", n)] = "#fab4ad";
+  col[grep("^cg", n)] = "#e4d7bc";
   if(!is.null(tfs)){
     col[tfs] = "green"
   }
   
-  penwidth = rep(1, numNodes(graph))
-  names(penwidth) = nodes(graph)
+  penwidth = rep(1, numNodes(g))
+  names(penwidth) = n
   penwidth[snp.genes] = 3
   penwidth[cpg.genes] = 3
   if(!is.null(tfs)){
     penwidth[tfs] = 3  
   }
  
-  bordercol = rep("black", numNodes(graph));
-  names(bordercol) = nodes(graph);
-  bordercol[snp.genes] = "red";
-  bordercol[cpg.genes] = "green";
- 
-  bordercol[id] = "red";
+  bordercol = rep("black", numNodes(g));
+  names(bordercol) = n;
+  bordercol[cpg.genes] = "#e4d7bc";
+  bordercol[id] = "#fab4ad";
 
   nAttrs = list(shape=shape, label=label, width=width, 
                 height=height, penwidth=penwidth, fillcolor=col, 
                 color=bordercol)
 
-  ecol = rep("black", numEdges(graph))
-  names(ecol) = edgeNames(graph)
+  # default color for edges: black
+  ecol = rep("black", numEdges(g))
+  names(ecol) = edgeNames(g)
   for(i in snp.genes) {
     # color any edge from a SNP to one of our snp genes red
-    ecol[grepl("^rs|~rs", names(ecol)) & grepl(i, names(ecol))] = "red"
+    ecol[grepl("^rs|~rs", names(ecol)) & grepl(i, names(ecol))] = "#b3cde2"
   }
 
-  dir = rep("none", numEdges(graph))
-  names(dir) = edgeNames(graph)
+  # set also color for cpgs
+  for(cg in cpg.genes){
+    # color any edge from a cpg to one of its cpg genes blue (proximity edges)
+    ecol[grepl("^cg|~cg", names(ecol)) & grepl(cg, names(ecol))] = "#b3cde2"
+  }
+
+  # check edgeData and add to colors
+  for(edge in names(ecol)){
+    n1 <- strsplit(edge,"~")[[1]][1]
+    n2 <- strsplit(edge,"~")[[1]][2]
+
+    if(unlist(graph::edgeData(g,n1,n2, "isPPI"))){
+      ecol[edge] <- "#decae3"
+    }
+    if(unlist(graph::edgeData(g,n1,n2, "isChipSeq"))){
+      ecol[edge] <- "#ccebc5"
+    }
+  }
+  
+  dir = rep("none", numEdges(g))
+  names(dir) = edgeNames(g)
 
   eAttrs = list(color=ecol, dir=dir)
  
-  plot(graph, "twopi", nodeAttrs=nAttrs, edgeAttrs=eAttrs, attrs=attrs)
+  plot(g, "twopi", nodeAttrs=nAttrs, edgeAttrs=eAttrs, attrs=attrs)
 
   if(!is.null(dot.out)){
     # output the dot-information
     #    toDot(graph, dot.out, nodeAttrs=nAttrs, edgeAttrs=eAttrs, attrs=attrs, subGList=sgs)
-    toDot(graph, dot.out, nodeAttrs=nAttrs, edgeAttrs=eAttrs, attrs=attrs)
+    toDot(g, dot.out, nodeAttrs=nAttrs, edgeAttrs=eAttrs, attrs=attrs)
   }
   
   # return the list of created plotattributes and the possibly modified graph 
   # object
-  return(list(graph=graph, nodeAttrs=nAttrs, edgeAttrs=eAttrs, attrs=attrs))
+  return(list(graph=g, nodeAttrs=nAttrs, edgeAttrs=eAttrs, attrs=attrs))
+}
+
+#' Method to quickly filter an edge matrix for only those edges, which are within
+#' a specified graph
+#' 
+#' @author Johann Hawe
+#' 
+#' @date 2017/03/13
+#' 
+filter.edge.matrix <- function(g, em){
+  e <- graph::edges(g)
+  out <- matrix(ncol=2,nrow=0)
+  for(i in 1:nrow(em)){
+    e1 <- em[i,1]
+    e2 <- em[i,2]
+    if(e1 %in% names(e)){
+      if(e2 %in% e[[e1]]){
+        out <- rbind(out,c(e1,e2))
+      }
+    }
+  }
+  return(out)
 }
 
 #' Get  STRING interactions (only experimental and db supported)
@@ -633,3 +706,151 @@ get.residuals <- function(data, cov) {
   return(residual.mat)
 }
 
+#' Here we define our own summary function for bdgraphs in order
+#' to be able to avoid the graph plotting for large graphs (i.e. we
+#' just add a flag for the original method  on whether or not to plot the graph...)
+#'
+#' @param object The ggm fit which to plot the summary for
+#' @param vis Flag whether to visualize results
+#' @param plot.graph Flag whether to plot the igraph or not (default:F) in case
+#' vis = TRUE
+#'
+#' @author Johann Hawe
+#'
+summary.bdgraph <-function (object, plot.graph=F, vis = TRUE, ...) 
+{
+    p_links = object$p_links
+    p = nrow(object$last_graph)
+    dimlab = colnames(object$last_graph)
+    selected_g = matrix(0, p, p, dimnames = list(dimlab, dimlab))
+    if (!is.null(object$graph_weights)) {
+        sample_graphs = object$sample_graphs
+        graph_weights = object$graph_weights
+        max_gWeights = max(graph_weights)
+        sum_gWeights = sum(graph_weights)
+        max_prob_G = max_gWeights/sum_gWeights
+        if (is.null(dimlab)) 
+            dimlab <- as.character(1:p)
+        vec_G <- c(rep(0, p * (p - 1)/2))
+        indG_max <- sample_graphs[which(graph_weights == max_gWeights)]
+        vec_G[which(unlist(strsplit(as.character(indG_max), "")) == 
+            1)] = 1
+        selected_g[upper.tri(selected_g)] <- vec_G
+    }
+    else {
+        selected_g[p_links > 0.5] = 1
+        selected_g[p_links <= 0.5] = 0
+    }
+    if (vis) {
+        G <- graph.adjacency(selected_g, mode = "undirected", 
+            diag = FALSE)
+        if (!is.null(object$graph_weights)) {
+            op = par(mfrow = c(2, 2), pty = "s", omi = c(0.3, 
+                0.3, 0.3, 0.3), mai = c(0.3, 0.3, 0.3, 0.3))
+            subGraph = paste(c("Posterior probability = ", max_prob_G), 
+                collapse = "")
+        }
+        else {
+            subGraph = "Selected graph with edge posterior probability = 0.5"
+        }
+        if (p < 20) 
+            size = 15
+        else size = 2
+        if(plot.graph) {
+          plot.igraph(G, layout = layout.circle, main = "Selected graph", 
+              sub = subGraph, vertex.color = "white", vertex.size = size, 
+              vertex.label.color = "black")
+        }
+        if (!is.null(object$graph_weights)) {
+            plot(x = 1:length(graph_weights), y = graph_weights/sum_gWeights, 
+                type = "h", main = "Posterior probability of graphs", 
+                ylab = "Pr(graph|data)", xlab = "graph")
+            abline(h = max_prob_G, col = "red")
+            text(which(max_gWeights == graph_weights)[1], max_prob_G, 
+                "Pr(selected graph|data)", col = "gray60", adj = c(0, 
+                  +1))
+            sizesample_graphs = sapply(sample_graphs, function(x) length(which(unlist(strsplit(as.character(x), 
+                "")) == 1)))
+            xx <- unique(sizesample_graphs)
+            weightsg <- vector()
+            for (i in 1:length(xx)) weightsg[i] <- sum(graph_weights[which(sizesample_graphs == 
+                xx[i])])
+            plot(x = xx, y = weightsg/sum_gWeights, type = "h", 
+                main = "Posterior probability of graphs size", 
+                ylab = "Pr(graph size|data)", xlab = "Graph size")
+            all_graphs = object$all_graphs
+            sizeall_graphs = sizesample_graphs[all_graphs]
+            plot(x = 1:length(all_graphs), sizeall_graphs, type = "l", 
+                main = "Trace of graph size", ylab = "Graph size", 
+                xlab = "Iteration")
+            abline(h = sum(selected_g), col = "red")
+            par(op)
+        }
+    }
+    if (!is.null(object$graph_weights)) {
+        pvec <- 0 * vec_G
+        for (i in 1:length(sample_graphs)) {
+            which_edge <- which(unlist(strsplit(as.character(sample_graphs[i]), 
+                "")) == 1)
+            pvec[which_edge] <- pvec[which_edge] + graph_weights[i]
+        }
+        p_links <- 0 * selected_g
+        p_links[upper.tri(p_links)] <- pvec/sum_gWeights
+    }
+    K_hat = object$K_hat
+    if (is.null(K_hat)) 
+        return(list(selected_g = Matrix(selected_g, sparse = TRUE), 
+            p_links = Matrix(p_links, sparse = TRUE)))
+    else return(list(selected_g = Matrix(selected_g, sparse = TRUE), 
+        p_links = Matrix(p_links, sparse = TRUE), K_hat = K_hat))
+}
+
+#' Creates the graph at which to start the BDgraph algorithm at
+#' 
+#' Since it is an MCMC algorithm, starting with this graph will make it more
+#' likely to start not too far off of the target distribution/graph.
+#' The creation of the start graph is based on the STRING database. 
+#' Additionally, predefined edges will be added to the graph.
+#'
+#' @param nodes All nodes to be incorporated in the graph
+#' @param genes The genes which are to be used in the graph. Subset of 'nodes'
+#' @param edgeMatrix nx2 dimensional edge-matrix which contains nodes in each row
+#' which should be connected in the output graph (optional)
+#' 
+#' @return An incidence matrix of size length(nodes)^2 where 1s indicated edges
+#' and 0s indicated absence of edges
+#' 
+#' @author Johann Hawe
+#'
+create.g.start <- function(nodes, genes, edgeMatrix=NULL){
+  library(graph)
+  
+  # create output matrix
+  p <- length(nodes)
+  out <- matrix(0, nrow=p, ncol=p)
+  rownames(out) <- colnames(out) <- nodes
+  
+  # add STRING connections
+  load.string.db()
+ 
+  STRING.SUB <- subGraph(intersect(STRING.NODES, genes),STRING.DB)
+  sn <- nodes(STRING.SUB)
+  em <- t(edgeMatrix(STRING.SUB))
+  em <- cbind(sn[em[,1]],sn[em[,2]])
+  
+  out[em[,1],em[,2]] <- 1
+  out[em[,2],em[,1]] <- 1
+  
+  # add custom edgematrix to the graph output
+  if(!is.null(edgeMatrix)){
+    out[edgeMatrix[,1],edgeMatrix[,2]] <- 1
+    out[edgeMatrix[,2],edgeMatrix[,1]] <- 1
+  }
+  
+  # create diagnostic plot
+  library(pheatmap)
+  pdf("results/g.start.pdf")
+  pheatmap(out, cluster_rows = F, cluster_cols = F)
+  dev.off()
+  return(out)
+}

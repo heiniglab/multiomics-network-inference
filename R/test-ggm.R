@@ -54,12 +54,13 @@ ggm.fit <- bdgraph(data.matrix,
         iter=50000, 
         burnin=20000,
         save.all=T, g.start = g.start, link.priors = priors)
-save(file="results/ggm.fit.100k.full.RData", ggm.fit, ranges, data.matrix)
+save(file="results/ggm.fit.100k.full.RData", 
+     ggm.fit, ranges, priors, g.start, data.matrix)
 #traceplot(ggm.fit)
 #plotcoda(ggm.fit)
 
-g <- graphNEL.from.result(ggm.fit, 0.8, ranges)
-plot.data <- plot.ggm(g=g, id=id)
+g <- graphNEL.from.result(ggm.fit, 0.9, ranges)
+plot.data <- plot.ggm(g=g, id=id, dot.out = "results/ggm.fit.100k.full.p09.dot")
 
 # test a subset of the data matrix
 samp <- sample(colnames(data.matrix), size = 20, replace=F)

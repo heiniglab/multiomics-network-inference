@@ -21,46 +21,27 @@ ranges <- ggm.data
 ranges$data <- NULL
 
 nodes <- colnames(data.matrix)
-genes <- nodes[!grepl("^cg|^rs", nodes)]
-# create edge matrix for all cpg.gene-cpg edges to be added
-# to g.start
-em <- matrix(ncol=2,nrow=0)
-cpg.genes <- ranges$cpg.genes
-cpg.genes <- cpg.genes[cpg.genes$SYMBOL %in% nodes]
-cpgs <- (ranges$cpgs)
-cpgs <- cpgs[names(cpgs) %in% nodes]
-for(i in 1:length(cpgs)){
-  cpg <- cpgs[i]
-  g <- get.nearby.ranges(cpgs[i],cpg.genes)[[1]]
-  
-  for(row in 1:length(g)){
-    em <- rbind(em, 
-                c(names(cpg), 
-                  g[row]$SYMBOL))  
-  }
-  
-}
+
+# get the prior definitions
+priors <- get.link.priors(ranges, nodes)
 
 # create start graph
-g.start <- create.g.start(nodes,
-                          genes,
-                          em)
-
-# currently not implemented...
-priors <- get.link.priors(ranges)
+g.start <- get.g.start.from.priors(priors)
 
 ggm.fit <- bdgraph(data.matrix, 
         method="gcgm", 
         iter=50000, 
         burnin=20000,
-        save.all=T, g.start = g.start, link.priors = priors)
+        multi.update = 1,
+        save.all=T, g.start = g.start, g.prior = priors)
+
 save(file="results/ggm.fit.100k.full.RData", 
      ggm.fit, ranges, priors, g.start, data.matrix)
-#traceplot(ggm.fit)
-#plotcoda(ggm.fit)
 
 g <- graphNEL.from.result(ggm.fit, 0.9, ranges)
 plot.data <- plot.ggm(g=g, id=id, dot.out = "results/ggm.fit.100k.full.p09.dot")
+
+q()
 
 # test a subset of the data matrix
 samp <- sample(colnames(data.matrix), size = 20, replace=F)

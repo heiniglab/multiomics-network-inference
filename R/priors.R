@@ -4,45 +4,46 @@
 #' snps, cpgs and cis-/trans-genes) reflecting respective prior probabilities for links
 #' between them (currently only based on distances of snps/cpgs <-> genes)
 #'
-#' @param sentinel The sentinel snp with the annotated data (e.g. snp.ranges, cpgs etc.) for which to
+#' @param ranges Set of ranges with the annotated data (e.g. snp.ranges, cpgs etc.) for which to
 #' extract the link priors
 #'
+#' @param nodes All the nodes/entities being analyzed.
+#' 
 #' @return A square matrix of link-priors
 #'
-get.link.priors <- function(sentinel) {
+get.link.priors <- function(ranges, nodes) {
 
   library(pheatmap)
 
+  id <- names(ranges$sentinel.range)
+  
   # default window (needed for distance calculation) and number of bins
   wnd <- 1e6;
   nbins <- 200;
   load.gtex.priors();
-
+  
   # get distances to all genes for cpgs and snps
-  cpg.dists <- get.nearby.ranges(sentinel$cpgs, 
-                                 promoters(sentinel$cpg.genes))
-  temp <- sentinel$snp.genes
-  temp$distance <- distance(sentinel$sentinel.range,
-                                 promoters(sentinel$snp.genes));
+  cpg.dists <- get.nearby.ranges(ranges$cpgs, 
+                                 promoters(ranges$cpg.genes))
+  temp <- ranges$snp.genes
+  temp$distance <- distance(ranges$sentinel.range,
+                                 promoters(ranges$snp.genes));
   snp.dists <- list()
   snp.dists[[id]] <- temp
   
   all.dists <- append(cpg.dists, snp.dists);
 
-  # get all entities which are being processed by the algorithm
-  cdata <- colnames(data.matrix)
-
-  if(!all(names(all.dists) %in% cdata)){
+  if(!all(names(all.dists) %in% nodes)){
     cat("Some elements were not available in data:\n")
     na <- names(all.dists)
-    cat(na[which(!na %in% cdata)])
+    cat(na[which(!na %in% nodes)])
     stop("Some data misteriously went missing..")
   }
   
   # now build the prior matrix using a pseudo prior
   pseudo.prior <- 0.0000001
-  priors <- matrix(data = pseudo.prior, nrow = length(cdata), ncol=length(cdata))
-  colnames(priors) <- rownames(priors) <- cdata
+  priors <- matrix(data = pseudo.prior, nrow = length(nodes), ncol=length(nodes))
+  colnames(priors) <- rownames(priors) <- nodes
 
   # create bin vector
   step <- wnd/nbins;
@@ -65,7 +66,7 @@ get.link.priors <- function(sentinel) {
         # set the basic prior based on distance (the larger the distance, the lower the prior should be)
         # but scale it to be between 0 and 1
         dist <- r$distance
-      
+        
         # distance based priors for snps (gtex eQTLs)
         if(!isCpGDist) {
            idx <- findInterval(dist, bins);
@@ -75,12 +76,13 @@ get.link.priors <- function(sentinel) {
           # if the cpg is in range of the tss (within 200bp), 
           # set a specific prior for active TSS... 
           p <- pseudo.prior
-          if(dist <= 200){
+          if(dist <= 1000){
+            
             # set the cpg.state prior
             p <- p + sum(epigen.states[i, c("Active.TSS", 
                                         "Flanking.Active.TSS", 
                                         "Bivalent.Poised.TSS",
-                                        "Flanking.Bivalent.TSS.Enh")])
+                                        "Flanking.Bivalent.TSS.Enh")]) 
           }
         }
 
@@ -129,9 +131,9 @@ get.link.priors <- function(sentinel) {
   }
   
   # we will also set tf2cpg priors at this point, so get all TFs
-  tfs <- sentinel$enriched.tfs$SYMBOL
+  tfs <- ranges$enriched.tfs$SYMBOL
   # also get the chipseq context for our cpgs
-  context <- get.chipseq.context(names(sentinel$cpgs))
+  context <- get.chipseq.context(names(ranges$cpgs))
   
   # for all cpgs
   for(c in rownames(context)){

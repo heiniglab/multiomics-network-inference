@@ -5,7 +5,7 @@ library(pheatmap)
 library(RColorBrewer)
 
 # number of iterations for bdgraph
-bd.iter <- 50000;
+bd.iter <- 10000;
 # number of simulations
 sim <- 1000
 # output dir for plot
@@ -92,8 +92,8 @@ for(co in covs){
     priors[2,3] <- priors[3,2] <- 0.9
     priors[3,4] <- priors[4,3] <- 0.5
   
-    bdtest <- bdgraph(dat, iter=bd.iter, method="gcgm", print=floor(bd.iter/2),
-                      save.all=T, link.priors=priors)
+    bdtest <- bdgraph(dat, iter=bd.iter, method="ggm", print=floor(bd.iter/2),
+                      save.all=T, g.prior=priors, cores=20)
   
     g.adj1 <- summary(bdtest, vis=F)$selected_g
     g.adj2 <- BDgraph::select(bdtest, cut = 0.9)

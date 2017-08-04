@@ -813,17 +813,17 @@ summary.bdgraph <-function (object, plot.graph=F, vis = TRUE, ...)
 #' Additionally, predefined edges will be added to the graph.
 #'
 #' @param nodes All nodes to be incorporated in the graph
-#' @param genes The genes which are to be used in the graph. Subset of 'nodes'
-#' @param edgeMatrix nx2 dimensional edge-matrix which contains nodes in each row
-#' which should be connected in the output graph (optional)
+#' @param ranges A set of ranges from which cpg and cpg.genes can inferred
 #' 
 #' @return An incidence matrix of size length(nodes)^2 where 1s indicated edges
 #' and 0s indicated absence of edges
 #' 
 #' @author Johann Hawe
 #'
-create.g.start <- function(nodes, genes, edgeMatrix=NULL){
+get.g.start <- function(nodes, ranges){
   library(graph)
+  
+  genes <- nodes[!grepl("^cg|^rs", nodes)]
   
   # create output matrix
   p <- length(nodes)
@@ -841,11 +841,26 @@ create.g.start <- function(nodes, genes, edgeMatrix=NULL){
   out[em[,1],em[,2]] <- 1
   out[em[,2],em[,1]] <- 1
   
-  # add custom edgematrix to the graph output
-  if(!is.null(edgeMatrix)){
-    out[edgeMatrix[,1],edgeMatrix[,2]] <- 1
-    out[edgeMatrix[,2],edgeMatrix[,1]] <- 1
+  # create edge matrix for all cpg.gene-cpg edges to be added
+  # to g.start
+  em <- matrix(ncol=2,nrow=0)
+  cpg.genes <- ranges$cpg.genes
+  cpg.genes <- cpg.genes[cpg.genes$SYMBOL %in% nodes]
+  cpgs <- (ranges$cpgs)
+  cpgs <- cpgs[names(cpgs) %in% nodes]
+  for(i in 1:length(cpgs)){
+    cpg <- cpgs[i]
+    g <- get.nearby.ranges(cpgs[i],cpg.genes)[[1]]
+    for(row in 1:length(g)){
+      em <- rbind(em, 
+                  c(names(cpg), 
+                    g[row]$SYMBOL))  
+    }
+    
   }
+  
+  out[em[,1],em[,2]] <- 1
+  out[em[,2],em[,1]] <- 1
   
   # create diagnostic plot
   library(pheatmap)
@@ -854,3 +869,20 @@ create.g.start <- function(nodes, genes, edgeMatrix=NULL){
   dev.off()
   return(out)
 }
+
+#' Similar to get.g.start, but simply uses the prior matrix and extracts all
+#' pairs with prior>min(priors) to create the g.start
+#'
+#' @param priors Matrix of prior values for all possible node edges
+#' 
+#' @author Johann Hawe
+#'
+get.g.start.from.priors <- function(priors){
+  out <- priors  
+  out[which(out==min(priors))] <- 0
+  out[which(out>min(priors))] <- 1
+  return(out)
+}
+
+
+

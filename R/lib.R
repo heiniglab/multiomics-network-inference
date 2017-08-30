@@ -88,21 +88,24 @@ get.chipseq.context <- function(cpgs){
 
 #' Creates a graphNEL object from a given bdgraph result for a defined cutoff
 #' 
-#' @paran result The bdgraph result
-#' @param cutoff Cutoff to be used for posterior probability of edges
+#' @param ggm.fit The bdgraph ggm fit
+#' @param ranges The ranges of the entities used for the graph fit
 #' 
 #' @value graph-nel object created from the bdgraph result
 #'
 #' @author Johann Hawe
 #'
-graphNEL.from.result <- function(result, cutoff, ranges){
+graph.from.fit <- function(ggm.fit, ranges){
   library(BDgraph)
   library(graph)
   library(igraph)
   
-  g.adj <- BDgraph::select(result, cut = cutoff)
+  # get the graph instance from the ggm fit
+  cutoff <- 0.9
+  g.adj <- BDgraph::select(ggm.fit, cut = cutoff)
   g <- as_graphnel(graph.adjacency(g.adj, mode="undirected", diag=F));
   gn <- nodes(g)
+  
   nodeDataDefaults(g,"cpg") <- F
   nodeData(g, gn, "cpg") <- grepl("^cg", gn)
   
@@ -140,8 +143,9 @@ graphNEL.from.result <- function(result, cutoff, ranges){
       }
     }
   }
-  em <- filter.edge.matrix(g,em)
   if(nrow(em) > 0){
+    em <- filter.edge.matrix(g,em)
+
     edgeData(g,em[,1], em[,2],"isChipSeq") <- T
   }
   # ppi edgedata
@@ -276,8 +280,12 @@ plot.ggm <- function(g, id, dot.out=NULL){
 
   eAttrs = list(color=ecol, dir=dir)
  
-  plot(g, "twopi", nodeAttrs=nAttrs, edgeAttrs=eAttrs, attrs=attrs)
-
+  if(numEdges(g)>500){
+    warning("Skipping plotting on device due to large amount of edges")
+  } else{
+    plot(g, "twopi", nodeAttrs=nAttrs, edgeAttrs=eAttrs, attrs=attrs)
+  }
+  
   if(!is.null(dot.out)){
     # output the dot-information
     #    toDot(graph, dot.out, nodeAttrs=nAttrs, edgeAttrs=eAttrs, attrs=attrs, subGList=sgs)
@@ -358,7 +366,6 @@ load.string.db <- function() {
 #'
 #' @param query ranges for which to get nearby genes
 #' @param subject ranges in which to look for nearby genes
-#' @param idxs flag whether to return the indices of the hits in subject only. default: false
 #'
 #' @return Either the idx of the hits in the subject if idxs=T, or the identified ranges (idxs=F)
 #'
@@ -861,12 +868,6 @@ get.g.start <- function(nodes, ranges){
   
   out[em[,1],em[,2]] <- 1
   out[em[,2],em[,1]] <- 1
-  
-  # create diagnostic plot
-  library(pheatmap)
-  pdf("results/g.start.pdf")
-  pheatmap(out, cluster_rows = F, cluster_cols = F)
-  dev.off()
   return(out)
 }
 
@@ -884,5 +885,25 @@ get.g.start.from.priors <- function(priors){
   return(out)
 }
 
-
+#' Checks which elements of the query have an edge to the 
+#' subject in the given graph object. 
+#' 
+#' @param query List of nodes to be checked
+#' @param subject A single node name
+#' @param graph The graph object in which to check for the direct connection
+#'
+#' @author Johann Hawe
+#' 
+#' @return The elements in 'query' which have an edge in common with the subject
+#' 
+is.linked <- function(query, subject, graph){
+  e <- edgeL(graph)
+  if(!subject %in% names(e)){
+    warning("'", subject , " has no connection in graph.")
+    return(c())
+  }
+  el <- e[[subject]]
+  out <- query[query %in% el]
+  return(out)
+}
 

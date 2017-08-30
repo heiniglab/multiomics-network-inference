@@ -1,0 +1,68 @@
+---
+title: "GGM Validation"
+output: html_notebook
+author: Johann Hawe
+---
+
+This script is used to validate already calcaulted ggm fits.
+The fitted ggm models are loaded and validated using the concept of individual
+link types again, i.e. cpg-gene links, snp-gene links and gene-gene links.
+
+```{r}
+source("R/validation.R")
+```
+
+Before starting prepare the needed data, i.e. the ggm fit, the ranges originally
+used and the original data.matrix.
+
+```{r}
+# prepare data
+load("results/ggm.fit.full.RData")
+data <- data.matrix
+snp <- names(ranges$sentinel.range)
+data[,snp] <- as.integer(as.character(data[,snp]))
+cpgs <- names(ranges$cpgs)
+genes <- ranges$snp.genes$SYMBOL
+genes <- genes[genes %in% colnames(data)]
+a
+
+gn <- nodes(graph)
+selected.genes <- gn[unlist(nodeData(graph,gn,"snp.gene"))]
+
+```
+Now that all is loaded, for this we have three approache:
+1. perform gene mediation
+2. check whether SNPs are in TFBS (in case of >1 SNPs)
+3. ChromHMM states for SNPs (in case of >1 SNPs)
+concept.
+```{r}
+par(mfrow=c(4,round(length(genes)/4+0.5)), mar=rep(4.5,4))
+pdf("senp7.mediation.pdf")
+m <- mediation(data, snp, genes, cpgs)
+dev.off()
+
+# snp~gene link validation
+vsnp <- validate.snps(ggm.fit, ranges)
+
+```
+
+The next step is validating the cpg-gene links. For this we use 3 approaches:
+1. check trans-eQTL in independent dataset
+2. check epigenetic annotation (implies change in currently performed prior calculation)
+3. check CpGs in TFBS (split cell-lines for priors/validation).
+```{r}
+# cpg~gene link validation
+vcpg <- validate.cpgs(ggm.fit, ranges)
+```
+
+Finally we perform the gene-gene validation:
+1. check co-expression in independent data
+2. gene set enrichment
+3. check co-citation 
+```{r}
+# gene~gene link validation
+vgene <- validate.genes(ggm.fit, ranges)
+```
+
+
+

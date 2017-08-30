@@ -12,15 +12,22 @@
 #' @return A square matrix of link-priors
 #'
 get.link.priors <- function(ranges, nodes) {
-
-  library(pheatmap)
-
-  id <- names(ranges$sentinel.range)
+  
+  # load string db
+  load.string.db();
+  # load predefined prior definition
+  load.gtex.priors();
+  
+  # assume single SNP
+  id <- nodes[grepl("^rs", nodes)]
   
   # default window (needed for distance calculation) and number of bins
   wnd <- 1e6;
   nbins <- 200;
-  load.gtex.priors();
+   # create bin vector
+  step <- wnd/nbins;
+  bins <- seq(0,wnd-step, by=step);
+  
   
   # get distances to all genes for cpgs and snps
   cpg.dists <- get.nearby.ranges(ranges$cpgs, 
@@ -33,6 +40,7 @@ get.link.priors <- function(ranges, nodes) {
   
   all.dists <- append(cpg.dists, snp.dists);
 
+  # sanity check
   if(!all(names(all.dists) %in% nodes)){
     cat("Some elements were not available in data:\n")
     na <- names(all.dists)
@@ -44,10 +52,6 @@ get.link.priors <- function(ranges, nodes) {
   pseudo.prior <- 0.0000001
   priors <- matrix(data = pseudo.prior, nrow = length(nodes), ncol=length(nodes))
   colnames(priors) <- rownames(priors) <- nodes
-
-  # create bin vector
-  step <- wnd/nbins;
-  bins <- seq(0,wnd-step, by=step);
 
   # load annotation needed for cpg2gene priors
   epigen.states <- read.table("data/epigenetic_state_annotation_weighted_all_sentinels.txt", 
@@ -66,37 +70,35 @@ get.link.priors <- function(ranges, nodes) {
         # set the basic prior based on distance (the larger the distance, the lower the prior should be)
         # but scale it to be between 0 and 1
         dist <- r$distance
-        
-        # distance based priors for snps (gtex eQTLs)
-        if(!isCpGDist) {
-           idx <- findInterval(dist, bins);
-           p <- gtex.eqtl.priors[idx];
-        }
-        else {
-          # if the cpg is in range of the tss (within 200bp), 
-          # set a specific prior for active TSS... 
-          p <- pseudo.prior
-          if(dist <= 1000){
-            
-            # set the cpg.state prior
-            p <- p + sum(epigen.states[i, c("Active.TSS", 
-                                        "Flanking.Active.TSS", 
-                                        "Bivalent.Poised.TSS",
-                                        "Flanking.Bivalent.TSS.Enh")]) 
+        if(!is.na(dist)){
+          # distance based priors for snps (gtex eQTLs)
+          if(!isCpGDist) {
+             idx <- findInterval(dist, bins);
+             p <- gtex.eqtl.priors[idx];
           }
+          else {
+            # if the cpg is in range of the tss (within 200bp), 
+            # set a specific prior for active TSS... 
+            p <- pseudo.prior
+            if(dist <= 200){
+              
+              # set the cpg.state prior
+              p <- p + sum(epigen.states[i, c("Active.TSS", 
+                                          "Flanking.Active.TSS", 
+                                          "Bivalent.Poised.TSS",
+                                          "Flanking.Bivalent.TSS.Enh")]) 
+            }
+          }
+  
+          priors[i,s] <<- p
+          priors[s,i] <<- p
         }
-
-        priors[i,s] <<- p
-        priors[s,i] <<- p
       }
     });
   }
 
   # here we add the priors based on the string interaction network
   genes <- colnames(priors)[!grepl("^rs|^cg", colnames(priors))];
-
-  # load string db
-  load.string.db();
 
   # get subset of edges which are in our current graph
   STRING.SUB <- subGraph(intersect(STRING.NODES, genes),STRING.DB)
@@ -316,7 +318,8 @@ create.priors <- function(nbins, window) {
   # in order to be able to merge samples with covariate frame
   samples$donor_id <- gsub("(.{4}-.{4,5})-.*", "\\1", samples$id)
   # drop low-RIN samples and where RIN is NA 
-  # see also: http://www.gtexportal.org/home/documentationPage#staticTextSampleQuality
+  # see also: 
+  # http://www.gtexportal.org/home/documentationPage#staticTextSampleQuality
   samples <- samples[complete.cases(samples),]
   samples <- samples[which(samples$RIN>=6),]
   # get covariates (age, sex) for all samples used

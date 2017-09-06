@@ -104,7 +104,7 @@ mediation <- function(data, snp, genes, cpgs, plot=F) {
 
 #' Validates the given ggm fit based on the found SNP~Gene links
 #' 
-#' @param ggm.fit The ggm.fit which is to be validated
+#' @param graph The graph extracted from the ggm fit
 #' @param data The original data with which the ggm was fitted
 #' @param ranges The original list of granges related to the entities in the 
 #' fitted data matrix
@@ -113,39 +113,8 @@ mediation <- function(data, snp, genes, cpgs, plot=F) {
 #' 
 #' @author Johann Hawe
 #' 
-validate.snps <- function(ggm.fit, data, ranges){
-  # prepare some information
-  graph <- graph.from.fit(ggm.fit, ranges)
-  all.nodes <- colnames(data)
-  
-  # individual entities
-  # currently we only expect one SNP in the data
-  snp <- all.nodes[grepl("^rs", all.nodes)]
-  genes <- all.nodes[!grepl("^rs|^cg", all.nodes)]
-  snp.genes <- ranges$snp.genes$SYMBOL
-  snp.genes.to.snp <- is.linked(snp.genes, snp, graph)
-  
-  cpgs <- all.nodes[grepl("^cg", all.nodes)]
-  
-  # (1) load chromHMM annotation (SNP annotation)
-   
-  # (2) check cis-eQTL in independent study
-  
-  # (3) Perform mediation analysis
-  full.mediation <- mediation(data, snp, genes, cpgs )
-  if(length(snp.genes.to.snp)<1){
-    warning("No snp.gene detected by bdgraph.")
-  } else {
-    snpgene.med <- full.mediation[setdiff(snp.genes, snp.genes.to.snp)]
-    snpgene.med <- mean(unlist(lapply(snpgene.med, "[[", "pvalue")))
-    # snp genes identified via bdgraph
-    snpgene.ingraph.med <- full.mediation[snp.genes.to.snp]
-    snpgene.ingraph.med <- mean(unlist(lapply(snpgene.ingraph.med, 
-                                              "[[", "pvalue")))
-    med.summary <- -log10(snpgene.ingraph.med) - -log10(snpgene.med )
-  }
-  result <- list(log10diff=med.summary)
-  return(result)
+validate.snps <- function(graph, data, ranges){
+
 }
 
 #' Validates the given ggm fit based on the found CpG~Gene links

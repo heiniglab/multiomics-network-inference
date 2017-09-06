@@ -9,60 +9,163 @@ The fitted ggm models are loaded and validated using the concept of individual
 link types again, i.e. cpg-gene links, snp-gene links and gene-gene links.
 
 ```{r}
+library(graph)
+library(data.table)
+library(TxDb.Hsapiens.UCSC.hg19.knownGene)
+library(psych)
 source("R/validation.R")
 ```
 
 Before starting prepare the needed data, i.e. the ggm fit, the ranges originally
-used and the original data.matrix.
+used and the original data.matrix. We als retrieve the different set of entities,
+i.e. the snp, the cpgs as well as the respective locus genes, tfs and shortest path
+genes. Those entities can either be selected via ggm graph or not.
 
 ```{r}
 # prepare data
 load("results/ggm.fit.full.RData")
 data <- data.matrix
+gnodes <- nodes(graph)
+# for now, filter only for those nodes for which data was available
+# should change once we update the data matrix...
+gnodes <- gnodes[gnodes %in% colnames(data)]
+# get names of all entities, total and selected by ggm
 snp <- names(ranges$sentinel.range)
 data[,snp] <- as.integer(as.character(data[,snp]))
 cpgs <- names(ranges$cpgs)
-genes <- ranges$snp.genes$SYMBOL
-genes <- genes[genes %in% colnames(data)]
-a
+cpgs.selected <- cpgs[cpgs %in% gnodes]
+sgenes <- ranges$snp.genes$SYMBOL
+sgenes.selected <- sgenes[sgenes %in% unlist(adj(graph,snp))]
+cgenes <- ranges$cpg.genes$SYMBOL
+cgenes.selected <- cgenes[cgenes %in% unlist(adj(graph,cpgs))]
+tfs <- ranges$tfs$SYMBOL
+tfs.selected <- tfs[tfs %in% unlist(adj(graph,cpgs))]
+# the shortest path genes
+spath <- ranges$spath.genes$SYMBOL
+spath.selected <- spath[spath %in% gnodes]
 
-gn <- nodes(graph)
-selected.genes <- gn[unlist(nodeData(graph,gn,"snp.gene"))]
+cat("Summary on number of genes, total vs selected via ggm:\n")
+cat("sgenes\t", length(sgenes),"\t", length(sgenes.selected), "\n")
+cat("cgenes\t", length(cgenes),"\t", length(cgenes.selected), "\n")
+cat("tfs\t", length(tfs),"\t", length(tfs.selected), "\n")
+cat("spath\t", length(spath),"\t", length(spath.selected), "\n")
 
 ```
-Now that all is loaded, for this we have three approache:
+Now that all is prepared, we perform the SNP-gene validation for which we have three approaches:
 1. perform gene mediation
 2. check whether SNPs are in TFBS (in case of >1 SNPs)
 3. ChromHMM states for SNPs (in case of >1 SNPs)
 concept.
 ```{r}
-par(mfrow=c(4,round(length(genes)/4+0.5)), mar=rep(4.5,4))
-pdf("senp7.mediation.pdf")
-m <- mediation(data, snp, genes, cpgs)
-dev.off()
+# (1) load chromHMM annotation (SNP annotation)
+ 
+# (2) check cis-eQTL in independent study
 
-# snp~gene link validation
-vsnp <- validate.snps(ggm.fit, ranges)
+# (3) Perform mediation analysis
+# mediation over all snp genes
+med <- mediation(data, snp, sgenes, cpgs )
+# mediation for only ggm selected snp genes
+med.selected <- med[sgenes.selected]
+# mediation for only not selected snp genes
+med <- med[setdiff(sgenes,sgenes.selected)]
+
+# TODO if we choose to do a test for comparing 
+# selected/not selected, check assumptions first
+
+# mean mediation for all not selected snpgenes
+med.cor <- (unlist(lapply(med, "[[", "pvalue")))
+# mean mediation for selected snpgenes
+med.cor.selected <- (unlist(lapply(med.selected, "[[", "pvalue")))
+
+cat("Mediation result summary (mean of pvals):\n")
+cat("not selected\tselected\n")
+cat(mean(med.cor), "\t", mean(med.cor.selected))
 
 ```
 
-The next step is validating the cpg-gene links. For this we use 3 approaches:
-1. check trans-eQTL in independent dataset
+The next step is validating the cpg-gene and cpg-tf links. For this we use 3 approaches:
+1. check trans-eQTL in independent dataset. Here we found the paper of [Joehanes et al. 2017
+in Genome Biology](https://genomebiology.biomedcentral.com/articles/10.1186/s13059-016-1142-6)
 2. check epigenetic annotation (implies change in currently performed prior calculation)
 3. check CpGs in TFBS (split cell-lines for priors/validation).
 ```{r}
-# cpg~gene link validation
-vcpg <- validate.cpgs(ggm.fit, ranges)
+# load the trans-eQTL dataset
+teqtl <- fread("zcat data/joehanes-et-al-2017/eqtls/eqtl-gene-annot_trans-only_logFDR2.txt.gz", 
+               sep=",", 
+               data.table=F, select = c("SNP_Chr","SNP_Pos_hg19","Rs_ID","SNP_MAF","SNP_Imputation_RSq","ProbesetID","Transcript_Chr","Transcript_GeneSymbol","Transcript_EntrezGeneID","Is_Cis","log10FDR"))
+# sanity check
+cat("only trans: ", all(teqtl$Is_Cis == 0), "\n")
+head(teqtl)
+
+# filter teqtl to be only related to our sentinel SNP
+# TODO use proxy/high ld snps to increase teqtl number?
+teqtl <- teqtl[teqtl$Rs_ID %in% sentinel,,drop=F]
+teqtl.cgenes <- cgenes[cgenes %in% teqtl$Transcript_GeneSymbol]
+teqtl.cgenes.selected <- intersect(teqtl.cgenes, cgenes.selected)
+
+cat("CpG genes: ", cgenes, "\n")
+cat("CpG genes with trans-eQTL: ", teqtl.cgenes, "\n")
+cat("selected CpG genes with trans-eQTL: ", teqtl.cgenes.selected, "\n")
+
+# TODO analyze the tfs, total and selected
+teqtl.tfs <- tfs[tfs %in% teqtl$Transcript_GeneSymbol]
+teqtl.tfs.selected <- intersect[teqtl.tfs, tfs.selected]
+
+cat("TFs: ", tfs, "\n")
+cat("TFs with trans-eQTL: ", teqtl.tfs, "\n")
+cat("selected TFs with trans-eQTL: ", teqtl.tfs.selected, "\n")
+
 ```
 
 Finally we perform the gene-gene validation:
-1. check co-expression in independent data
+1. check co-expression in independent data. we should be able to use the joehanes
+data for that as well, but is restricted. maybe geuvadis gene expression data?
 2. gene set enrichment
 3. check co-citation 
 ```{r}
-# gene~gene link validation
-vgene <- validate.genes(ggm.fit, ranges)
+# load the expression data from geuvadis/lappaleinen
+geu <- fread("zcat data/expression/GD462.GeneQuantRPKM.50FN.samplename.resk10.txt.gz", header=T,
+             data.table=F)
+geneinfo <- geu[,1:4]
+# get the gene symbols
+geneinfo$Gene_Symbol <- mapIds(Homo.sapiens, unlist(lapply(strsplit(geneinfo[,1], "\\."), "[",1)), "SYMBOL", keytype="ENSEMBL")
+drop <- is.na(geneinfo$Gene_Symbol)
+geneinfo <- geneinfo[!drop,]
+geu <- geu[!drop,]
+rpkm <- geu[,5:ncol(geu)]
+samp <- fread("data/expression/patients_edit.txt", sep="\t", header=T,
+              data.table=F)
+# for now we skip filtering the samples and just calculate over all available
+# samples. We could use this to manually adjust for covariates in the sample table
+# however we use the already PEER normalized version of the gene expression
+# rpkm <- rpkm[,colnames(rpkm) %in% samp$sample]
+
+rpkm <- data.matrix(rpkm)
+min(rpkm)
+max(rpkm)
+
+```
+Dimension of the gene expression matrix is `r dim(rpkm)`. We first check the distribution
+of the expression of some randomly selected genes.
+
+```{r}
+par(mfrow=c(2,2))
+set.seed(42)
+hist(rpkm[sample(1:nrow(rpkm),1),], breaks=50, xlab="rpkm", main="histogram 1")
+hist(rpkm[sample(1:nrow(rpkm),1),], breaks=50, xlab="rpkm", main="histogram 2")
+hist(rpkm[sample(1:nrow(rpkm),1),], breaks=50, xlab="rpkm", main="histogram 3")
+hist(rpkm[sample(1:nrow(rpkm),1),], breaks=50, xlab="rpkm", main="histogram 4")
+#TODO histogram shows few very large values -> handle?
 ```
 
+Now, for each gene we calculate the correlation against each other gene over all
+samples. In the end we want to boil this down to 'significant' correlations,
+hence we collect FDR corrected p-values using the psych package.
+
+```{r}
+cors <- psych::corr.test(t(rpkm[1:1000,]), adjust="BH", ci=F)
+# upper diagonal of p contains the adjusted pvalues
+hist(cors$p[upper.tri(cors$p)], main="pvalues of correlations between genes")
+```
 
 

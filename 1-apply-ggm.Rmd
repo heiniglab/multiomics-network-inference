@@ -16,56 +16,74 @@ library(pheatmap)
 # source the library scripts
 source("R/lib.R")
 source("R/priors.R")
+
+# define the available cohorts
+cohorts <- c("lolipop", "kora")
 ```
 
 After preparing all needed libraries and methods, we now load the data we want 
 to use in the BDgraph algorithm.
 
 ```{r}
-# load data into new environment
-env <- new.env()
-load("data/lolipop/rs9859077.data.RData", envir=env)
-ggm.data <- with(env, sentinel)
-id <- with(env, id)
-data.matrix <- ggm.data$data
-ranges <- ggm.data
-ranges$data <- NULL
-nodes <- colnames(data.matrix)
-head(data.matrix)
+
+data <- lapply(cohorts, function(c){
+  # load data into new environment
+  env <- new.env()
+  load(paste0("data/", c, "/rs9859077.data.RData"), envir=env)
+  ggm.data <- with(env, sentinel)
+  id <- with(env, id)
+  data <- ggm.data$data
+  nodes <- colnames(data)
+  ranges <- ggm.data
+  ranges$data <- NULL
+  ranges$cpg.genes <- ranges$cpg.genes[(ranges$cpg.genes$SYMBOL) %in% nodes]
+  ranges$snp.genes <- ranges$snp.genes[(ranges$snp.genes$SYMBOL) %in% nodes]
+  ranges$shortestpath.genes <- ranges$shortestpath.genes[ranges$shortestpath.genes$SYMBOL %in% nodes]
+  
+  return(list(id=id, data=data, ranges=ranges, nodes=nodes))
+})
+names(data) <- cohorts
 ```
-Loaded data matrix dimension is `r dim(data.matrix)`. 
+
+## Prior calculation
 Now we get the priors for all possible links within the data matrix. The priors
 need to have been created beforehand and are simply loaded in the called function.
 
 ```{r cache=TRUE, echo=FALSE, collapse=T}
-# clean up a bit
-ranges$cpg.genes <- ranges$cpg.genes[(ranges$cpg.genes$SYMBOL) %in% nodes]
-ranges$snp.genes <- ranges$snp.genes[(ranges$snp.genes$SYMBOL) %in% nodes]
-ranges$shortestpath.genes <- ranges$shortestpath.genes[ranges$shortestpath.genes$SYMBOL %in% nodes]
-
-# get the prior definitions and plot the prior heatmap
-priors <- get.link.priors(ranges, nodes)
-cat("Prior min-value: ", min(priors), "\n")
-
-pheatmap(priors, cex=0.7)
+priors <- lapply(cohorts, function(c){
+  cohort <- data[[c]]
+  
+  # get the prior definitions and plot the prior heatmap
+  priors <- get.link.priors(cohort$ranges, cohort$nodes)
+  cat("Prior min-value: ", min(priors), "\n")
+  
+  pheatmap(priors, cex=0.7, main=paste0(c, " priors"))
+  return(priors)
+})
+names(priors) <- cohorts
 ```
 
+## GGM fit
 In the next step we finally fit the GGM to our data, using the priors during 
 the process. First a 'start-graph' is created, which serves as the entry point
 in the calculations for the algorithms.
 
 Heatmap of the start graph (of incidence matrix):
 ```{r echo=F, collapse=T}
-# create start graph
-g.start <- get.g.start.from.priors(priors)
-pheatmap(g.start, cex=0.7)
+gstarts <- lapply(cohorts, function(c){
+  # create start graph
+  g.start <- get.g.start.from.priors(priors[[c]])
+  pheatmap(g.start, cex=0.7, main=paste0(c, " start graph"))
+  return(g.start)
+})
+names(gstarts) <- cohorts
 ```
 
 Now we can start running the bdgraph algorithm in order to get our partial correlations
 based on data and prior knowledge. 
 
 ```{r}
-iter=50000
+iter=100000
 burnin=5000
 cores=8
 ```
@@ -77,53 +95,35 @@ In addition, we create some diagnostic plots to check the convergence of the
 algorithm.
 
 ```{r cache=T, results=F}
-ggm.fit <- bdgraph(data.matrix, 
-        method="gcgm", 
-        iter=iter, 
-        burnin=burnin,
-        save.all=T, g.start = g.start, 
-        g.prior = priors, cores=10)
-
-graph <- g <- graph.from.fit(ggm.fit, ranges)
-g
-plot.data <- plot.ggm(g=g, id=id, dot.out = "results/ggm.fit.full.dot")
-save(file="results/ggm.fit.full.RData", ggm.fit, ranges, data.matrix,g.start, priors, graph, plot.data)
-ggm.summar <- summary(ggm.fit)
-traceplot(ggm.fit)
-plotcoda(ggm.fit)
-```
-
-Below is some test code, in which we take a subsample of the data and let
-the algorithm run on this subset. Every step is performed exactly as it is
-performed above, recycling the already calculated prior matrix.
-
-
-```{r cache=T, results=F}
-# test a subset of the data matrix
-samp <- sample(colnames(data.matrix), size = 20, replace=F)
-# ensure the snp is in the data
-if(!id %in% samp) samp <- c(samp,id)
-
-data.test <- data.matrix[,samp]
-# get prior subset
-priors.test <- priors[samp,samp]
-pheatmap(priors.test)
-# create start graph
-g.test.start <- get.g.start.from.priors(priors)
-pheatmap(g.test.start, cex=0.7)
-ggm.test.fit <- bdgraph(data.test, 
-        method="gcgm", 
-        iter=iter, 
-        burnin=burnin,
-        save.all=T, g.start = g.test.start, 
-        g.prior = priors.test, cores=10)
-
-graph.test <- g.test <- graph.from.fit(ggm.test.fit, ranges)
-g.test
-plot.data <- plot.ggm(g=g.test, id=id, dot.out = "results/ggm.fit.sample.dot")
-save(file="results/ggm.fit.sample.RData", ggm.test.fit, ranges, data.test,g.test.start, priors.test, graph.test, plot.data)
-ggm.summar <- summary(ggm.test.fit)
-traceplot(ggm.test.fit)
-plotcoda(ggm.test.fit)
-
+fits <- lapply(cohorts, function(c){
+  gdata <- data[[c]]$data
+  id <- data[[c]]$id
+  ranges <- data[[c]]$ranges
+  gstart <- gstarts[[c]]
+  gpriors <- priors[[c]]
+  ggm.fit <- bdgraph(gdata, 
+          method="gcgm", 
+          iter=iter, 
+          burnin=burnin,
+          save.all=T, g.start = gstart,
+          g.prior = gpriors, cores=cores)
+  
+  graph <- graph.from.fit(ggm.fit, ranges)
+  if(length(nodes(graph))<1){
+    warning("Resulting graph has no nodes.")
+  } else {
+    
+    plot.data <- plot.ggm(g=graph, id=id, dot.out = paste0("results/ggm.fit.", c, ".dot"))
+    save(file=paste0("results/ggm.fit.", c, ".RData"), 
+         ggm.fit, ranges, gdata, gstart, gpriors, graph, plot.data)
+  }
+  # check some plots
+  ggm.summary <- summary(ggm.fit)
+  traceplot(ggm.fit)
+  plotcoda(ggm.fit)
+  return(list(ggm.fit = ggm.fit, graph=graph, summary = ggm.summary))
+})
+names(fits) <- cohorts
+# save fits extra, although this is a bit redundant
+save(file="results/fits.RData", fits)
 ```

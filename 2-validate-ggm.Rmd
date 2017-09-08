@@ -3,8 +3,9 @@ title: "GGM Validation"
 output: html_notebook
 author: Johann Hawe
 ---
+# contingency table per locus for snp mediation
 
-This script is used to validate already calcaulted ggm fits.
+This script is used to validate already calculated ggm fits.
 The fitted ggm models are loaded and validated using the concept of individual
 link types, i.e. cpg-gene links, snp-gene links and gene-gene links.
 
@@ -21,86 +22,87 @@ source("R/validation.R")
 Before starting prepare the needed data, i.e. the ggm fit, the ranges originally
 used and the original data.matrix. We als retrieve the different set of entities,
 i.e. the snp, the cpgs as well as the respective locus genes, tfs and shortest path
-genes. Those entities can either be selected via ggm graph or not.
+genes. Those entities can either have been selected via ggm graph or not.
 
 ```{r}
+# learn on kora -> validate on lolipop? since we use the same data for creating 
+# the model
+
 # prepare data
 load("results/ggm.fit.full.RData")
-data <- data.matrix
+# load both kora and lollipop data (for gene mediation)
+env <- new.env()
+load("data/kora/rs9859077.data.RData", envir=env)
+kdata <- with(env, sentinel$data)
+load("data/lolipop/rs9859077.data.RData", envir=env)
+ldata <- with(env, sentinel$data)
+
+# ensure the same entities in both data sets
+# dnodes -> full set of possible nodes
+dnodes <- intersect(colnames(ldata), colnames(kdata))
+ldata <- ldata[,dnodes]
+kdata <- kdata[,dnodes]
+
+# for now we use the kora data for validation since 
+# the current fit was calculated on lolipop
+data <- kdata
+
+# the nodes retained in the fitted graph model
 gnodes <- nodes(graph)
+
 # for now, filter only for those nodes for which data was available
 # should change once we update the data matrix...
-gnodes <- gnodes[gnodes %in% colnames(data)]
+gnodes <- gnodes[gnodes %in% colnames(dnodes)]
 # get names of all entities, total and selected by ggm
 snp <- names(ranges$sentinel.range)
 data[,snp] <- as.integer(as.character(data[,snp]))
-cpgs <- names(ranges$cpgs)
+cpgs <- intersect(dnodes, names(ranges$cpgs))
 cpgs.selected <- cpgs[cpgs %in% gnodes]
 all.genes <- colnames(data)[!grepl("^rs|^cg", colnames(data))]
-sgenes <- ranges$snp.genes$SYMBOL
+sgenes <- intersect(dnodes, ranges$snp.genes$SYMBOL)
 sgenes.selected <- sgenes[sgenes %in% unlist(adj(graph,snp))]
-cgenes <- ranges$cpg.genes$SYMBOL
+cgenes <- intersect(dnodes, ranges$cpg.genes$SYMBOL)
 cgenes.selected <- cgenes[cgenes %in% unlist(adj(graph,cpgs))]
-tfs <- ranges$tfs$SYMBOL
+
+# TODO adjust this for new data
+# TODO also check TF to cpg-gene association..
+tfs <- intersect(dnodes, ranges$tfs$SYMBOL)
 tfs.selected <- tfs[tfs %in% unlist(adj(graph,cpgs))]
+tfs.selected
+
 # the shortest path genes
-spath <- ranges$spath.genes$SYMBOL
+spath <- ranges$spath$SYMBOL
 spath.selected <- spath[spath %in% gnodes]
 
 cat("Summary on number of genes, total vs selected via ggm:\n")
 cat("sgenes\t", length(sgenes),"\t", length(sgenes.selected), "\n")
 cat("cgenes\t", length(cgenes),"\t", length(cgenes.selected), "\n")
 cat("tfs\t", length(tfs),"\t", length(tfs.selected), "\n")
-cat("spath\t", length(spath),"\t", length(spath.selected), "\n")
+#cat("spath\t", length(spath),"\t", length(spath.selected), "\n")
 
 ```
-Above you see the number snp genes (sgenes), cpg genes (cgenes), transcription
-factors (tfs) as well as the genes on the shortest paths between tfs and sgenes (spath).
-Starting from those set definitions, we now perform the validation of the model.
+Above the number of snp genes (sgenes), cpg genes (cgenes), transcription
+factors (tfs) as well as the genes on the shortest paths between tfs and sgenes (spath)
+are shown. Starting from those set definitions, we now perform the validation of the model.
 
-## SNP-gene validtion
-Now that all is prepared, we perform the SNP-gene validation for which we have several approaches:
-1. perform gene mediation
-2. check whether the selected genes are cis-eQTLs in an independent study
+## SNP-gene validation
+For the SNP-gene validation for which we have several approaches:
+
+### 1. Perform gene mediation. 
+Here we check for each gene individually, whether it likely
+mediates the effect the sentinel snp has on the defined trans-cpgs. We calculate linear models
+between snp/genes, snp/cpgs and genes/cpgs. The $\beta$ of the linear models should add up, i.e.
+$\beta_{sc} = \beta_{sg}*\beta_{gc}$. For each gene we get as a result the correlation between
+the $\beta_{sc}$ and $\beta_{sg}*\beta_{gc}$ over all CpGs.
+2. Check cis-eQTLs. Here we check whether the selected SNP genes (connected to the sentinel) 
+are cis-eQTLs in an independent study (Joehanes et al. 2017). The more selected genes are cis-eQTLs
+as compared to the not selected ones, the more significant is the selection of genes in our models.
 3. check whether SNPs are in TFBS (in case of >1 SNPs)
 4. ChromHMM states for SNPs (in case of >1 SNPs)
 concept.
 
-To achieve this, we also load some additional data: 
-* Joehanes et al. 2017 eQTL data
-
 ```{r}
-# (1) load chromHMM annotation (SNP annotation)
-## not yet needed
-# (2) check cis-eQTL in independent study
-# load cis-eQTL data
-ceqtl <- fread("zcat data/joehanes-et-al-2017/eqtls/eqtl-gene-annot_cis-only.txt.gz",
-               sep=",", 
-               data.table=F, select = c("SNP_Chr","SNP_Pos_hg19","Rs_ID","SNP_MAF","SNP_Imputation_RSq","ProbesetID","Transcript_Chr","Transcript_GeneSymbol","Transcript_EntrezGeneID","Is_Cis","log10FDR"))
-# get only cis eqtlas defined in the paper
-ceqtl <- ceqtl[ceqtl$Is_Cis==1,,drop=F]
-cat("Loaded ", nrow(ceqtl), " cis-eQTL\n")
-head(ceqtl)
-
-# filter teqtl to be only related to our sentinel SNP
-# TODO use proxy/high ld snps to increase teqtl number?
-ceqtl <- ceqtl[ceqtl$Rs_ID %in% snp,,drop=F]
-ceqtl.sgenes <- sgenes[sgenes %in% ceqtl$Transcript_GeneSymbol]
-ceqtl.sgenes.selected <- intersect(ceqtl.sgenes, sgenes.selected)
-ceqtl.sgenes
-ceqtl.sgenes.selected
-# create matrix for fisher test
-cont <- matrix(c(length(ceqtl.sgenes),length(ceqtl.sgenes.selected),
-                 length(sgenes),length(sgenes.selected)),
-               nrow=2,ncol=2, byrow = T)
-rownames(cont) <- c("teqtl", "no teqtl")
-colnames(cont) <- c("not selected", "selected")
-cont
-fisher.test(cont)
-
-# (3) SNPs in TFBS
-## not yet needed
-# (4) Perform mediation analysis
+# (1) Perform mediation analysis
 # mediation over all snp genes
 med <- mediation(data, snp, sgenes, cpgs )
 # mediation for only ggm selected snp genes
@@ -111,14 +113,48 @@ med <- med[setdiff(sgenes,sgenes.selected)]
 # TODO if we choose to do a test for comparing 
 # selected/not selected, check assumptions first
 
-# mean mediation for all not selected snpgenes
-med.cor <- (unlist(lapply(med, "[[", "pvalue")))
-# mean mediation for selected snpgenes
-med.cor.selected <- (unlist(lapply(med.selected, "[[", "pvalue")))
+# min mediation pv for all not selected snpgenes
+med.pv <- min(unlist(lapply(med, "[[", "pvalue")))
+# max mediation pv for selected snpgenes
+med.pv.selected <- max(unlist(lapply(med.selected, "[[", "pvalue")))
 
-cat("Mediation result summary (mean of pvals):\n")
+cat("Mediation result summary (min/max of pvals):\n")
 cat("not selected\tselected\n")
-cat(mean(med.cor), "\t", mean(med.cor.selected))
+cat(med.pv, "\t", med.pv.selected)
+cat("Difference (log10(ns/s)): ", log10(med.pv/med.pv.selected))
+
+# (2) check cis-eQTL in independent study
+# load cis-eQTL data
+ceqtl <- fread("zcat data/joehanes-et-al-2017/eqtls/eqtl-gene-annot_cis-only.txt.gz",
+               sep=",", 
+               data.table=F, select = c("SNP_Chr","SNP_Pos_hg19","Rs_ID","SNP_MAF","SNP_Imputation_RSq","ProbesetID","Transcript_Chr","Transcript_GeneSymbol","Transcript_EntrezGeneID","Is_Cis","log10FDR"))
+# get only cis eqtlas defined in the paper
+ceqtl <- ceqtl[ceqtl$Is_Cis==1,,drop=F]
+cat("Loaded ", nrow(ceqtl), " cis-eQTL\n")
+head(ceqtl)
+
+# filter ceqtl to be only related to our sentinel SNP
+# TODO use proxy/high ld snps to increase ceqtl number?
+ceqtl <- ceqtl[ceqtl$Rs_ID %in% snp,,drop=F]
+ceqtl.sgenes <- sgenes[sgenes %in% ceqtl$Transcript_GeneSymbol]
+ceqtl.sgenes.selected <- intersect(ceqtl.sgenes, sgenes.selected)
+ceqtl.sgenes
+ceqtl.sgenes.selected
+# create matrix for fisher test
+cont <- matrix(c(length(ceqtl.sgenes),length(ceqtl.sgenes.selected),
+                 length(sgenes),length(sgenes.selected)),
+               nrow=2,ncol=2, byrow = T)
+rownames(cont) <- c("ceqtl", "no ceqtl")
+colnames(cont) <- c("not selected", "selected")
+cont
+fisher.test(cont)
+
+# (1) load chromHMM annotation (SNP annotation)
+## not yet needed
+
+
+# (3) SNPs in TFBS
+## not yet needed
 
 ```
 

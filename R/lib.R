@@ -101,7 +101,7 @@ graph.from.fit <- function(ggm.fit, ranges){
   library(igraph)
   
   # get the graph instance from the ggm fit
-  cutoff <- 0.9
+  cutoff <- 0.8
   g.adj <- BDgraph::select(ggm.fit, cut = cutoff)
   g <- as_graphnel(graph.adjacency(g.adj, mode="undirected", diag=F));
   gn <- nodes(g)

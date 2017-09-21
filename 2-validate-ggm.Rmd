@@ -315,22 +315,23 @@ pvs <- lapply(1:nrow(em), function(r){
   n2 <- em[r,2]
   # check whether we have data for both nodes
   if(n1 %in% colnames(data) & n2 %in% colnames(data)){
-    pv <- cor.test(data[,n1], data[,n2])$p.value
-    c(n1,n2,pv)
+    res <- cor.test(data[,n1], data[,n2])
+    c(n1,n2,res$p.value, res$estimate)
   } else {
     c(n1,n2,NA)
   }
 })
-pvs <- as.data.frame(matrix(unlist(pvs), ncol=3, byrow = T), stringsAsFactors=F)
-colnames(pvs) <- c("n1", "n2", "pval")
+pvs <- as.data.frame(matrix(unlist(pvs), ncol=4, byrow = T), stringsAsFactors=F)
+colnames(pvs) <- c("n1", "n2", "pval", "cor")
 pvs$pval <- as.numeric(pvs$pval)
+pvs$cor <- as.numeric(pvs$cor)
 
 # upper diagonal of p contains the adjusted pvalues
 hist(pvs$pval, main="correlations between genes")
 
 library(qvalue)
 pvs <- cbind(pvs, qval=qvalue(pvs$pval)$qvalues)
-sign.cors <- pvs[abs(pvs$qval)<0.01,]
+sign.cors <- pvs[pvs$qval<0.01 & abs(pvs$cor>0.5),]
 
 em.sign <- em[(em$n1 %in% sign.cors$n1 & em$n2 %in% sign.cors$n2)
               | (em$n2 %in% sign.cors$n1 & em$n1 %in% sign.cors$n2),]

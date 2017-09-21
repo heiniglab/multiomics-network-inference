@@ -45,7 +45,8 @@ get.link.priors <- function(ranges, nodes) {
     cat("Some elements were not available in data:\n")
     na <- names(all.dists)
     cat(na[which(!na %in% nodes)])
-    stop("Some data misteriously went missing..")
+    all.dists <- all.dists[!names(all.dists) %in% na]
+    warning("Some data misteriously went missing..")
   }
   
   # now build the prior matrix using a pseudo prior
@@ -101,7 +102,7 @@ get.link.priors <- function(ranges, nodes) {
   genes <- colnames(priors)[!grepl("^rs|^cg", colnames(priors))];
 
   # get subset of edges which are in our current graph
-  STRING.SUB <- subGraph(intersect(STRING.NODES, genes),STRING.DB)
+  STRING.SUB <- subGraph(intersect(nodes(STRING.DB), genes),STRING.DB)
   edges <- edgeL(STRING.SUB)
   nodes <- nodes(STRING.SUB)
   edges.prior <- gtex.gg.prior
@@ -133,7 +134,7 @@ get.link.priors <- function(ranges, nodes) {
   }
   
   # we will also set tf2cpg priors at this point, so get all TFs
-  tfs <- ranges$enriched.tfs$SYMBOL
+  tfs <- ranges$tfs$SYMBOL
   # also get the chipseq context for our cpgs
   context <- get.chipseq.context(names(ranges$cpgs))
   
@@ -142,15 +143,16 @@ get.link.priors <- function(ranges, nodes) {
     for(tf in tfs) {
       # might be that the TF was measured in more than one cell line
       if(any(context[c,grepl(tf, colnames(context))])) {
-        priors[c,tf] <- 0.6
-        priors[tf,c] <- 0.6
+        if(c %in% colnames(priors) &
+           tf %in% colnames(priors)){
+            priors[c,tf] <- 0.7
+            priors[tf,c] <- 0.7
+        } else {
+          warning("TF-CpG link not available:",c,"-", tf, "\n")
+        }
       }
     }
   }
-  
-  pdf(paste0("results/prior_plots/", id, ".priors.raw.pdf"))
-  pheatmap(priors)
-  dev.off()
   
   # define weights for our priors
   # do we need those? discard for now

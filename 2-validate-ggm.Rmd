@@ -12,10 +12,12 @@ link types, i.e. cpg-gene links, snp-gene links and gene-gene links.
 ```{r}
 library(graph)
 library(data.table)
+library(GenomicRanges)
 library(TxDb.Hsapiens.UCSC.hg19.knownGene)
 library(psych)
 library(Homo.sapiens)
 source("R/validation.R")
+source("R/lib.R")
 ```
 
 ## Data preparation
@@ -29,7 +31,7 @@ genes. Those entities can either have been selected via ggm graph or not.
 # the model
 
 # prepare data
-load("results/ggm.fit.full.RData")
+load("results/ggm.fit.lolipop.RData")
 # load both kora and lollipop data (for gene mediation)
 env <- new.env()
 load("data/kora/rs9859077.data.RData", envir=env)
@@ -78,7 +80,7 @@ cat("Summary on number of genes, total vs selected via ggm:\n")
 cat("sgenes\t", length(sgenes),"\t", length(sgenes.selected), "\n")
 cat("cgenes\t", length(cgenes),"\t", length(cgenes.selected), "\n")
 cat("tfs\t", length(tfs),"\t", length(tfs.selected), "\n")
-#cat("spath\t", length(spath),"\t", length(spath.selected), "\n")
+cat("spath\t", length(spath),"\t", length(spath.selected), "\n")
 
 ```
 Above the number of snp genes (sgenes), cpg genes (cgenes), transcription
@@ -88,7 +90,7 @@ are shown. Starting from those set definitions, we now perform the validation of
 ## SNP-gene validation
 For the SNP-gene validation for which we have several approaches:
 
-### 1. Perform gene mediation. 
+1. Perform gene mediation. 
 Here we check for each gene individually, whether it likely
 mediates the effect the sentinel snp has on the defined trans-cpgs. We calculate linear models
 between snp/genes, snp/cpgs and genes/cpgs. The $\beta$ of the linear models should add up, i.e.
@@ -187,18 +189,28 @@ cat("selected CpG genes with trans-eQTL: ", teqtl.cgenes.selected, "\n")
 cont <- matrix(c(length(teqtl.cgenes),length(teqtl.cgenes.selected),
                  length(cgenes),length(cgenes.selected)),
                nrow=2,ncol=2, byrow = T)
+cat("confusion matrix for cgenes:\n")
 rownames(cont) <- c("teqtl", "no teqtl")
 colnames(cont) <- c("not selected", "selected")
 cont
 fisher.test(cont)
 
-# TODO analyze the tfs, total and selected
-#teqtl.tfs <- tfs[tfs %in% teqtl$Transcript_GeneSymbol]
-#teqtl.tfs.selected <- intersect[teqtl.tfs, tfs.selected]
+# analyze the tfs, total and selected
+teqtl.tfs <- tfs[tfs %in% teqtl$Transcript_GeneSymbol]
+teqtl.tfs.selected <- intersect(teqtl.tfs, tfs.selected)
 
-#cat("TFs: ", tfs, "\n")
-#cat("TFs with trans-eQTL: ", teqtl.tfs, "\n")
-#cat("selected TFs with trans-eQTL: ", teqtl.tfs.selected, "\n")
+cat("TFs: ", tfs, "\n")
+cat("TFs with trans-eQTL: ", teqtl.tfs, "\n")
+cat("selected TFs with trans-eQTL: ", teqtl.tfs.selected, "\n")
+# create matrix for fisher test
+cont <- matrix(c(length(teqtl.tfs),length(teqtl.tfs.selected),
+                 length(tfs),length(tfs.selected)),
+               nrow=2,ncol=2, byrow = T)
+cat("confusion matrix for TFs:\n")
+rownames(cont) <- c("teqtl", "no teqtl")
+colnames(cont) <- c("not selected", "selected")
+cont
+fisher.test(cont)
 
 ```
 
@@ -212,28 +224,37 @@ For the co-expression analysis we load the data from Geuvadis (Lappaleinen et al
 this is gene expression data from 462 LCL cell-lines. The data already is normalized
 to RPKMs and technical artifacts are removed (using PEER factors). We currently
 calculated correlations only on the subset of genes which is within our network.
-```{r}
+```{r cache=TRUE}
 # load the expression data from geuvadis/lappaleinen
-geu <- fread("zcat data/expression/GD462.GeneQuantRPKM.50FN.samplename.resk10.txt.gz", header=T,
+#geu <- fread("zcat data/expression/GD462.GeneQuantRPKM.50FN.samplename.resk10.txt.gz", header=T,
+geu <- fread("zcat data/expression/GD660.GeneQuantRPKM.txt.gz", header=T,
              data.table=F)
 geneinfo <- geu[,1:4]
-
 # get the gene symbols
 geneinfo$Gene_Symbol <- mapIds(Homo.sapiens, unlist(lapply(strsplit(geneinfo[,1], "\\."), "[",1)), "SYMBOL", keytype="ENSEMBL")
 drop <- is.na(geneinfo$Gene_Symbol)
 geneinfo <- geneinfo[!drop,]
-geu <- geu[!drop,]
-rpkm <- geu[,5:ncol(geu)]
-samp <- fread("data/expression/patients_edit.txt", sep="\t", header=T,
-              data.table=F)
-# for now we skip filtering the samples and just calculate over all available
-# samples. We could use this to manually adjust for covariates in the sample table
-# however we use the already PEER normalized version of the gene expression
-# rpkm <- rpkm[,colnames(rpkm) %in% samp$sample]
+geu <- geu[!drop,-(1:4)]
 
-rpkm <- data.matrix(rpkm)
-min(rpkm)
-max(rpkm)
+# quantile normalize 
+scaled <- geu
+rownames(scaled) = geneinfo[,"TargetID"]
+rownames(scaled) = sapply(strsplit(rownames(scaled), ".", fixed=T), "[", 1)
+scaled = normalize.quantile(scaled)
+# match the sample ids 
+sample.id = sapply(strsplit(colnames(scaled), ".", fixed=T), "[", 1)
+mean.expr = t(apply(scaled, 1, tapply, sample.id, mean))
+
+## transform the scaled counts to std normal per gene
+stdnorm <- function(x) {
+  r = rank(x, ties.method="random")
+  qnorm(r / (length(x) + 1))
+}
+transformed = apply(mean.expr, 1, stdnorm)
+corrected <- get.peer.factors(transformed, get.residuals = T, Nk = 10)
+colnames(corrected) <- geneinfo$Gene_Symbol
+min(corrected)
+max(corrected)
 
 ```
 Dimension of the gene expression matrix is `r dim(rpkm)`. We first check the distribution
@@ -242,12 +263,15 @@ of the expression of some randomly selected genes.
 ```{r}
 par(mfrow=c(2,2))
 set.seed(42)
-hist(rpkm[sample(1:nrow(rpkm),1),], breaks=50, xlab="rpkm", main="histogram 1")
-hist(rpkm[sample(1:nrow(rpkm),1),], breaks=50, xlab="rpkm", main="histogram 2")
-hist(rpkm[sample(1:nrow(rpkm),1),], breaks=50, xlab="rpkm", main="histogram 3")
-hist(rpkm[sample(1:nrow(rpkm),1),], breaks=50, xlab="rpkm", main="histogram 4")
+hist(corrected[sample(1:nrow(corrected),1),], breaks=50, xlab="expression", main="histogram 1")
+hist(corrected[sample(1:nrow(corrected),1),], breaks=50, xlab="expression", main="histogram 2")
+hist(corrected[sample(1:nrow(corrected),1),], breaks=50, xlab="expression", main="histogram 3")
+hist(corrected[sample(1:nrow(corrected),1),], breaks=50, xlab="expression", main="histogram 4")
+
 #TODO histogram shows few very large values -> handle?
 ```
+
+Look at those histograms....
 
 Now, for each gene we calculate the correlation against each other gene in our set
 over all samples. In the end we want to boil this down to 'significant' correlations,
@@ -257,7 +281,16 @@ hence we collect FDR corrected p-values using the psych package.
 # get the gene-gene links which are possible in our graph
 em <- expand.grid(all.genes, all.genes, stringsAsFactors = F)
 em <- (em[em$Var1 != em$Var2, ])
+# remove duplicated entries
+em.names <- vector(mode="character", length=nrow(em))
+for(i in 1:nrow(em)){
+  em.names[i] <- paste0(sort(c(em[i,1], em[i,2])), collapse="")
+}
+em <- em[!duplicated(em.names),]
+
+#em <- em[1:(nrow(em)/2),]
 em <- cbind(em[,1], em[,2])
+em <- as.data.frame(em, stringsAsFactors=F)
 em
 
 # get the gene-gene links which can be found in our graph
@@ -266,26 +299,54 @@ em.selected <- cbind(gnodes[em.selected[,1]], gnodes[em.selected[,2]])
 em.selected <- em.selected[!grepl("^rs|^cg", em.selected[,1]),]
 em.selected <- em.selected[!grepl("^rs|^cg", em.selected[,2]),]
 colnames(em) <- colnames(em.selected) <- c("n1", "n2")
-
-em
+em.selected <- as.data.frame(em.selected, stringsAsFactors=F)
 em.selected
 
 # get the gene-gene sign correlations from the lappal. data
-totest <- t(rpkm[geneinfo$Gene_Symbol %in% colnames(data),])
-totest.symbols <- geneinfo[geneinfo$Gene_Symbol %in% colnames(data), "Gene_Symbol"]
+totest <- corrected[,geneinfo$Gene_Symbol %in% colnames(data)]
+totest.symbols <- colnames(totest)
 if(any(duplicated(totest.symbols))){
   # TODO merge the data, i.e. take rpkm means or similar if necessary...
-  warning("Not handling multiple entries for genes right now...")
+  warning("This should not be happening, duplicated gene symbols.")
 }
-colnames(totest) <- totest.symbols
-cat("Checking ", ncol(totest), " genes for correlation.\n")
-cors <- psych::corr.test(totest, adjust="BH", ci=F)
-# upper diagonal of p contains the adjusted pvalues
-hist(cors$p[upper.tri(cors$p)], main="pvalues of correlations between genes")
+cat("Checking", ncol(totest), "genes for correlation.\n")
+pvs <- lapply(1:nrow(em), function(r){
+  n1 <- em[r,1]
+  n2 <- em[r,2]
+  # check whether we have data for both nodes
+  if(n1 %in% colnames(data) & n2 %in% colnames(data)){
+    pv <- cor.test(data[,n1], data[,n2])$p.value
+    c(n1,n2,pv)
+  } else {
+    c(n1,n2,NA)
+  }
+})
+pvs <- as.data.frame(matrix(unlist(pvs), ncol=3, byrow = T), stringsAsFactors=F)
+colnames(pvs) <- c("n1", "n2", "pval")
+pvs$pval <- as.numeric(pvs$pval)
 
-# TODO now we need to check the gene links which were selected against the ones which
-# weren't...
-# 
+# upper diagonal of p contains the adjusted pvalues
+hist(pvs$pval, main="correlations between genes")
+
+library(qvalue)
+pvs <- cbind(pvs, qval=qvalue(pvs$pval)$qvalues)
+sign.cors <- pvs[abs(pvs$qval)<0.01,]
+
+em.sign <- em[(em$n1 %in% sign.cors$n1 & em$n2 %in% sign.cors$n2)
+              | (em$n2 %in% sign.cors$n1 & em$n1 %in% sign.cors$n2),]
+em.selected.sign <- em.selected[(em.selected$n1 %in% sign.cors$n1 & em.selected$n2 %in% sign.cors$n2)
+              | (em.selected$n2 %in% sign.cors$n1 & em.selected$n1 %in% sign.cors$n2),]
+
+# create matrix for fisher test
+cont <- matrix(c(nrow(em.sign),nrow(em.selected.sign),
+                 nrow(em),nrow(em.selected)),
+               nrow=2,ncol=2, byrow = T)
+cat("confusion matrix for gene_gene links:\n")
+rownames(cont) <- c("sign", "not sign")
+colnames(cont) <- c("not selected", "selected")
+print(cont)
+
+
 ```
 
 

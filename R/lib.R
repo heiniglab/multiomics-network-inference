@@ -151,7 +151,7 @@ graph.from.fit <- function(ggm.fit, ranges){
   # ppi edgedata
   load.string.db()
    # get subset of edges which are in our current graph
-  STRING.SUB <- subGraph(intersect(STRING.NODES, gn), STRING.DB)
+  STRING.SUB <- subGraph(intersect(nodes(STRING.DB), gn), STRING.DB)
   edges <- t(edgeMatrix(STRING.SUB))
   edges <- cbind(gn[edges[,1]], gn[edges[,2]])
   edges <- filter.edge.matrix(g,edges)
@@ -326,35 +326,53 @@ filter.edge.matrix <- function(g, em){
 #'
 #' @return nothing
 #'
-load.string.db <- function() {
+load.string.db <- function(reload=F) {
   library(data.table)
+  library(igraph)
   library(graph)
   
-  cat("Loading string db.\n")
-  fstring <- paste0("results/string.validated.RData")
+  cat("Loading string db\n")
+ 
+  fcache <- "results/string.v9.expr.RData"
+  if(reload || !file.exists(fcache)){
+  # load db anew
+  string.all <- fread(paste0("data/string/human_gene_hgnc_symbol.links.detailed.v9.0.txt"),
+                        data.table=F, header=T, stringsAsFactors=F)
+  string.inter <- string.all[string.all$experimental>=1 | string.all$database>=1,]
+  rm(string.all)
 
-  cat("Using", fstring, "as cache file.\n")
-  
-  if(file.exists(fstring)) {
-    cat("Loading previously saved network.\n")
-    load(fstring)
+  string.nodes <- unique(c(string.inter[,1], string.inter[,2]))
+  string.db <- graphNEL(nodes=string.nodes)
+  string.db <- addEdge(string.inter[,1], 
+                       string.inter[,2], 
+                       string.db)
+
+  expr = read.csv("data/gtex/GTEx_Analysis_v6_RNA-seq_RNA-SeQCv1.1.8_gene_median_rpkm.gct", 
+                        sep="\t", 
+                        skip=2, 
+                        stringsAsFactors=F)
+
+  expressed = expr[expr[,"Whole.Blood"] > 0.1, "Name"]
+  expressed = sapply(strsplit(expressed, "." ,fixed=T) ,"[", 1)
+  library(Homo.sapiens)
+  expressed.symbols = select(Homo.sapiens, keys=expressed, keytype="ENSEMBL", columns="SYMBOL")
+  expressed.symbols = unique(expressed.symbols[,"SYMBOL"])
+
+  string.nodes = intersect(nodes(string.db), expressed.symbols)
+  string.db = subGraph(string.nodes, string.db)
+
+  # get largest connected component
+  ig = graph_from_graphnel(string.db)
+  cl = clusters(ig)
+  keep = nodes(string.db)[cl$membership == which.max(cl$csize)]
+  string.db = subGraph(keep, string.db)
+
+  save(file=fcache, string.db)
   } else {
-    # load db anew
-    string.all <- fread(paste0("data/string/human_gene_hgnc_symbol.links.detailed.v9.0.txt"))
-    string.inter <- string.all[experimental>=1 | database>=1]
-    rm(string.all)
-
-    STRING.DB <- graphNEL(unique(unlist(string.inter[,1:2, with=F])))
-    STRING.DB <- addEdge(unlist(string.inter[,1,with=F]), unlist(string.inter[,2,with=F]), STRING.DB)
-    STRING.NODES <- nodes(STRING.DB)
-    STRING.EDGES <- edges(STRING.DB)
-
-    save(file=fstring, STRING.DB, STRING.NODES, STRING.EDGES)
+    load(fcache)
   }
-  # set vars to global environment
-  assign("STRING.DB", STRING.DB, envir=.GlobalEnv);
-  assign("STRING.NODES", STRING.NODES, envir=.GlobalEnv);
-  assign("STRING.EDGES", STRING.EDGES, envir=.GlobalEnv);
+  # set to global environment
+  assign("STRING.DB", string.db, envir=.GlobalEnv);
 
   cat("Done.\n");
 }
@@ -683,36 +701,6 @@ create.correlation.network <- function(cor.pvals, cutoff) {
   return(graph)
 }
 
-#' Gets residuals based on linear models from a data matrix (individuals in the rows)
-#'
-#' Calculates the residual matrix for a given expression matrix 
-#' considering available covariates. Uses linear model. Expects expression probe ids to start
-#' with "ILMN_". Supplied covariates must not start with either of the prefixes
-#'
-#' @param data the matrix for which to calculate the covariates. Needs to contain covariates themselfes plus
-#' either the methylation or expression probes for which to get the residuals
-#'
-#' @return A matrix  where in the colums are the measured entities (e.g.probes) 
-#' and in the rows are the samples, containing the calculated residuals. Covariates supplied in the
-#' input matrix are discared
-#'
-get.residuals <- function(data, cov) {
-  res <- lapply(colnames(data), function(n) {      
-    fm <- as.formula(paste0("`", n, "`~",
-                      "1+age+sex"))     
-    d <- cbind(data[,n],cov)
-    colnames(d)[1] <- n
-    return(lm(fm,data=d))
-  });
-
-  # build the full residual matrix from model results
-  residual.mat <- matrix(data=unlist(lapply(res, resid)), nrow=nrow(data))
-  colnames(residual.mat) <- colnames(data);
-  rownames(residual.mat) <- rownames(data);
-
-  return(residual.mat)
-}
-
 #' Here we define our own summary function for bdgraphs in order
 #' to be able to avoid the graph plotting for large graphs (i.e. we
 #' just add a flag for the original method  on whether or not to plot the graph...)
@@ -840,7 +828,7 @@ get.g.start <- function(nodes, ranges){
   # add STRING connections
   load.string.db()
  
-  STRING.SUB <- subGraph(intersect(STRING.NODES, genes),STRING.DB)
+  STRING.SUB <- subGraph(intersect(nodes(STRING.DB), genes), STRING.DB)
   sn <- nodes(STRING.SUB)
   em <- t(edgeMatrix(STRING.SUB))
   em <- cbind(sn[em[,1]],sn[em[,2]])
@@ -885,25 +873,68 @@ get.g.start.from.priors <- function(priors){
   return(out)
 }
 
-#' Checks which elements of the query have an edge to the 
-#' subject in the given graph object. 
+#' Calculate peer factors for given data and covariates
 #' 
-#' @param query List of nodes to be checked
-#' @param subject A single node name
-#' @param graph The graph object in which to check for the direct connection
-#'
+#' @param data nxg matrix (n=samples, g=genes/variables)
+#' @param covariates nxc matrix (n=samples, c=covariates)
+#' @param get.residuals Flag whether to directly return the residuals
+#' calculated on the data matrix instead of the peer factors calculated
+#' @param Nk Number of factors to estimate. Default: N/4
+#' 
+#' @return Matrix of peer factors calculated
+#' 
 #' @author Johann Hawe
 #' 
-#' @return The elements in 'query' which have an edge in common with the subject
+#' @date 20170328
 #' 
-is.linked <- function(query, subject, graph){
-  e <- edgeL(graph)
-  if(!subject %in% names(e)){
-    warning("'", subject , " has no connection in graph.")
-    return(c())
+get.peer.factors <- function(data, 
+                             covariates=NULL, 
+                             get.residuals=F,
+                             Nk=ceiling(nrow(data)*0.25)) {
+     
+  library(peer)
+  
+  # create model
+  model <- PEER();
+  # input has to be a matrix!
+  PEER_setPhenoMean(model, as.matrix(data));
+  
+  # add the mean estimation as default since it is recommended in the tutorial
+  # of peer. will return Nk+1 factors
+  PEER_setAdd_mean(model, TRUE)
+  
+  # set number of hidden factors to identify. If unknown, a good measure is N/4 (see howto)
+  PEER_setNk(model, Nk);
+  
+  # should not be neccessary but increase anyways
+  PEER_setNmax_iterations(model, 5000);
+  
+  if(!is.null(covariates)){
+    # set matrix of known and important covariates, 
+    # since we want to acknowledge their effect
+    PEER_setCovariates(model, as.matrix(covariates));
   }
-  el <- e[[subject]]
-  out <- query[query %in% el]
-  return(out)
+  
+  # learn 
+  PEER_update(model);
+
+  # directly return the residuals if wanted
+  if(get.residuals) {
+    re <- PEER_getResiduals(model)
+    colnames(re) <- colnames(data)
+    rownames(re) <- rownames(data)
+    return(re)
+  }
+  
+  # get identified factors, contains design.matrix in the first few columns!
+  factors <- PEER_getX(model);
+
+  if(!is.null(covariates)){
+    # return only the calculated factors, ignoring the original design components  
+    factors <- factors[,-c(1:ncol(covariates))]
+  }
+  
+  colnames(factors) <- paste0("f", seq(1:ncol(factors)))
+  return(factors);
 }
 

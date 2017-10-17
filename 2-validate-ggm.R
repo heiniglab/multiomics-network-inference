@@ -70,6 +70,7 @@ cat(file=ofile, append=F,
                             "mediation_selected","mediation","log10_med","cisEqtl",
                             "transEqtl_cgenes","transEqtl_tfs","gene_gene", "go_ids",
                             "go_terms", "go_pvals", "go_qvals")))
+cat(file=ofile, append=T, "\n")
 
 # process both cohorts
 cohorts <- c("lolipop", "kora")

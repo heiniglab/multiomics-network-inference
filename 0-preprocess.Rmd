@@ -1,0 +1,79 @@
+---
+title: "Preprocess cohort data"
+output: html_notebook
+---
+```{r}
+library(pheatmap)
+library(GenomicRanges)
+```
+
+
+```{r}
+# parse the sentinels from the available data files
+files <- list.files("data/kora/", ".*.data.RData", full.names = F)
+sentinels <- unlist(lapply(sapply(files, strsplit, "\\."), "[[", 1))
+# get data for both cohorts for all sentinels
+cohorts <- c("kora", "lolipop")
+
+# for plotting the expression plots
+plot.dir <- "results/plots/expression_per_sentinel"
+if(!dir.exists(plot.dir)){
+  dir.create(plot.dir, recursive = T)
+}
+data <- lapply(sentinels, function(sentinel){
+  cat(sentinel, "\n")
+  d <- lapply(cohorts, function(c){
+    # load data into new environment
+    env <- new.env()
+    dfile <- paste0("data/", c, "/", sentinel, ".data.RData")
+    if(!file.exists(dfile)){
+      warning(paste0(c, " data does not exist for sentinel ", sentinel, "."))
+    } else {
+      load(dfile, envir=env)
+      ggm.data <- with(env, sentinel)
+      id <- with(env, id)
+      data <- ggm.data$data
+      # handle NA cpgs - need not be called for the gcgm method we currently
+      # are using
+      filter.nas <- function(d){
+        rm <- unlist(apply(d,2,function(x) {sum(is.na(x))>5}))
+        d <- d[,!rm]
+        d <- d[complete.cases(d),]
+        return(d)
+      }
+      #data <- filter.nas(data)
+      nodes <- colnames(data)
+      # adjust ranges for only those which were initially found in the data
+      ranges <- ggm.data
+      ranges$data <- NULL
+      ranges$cpg.genes <- ranges$cpg.genes[(ranges$cpg.genes$SYMBOL) %in% nodes]
+      ranges$snp.genes <- ranges$snp.genes[(ranges$snp.genes$SYMBOL) %in% nodes]
+      ranges$spath <- ranges$spath[ranges$spath$SYMBOL %in% nodes]
+      ranges$tfs <- ranges$tfs[ranges$tfs$SYMBOL %in% nodes]
+      return(list(id=id, data=data, ranges=ranges, nodes=nodes))
+    }
+  })
+  names(d) <- cohorts
+  return(d)
+})
+names(data) <- sentinels
+save(file="results/data.processed.RData", data)
+```
+
+```{r}
+hmps <- unlist(lapply(names(data), function(sentinel){
+  d <- data[[sentinel]]
+  lapply(cohorts, function(c){
+    expr.data <- d[[c]]$data[,!grepl("^rs|^cg", d[[c]]$nodes)]
+    cor.mat <- cor((expr.data))
+    mean.cor <- mean(cor.mat)
+    if(mean.cor >= 0.05){
+      cat(sentinel, "\t", c, "\t", mean.cor, "\n")
+    }
+    # plot gene expression correlations
+    pdf(paste0(plot.dir, "/", c, ".", sentinel,".pdf"))
+    pheatmap(cor.mat)
+    dev.off()
+  })
+}))
+```

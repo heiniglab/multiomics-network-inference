@@ -4,10 +4,15 @@ output: html_notebook
 author: Johann Hawe
 params:
   SNP: ""
+  cores: 1
 ---
 ```{r}
 if(params$SNP=="") stop("No sentinel provided!")
 sentinel <- params$SNP
+#sentinel <- "rs9859077"
+cores <- params$cores
+cat("Using sentinel",sentinel, "\n")
+cat("Number of cores used:", cores, "\n")
 ```
 
 In this script we load KORA and LOLIPOP data for the `r params$SNP` sentinel and 
@@ -17,7 +22,7 @@ Priors have to be created beforehand and provided as RData files on the results 
 
 ```{r, message=FALSE, include=FALSE}
 # first load the custom BDgraph library
-library(BDgraph, lib.loc="/storage/groups/groups_epigenereg/packages/2017/R/3.4/")
+library(BDgraph, lib.loc = "~/epigenereg/packages/2017/R/3.4/")
 library(pheatmap)
 library(GenomicRanges)
 library(igraph)
@@ -29,42 +34,10 @@ source("R/priors.R")
 
 # define the available cohorts
 cohorts <- c("lolipop", "kora")
-```
 
-## Data preparation
-First we load the data for both cohorts (LOLIPOP and KORA). For this we load the
-preprocessed data from the original meQTL script and adjust it to better fit our
-needs.
-
-```{r}
-sentinel <- params$SNP
-sentinel <- "rs9859077"
-data <- lapply(cohorts, function(c){
-  # load data into new environment
-  env <- new.env()
-  load(paste0("data/", c, "/", sentinel, ".data.RData"), envir=env)
-  ggm.data <- with(env, sentinel)
-  id <- with(env, id)
-  data <- ggm.data$data
-  # handle NA cpgs
-  filter.nas <- function(d){
-    rm <- unlist(apply(d,2,function(x) {sum(is.na(x))>5}))
-    d <- d[,!rm]
-    d <- d[complete.cases(d),]
-    return(d)
-  }
-  data <- filter.nas(data)
-  cat("Data dimension for", c, ":", dim(data))
-  nodes <- colnames(data)
-  ranges <- ggm.data
-  ranges$data <- NULL
-  ranges$cpg.genes <- ranges$cpg.genes[(ranges$cpg.genes$SYMBOL) %in% nodes]
-  ranges$snp.genes <- ranges$snp.genes[(ranges$snp.genes$SYMBOL) %in% nodes]
-  ranges$spath <- ranges$spath[ranges$spath$SYMBOL %in% nodes]
-  ranges$tfs <- ranges$tfs[ranges$tfs$SYMBOL %in% nodes]
-  return(list(id=id, data=data, ranges=ranges, nodes=nodes))
-})
-names(data) <- cohorts
+# load the sentinel data
+load("results/data.processed.RData")
+data <- data[[sentinel]]
 ```
 
 ## Prior calculation
@@ -103,8 +76,7 @@ names(gstarts) <- cohorts
 
 ```{r}
 iter=100000
-burnin=5000
-cores=8
+burnin=50000
 ```
 We use `r iter` iterations with a burnin of `r burnin` as well as a total of
 `r cores` cores. We then extract the graph from the ggm fit and create a dot file
@@ -132,17 +104,17 @@ fits <- lapply(cohorts, function(c){
     warning("Resulting graph has no nodes.")
   } else {
     
-    plot.data <- plot.ggm(g=graph, id=id, dot.out = paste0("results/", params$SNP, ".", c, ".fit.dot"))
-    save(file=paste0("results/", params$SNP, ".", c, ".fit.RData"), 
+    plot.data <- plot.ggm(g=graph, id=id, dot.out = paste0("results/", sentinel, ".", c, ".fit.dot"))
+    save(file=paste0("results/", sentinel, ".", c, ".fit.RData"), 
          ggm.fit, ranges, gdata, gstart, gpriors, graph, plot.data)
   }
   # check some plots
   ggm.summary <- summary(ggm.fit)
   traceplot(ggm.fit)
   plotcoda(ggm.fit)
-  return(list(ggm.fit = ggm.fit, graph=graph, summary = ggm.summary))
+  return(list(ggm.fit = ggm.fit, graph=graph, ranges=ranges, summary = ggm.summary))
 })
 names(fits) <- cohorts
 # save fits extra, although this is a bit redundant
-save(file=paste0("results/", params$SNP, ".fits.RData"), fits)
+save(file=paste0("results/", sentinel, ".fits.RData"), fits)
 ```

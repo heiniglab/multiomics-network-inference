@@ -61,14 +61,22 @@ teqtl <- fread("zcat data/joehanes-et-al-2017/eqtls/eqtl-gene-annot_trans-only_l
 cat("only trans: ", all(teqtl$Is_Cis == 0), "\n")
 head(teqtl)
 
+# this is the main outfile, to which to write all the validation results (one line
+# per sentinel)
+ofile <- paste0("results/", sentinel, ".validation.txt")
+# add a header line
+cat(file=ofile, append=F,
+    paste0(collapse="\t", c("sentinel","cohort","snp_genes","cpg genes","tfs","spath",
+                            "mediation_selected","mediation","log10_med","cisEqtl",
+                            "transEqtl_cgenes","transEqtl_tfs","gene_gene", "go_ids",
+                            "go_terms", "go_pvals", "go_qvals")))
+
 # process both cohorts
 cohorts <- c("lolipop", "kora")
 temp <- lapply(cohorts, function(cohort){
   
-  # this is the main outfile, to which to write all the validation results (one line
-  # per sentinel)
-  ofile <- paste0("results/", sentinel, ".validation.txt")
-  cat(paste0(sentinel, "\t", cohort), file=ofile, append=F)
+  # write basic info to output
+  cat(paste0(sentinel, "\t", cohort), file=ofile, append=T)
   
   
   ## Data preparation
@@ -378,9 +386,10 @@ temp <- lapply(cohorts, function(cohort){
     go.tab <- go.tab[go.tab$q<0.05,,drop=F]
     if(nrow(go.tab)>0){
       cat(file=ofile, append=T,
-          "\t" %+% paste0(go.tab$GOID, collapse=",") %+% "\t" %+% paste0(go.tab$Term, collapse=","))
+          "\t" %+% paste0(go.tab$GOID, collapse=",") %+% "\t" %+% paste0(go.tab$Term, collapse=",") %+%
+          "\t" %+% paste0(go.tab$Pvalue, collapse=",") %+% "\t" %+% paste0(go.tab$q, collapse=","))
     } else {
-      cat(file=ofile, append=T,"\tNA\tNA")
+      cat(file=ofile, append=T,"\tNA\tNA\tNA\tNA")
     }
     
   }

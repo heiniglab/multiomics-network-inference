@@ -4,38 +4,22 @@
 #' TODO: allow other builds as well, currently this method is not very flexible...
 #'
 #' @param drop.nas Flags whether to drop any annotations where the SYMBOL turns out to be NA
-#' @param verbose Verbosity flag (default: TRUE)
 #'
 #' @return GRanges object, where names(obj) are entrez-ids, and obj$SYMBOLS contains respective gene symbols
 #'
-get.gene.annotation <- function(drop.nas=TRUE, verbose=TRUE) {
-  library(GenomicFeatures)
-  library(GenomicRanges)
-  library(org.Hs.eg.db)
-  
-  # TODO we'd like to use the faster way as indicated below. However this yields
-  # roughly 400 less genes as compared to downloading the current version from
-  # UCSC directly -> we use the list with more genes for now
-  # (yes, it is also the difference between genes/individual transcripts, but some
-  # gene symbols gotten via the current approach are not found when using the easier
-  # one...)
-  #  require(TxDb.Hsapiens.UCSC.hg19.knownGene
-  #  txdb <- TxDb.Hsapiens.UCSC.hg19.knownGene
-  
-  txdb <- makeTxDbFromUCSC(genome="hg19",tablename="knownGene")
-  
-  tscripts = transcriptsBy(txdb, by="gene")
-
-  # names(gene.ranges) gives entrezid
-  gene.ranges <- unlist(range(tscripts))
-
-  gene.ranges$SYMBOL <- unlist(mget(names(gene.ranges), org.Hs.egSYMBOL, ifnotfound=NA))
+get.gene.annotation <- function(drop.nas=TRUE) {
+  library(Homo.sapiens)
+  library(TxDb.Hsapiens.UCSC.hg19.knownGene)
+  txdb = TxDb.Hsapiens.UCSC.hg19.knownGene
+  ucsc2symbol = AnnotationDbi::select(Homo.sapiens, keys=keys(Homo.sapiens, keytype="GENEID"), 
+                                      keytype="GENEID", columns="SYMBOL")
+  GENE.ANNOTATION = genes(txdb)
+  GENE.ANNOTATION$SYMBOL <- ucsc2symbol[match(values(GENE.ANNOTATION)[,"gene_id"], 
+                                              ucsc2symbol[,"GENEID"]),"SYMBOL"]
   if(drop.nas){
-    to.keep <- which(!is.na(gene.ranges$SYMBOL));
-    if(verbose) cat("Removing", length(gene.ranges)-length(to.keep), "genes since SYMBOL = NA.\n");
-    gene.ranges <- gene.ranges[to.keep]
+    GENE.ANNOTATION <- GENE.ANNOTATION[!is.na(GENE.ANNOTATION$SYMBOL)]
   }
-  return(gene.ranges)
+  return(GENE.ANNOTATION)
 }
 
 #'

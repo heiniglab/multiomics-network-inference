@@ -1,0 +1,21 @@
+First preprocess data. (call in R...)
+```{r}
+library(rmarkdown)
+render("0-preprocess.Rmd")
+```
+
+Calculate GGMs:
+```{bash}
+Rscript R/apply-ggm_batch.R
+```
+
+Perform validation
+```{bash}
+Rscript R/validate-ggm_batch.R 
+```
+
+summarize validation results into one table:
+```{bash}
+for i in $(find results/ -name "*validation.txt") ; do cat $i ; done | sort -r | uniq > results/validation.txt
+
+```

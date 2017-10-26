@@ -4,14 +4,6 @@
 #' link types, i.e. cpg-gene links, snp-gene links and gene-gene links.
 #' @autor Johann Hawe
 #'
- 
-args <- commandArgs(trailingOnly=T)
-sentinel <- args[1]
-if(is.null(sentinel) | sentinel=="") stop("No sentinel provided!")
-#sentinel <- "rs9859077"
-#sentinel <- "rs730775"
-
-cat("Using sentinel",sentinel, "\n")
 
 library(graph)
 library(data.table)
@@ -21,6 +13,14 @@ library(qvalue)
 library(Homo.sapiens)
 source("R/validation.R")
 source("R/lib.R")
+
+args <- commandArgs(trailingOnly=T)
+sentinel <- args[1]
+if(is.null(sentinel) | sentinel=="") stop("No sentinel provided!")
+#sentinel <- "rs9859077"
+#sentinel <- "rs730775"
+
+cat("Using sentinel",sentinel, "\n")
 
 # define easy concatenation operator
 `%+%` = paste0
@@ -61,24 +61,30 @@ teqtl <- fread("zcat data/joehanes-et-al-2017/eqtls/eqtl-gene-annot_trans-only_l
 cat("only trans: ", all(teqtl$Is_Cis == 0), "\n")
 head(teqtl)
 
-# this is the main outfile, to which to write all the validation results (one line
-# per sentinel)
+# this is the main outfile, to which to write all the validation results
 ofile <- paste0("results/", sentinel, ".validation.txt")
 # add a header line
-cat(file=ofile, append=F,
-    paste0(collapse="\t", c("sentinel","cohort","snp_genes","cpg genes","tfs","spath",
-                            "mediation_selected","mediation","log10_med","cisEqtl",
-                            "transEqtl_cgenes","transEqtl_tfs","gene_gene", "go_ids",
-                            "go_terms", "go_pvals", "go_qvals")))
-cat(file=ofile, append=T, "\n")
+cols <- c("sentinel","cohort","snp_genes","cpg_genes","tfs","spath",
+  "mediation_selected","mediation","log10_med","cisEqtl",
+  "transEqtl_cgenes","transEqtl_tfs",
+  "geuvadis_gene_gene", "geo_gene_gene", "cohort_gene_gene",
+  "go_ids", "go_terms", "go_pvals", "go_qvals")
+# the result table
+tab <- cbind(t(cols))
+colnames(tab) <- cols
+tab <- tab[-1,]
+
+# load both kora and lolipop data (for gene mediation)
+kdata <- with(env, data[[sentinel]]$kora$data)
+ldata <- with(env, data[[sentinel]]$lolipop$data)
 
 # process both cohorts
 cohorts <- c("lolipop", "kora")
+
 temp <- lapply(cohorts, function(cohort){
   
   # write basic info to output
-  cat(paste0(sentinel, "\t", cohort), file=ofile, append=T)
-  
+  row <- c(sentinel, cohort)
   
   ## Data preparation
   # Before starting prepare the needed data, i.e. the ggm fit, the ranges originally
@@ -87,9 +93,6 @@ temp <- lapply(cohorts, function(cohort){
   # genes. Those entities can either have been selected via ggm graph or not.
   
   load(paste0("results/", sentinel, ".", cohort, ".fit.RData"))
-  # load both kora and lolipop data (for gene mediation)
-  kdata <- with(env, data[[sentinel]]$kora$data)
-  ldata <- with(env, data[[sentinel]]$lolipop$data)
   
   # dnodes -> full set of possible nodes
   if("lolipop" %in% cohort){
@@ -129,11 +132,11 @@ temp <- lapply(cohorts, function(cohort){
   spath.selected <- spath[spath %in% gnodes]
   
   # write to stats file
-  cat(file=ofile, append=T, sep="",
-      "\t" %+% length(sgenes.selected) %+% "/" %+% length(sgenes),
-      "\t" %+% length(cgenes.selected) %+% "/" %+% length(cgenes),
-      "\t" %+% length(tfs.selected) %+% "/" %+% length(tfs),
-      "\t" %+% length(spath.selected) %+% "/" %+% length(spath))
+  row <- c(row,
+           length(sgenes.selected) %+% "/" %+% length(sgenes),
+           length(cgenes.selected) %+% "/" %+% length(cgenes),
+           length(tfs.selected) %+% "/" %+% length(tfs),
+           length(spath.selected) %+% "/" %+% length(spath))
   
   # write to user
   cat("Summary on number of genes, total vs selected via ggm:\n")
@@ -183,9 +186,11 @@ temp <- lapply(cohorts, function(cohort){
   cat("not selected\tselected\n")
   cat(med.pv, "\t", med.pv.selected, "\n")
   cat("Difference (log10(ns/s)): ", log10(med.pv/med.pv.selected), "\n")
-  # write to result file as well
-  cat(file=ofile, append=T, 
-      "\t" %+% med.pv.selected %+% "\t" %+% med.pv %+% "\t" %+% log10(med.pv/med.pv.selected))
+  # add to row
+  row <- c(row,
+           med.pv.selected,
+           med.pv, 
+           log10(med.pv/med.pv.selected))
   
   # (2) check cis-eQTL in independent study
   
@@ -195,8 +200,7 @@ temp <- lapply(cohorts, function(cohort){
   if(nrow(ceqtlsub) < 1) {
     warning("Sentinel " %+% sentinel %+% " not found in cis-eQTL data")
     # report NA in stats file 
-    cat(file=ofile, append=T,
-       "\tNA")
+    row <- c(row, NA)
   } else {
     ceqtl.sgenes <- sgenes[sgenes %in% ceqtlsub$Transcript_GeneSymbol]
     ceqtl.sgenes.selected <- intersect(ceqtl.sgenes, sgenes.selected)
@@ -210,8 +214,9 @@ temp <- lapply(cohorts, function(cohort){
     rownames(cont) <- c("ceqtl", "no ceqtl")
     colnames(cont) <- c("not selected", "selected")
     cont
-    cat(file=ofile, append=T,
-        "\t" %+% fisher.test(cont)$p.value)
+    
+    row <- c(row,
+             fisher.test(cont)$p.value)
   }
   
   # (1) load chromHMM annotation (SNP annotation)
@@ -234,8 +239,9 @@ temp <- lapply(cohorts, function(cohort){
   if(nrow(teqtlsub)<1){
     warning("Sentinel " %+% sentinel %+% " not available in trans-eQTL data.")
     # report NA in stats file 
-    cat(file=ofile, append=T,
-       "\tNA\tNA")
+    row <- c(row,
+             NA,
+             NA)
   } else {
     teqtl.cgenes <- cgenes[cgenes %in% teqtlsub$Transcript_GeneSymbol]
     teqtl.cgenes.selected <- intersect(teqtl.cgenes, cgenes.selected)
@@ -253,8 +259,8 @@ temp <- lapply(cohorts, function(cohort){
     colnames(cont) <- c("not selected", "selected")
     cont
     # report cpg-gene fisher test
-    cat(file=ofile, append=T,
-        "\t" %+% fisher.test(cont)$p.value)
+    row <- c(row,
+             fisher.test(cont)$p.value)
     
     # analyze the tfs, total and selected
     teqtl.tfs <- tfs[tfs %in% teqtlsub$Transcript_GeneSymbol]
@@ -272,8 +278,8 @@ temp <- lapply(cohorts, function(cohort){
     colnames(cont) <- c("not selected", "selected")
     cont
     # report tf fisher test
-    cat(file=ofile, append=T,
-        "\t" %+% fisher.test(cont)$p.value)
+    row <- c(row,
+             fisher.test(cont)$p.value)
   }
   
   ## Gene-Gene validation
@@ -325,6 +331,7 @@ temp <- lapply(cohorts, function(cohort){
   expr.data <- list(geuvadis=geusub, geo=geosub, cohort=data[,!grepl("^cg|^rs",colnames(data)),drop=F])
   
   # we collect for each data set the results (fisher pvalue)
+  # TODO: for the external datasets, check whether we could normalize for age/sex
   results <- lapply(names(expr.data), function(ds) {
     # get the data set
     dset <- expr.data[[ds]]
@@ -366,8 +373,10 @@ temp <- lapply(cohorts, function(cohort){
   })
   
   # report fisher test result for each DS
-  cat(file=ofile, append=T,
-     "\t" %+% results[[1]] %+% "\t" %+% results[[2]] %+% "\t" %+% results[[3]])
+  row <- c(row,
+           results[[1]],
+           results[[2]],
+           results[[3]])
   
   ## GO enrichment
   # do one for all gene nodes in the graph
@@ -384,16 +393,34 @@ temp <- lapply(cohorts, function(cohort){
   
   if(length(gn)<length(bgset)){
     go.tab <- go.enrichment(gn, bgset, gsc)
-    go.tab <- go.tab[go.tab$q<0.05,,drop=F]
+    go.tab <- go.tab[go.tab$q<0.01,,drop=F]
     if(nrow(go.tab)>0){
-      cat(file=ofile, append=T,
-          "\t" %+% paste0(go.tab$GOID, collapse=",") %+% "\t" %+% paste0(go.tab$Term, collapse=",") %+%
-          "\t" %+% paste0(go.tab$Pvalue, collapse=",") %+% "\t" %+% paste0(go.tab$q, collapse=","))
+      row <- c(row,
+               paste0(go.tab$GOID, collapse=","),
+               paste0(go.tab$Term, collapse=","),
+               paste0(go.tab$Pvalue, collapse=","),
+               paste0(go.tab$q, collapse=","))
     } else {
-      cat(file=ofile, append=T,"\tNA\tNA\tNA\tNA")
+      row <- c(row,
+               NA,
+               NA,
+               NA,
+               NA)
     }
     
   }
   # finish the current sentinel
-  cat(file=ofile, append=T,"\n")
+  # all went well
+  if(length(row) == ncol(tab)){
+    tab <<- rbind(tab,row)
+  }
 })
+
+# report results
+if(nrow(tab) == 2){
+  # write output file
+  write.table(file=ofile, tab, col.names=T, row.names=F, quote=F,sep="\t")
+} else {
+  # report error
+  cat(file=ofile, "Error for sentinel with id", sentinel, "\n")
+}

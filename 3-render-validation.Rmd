@@ -1,0 +1,109 @@
+---
+title: "Validation summary"
+output: html_notebook
+---
+
+```{r}
+library(ggplot2)
+library(knitr)
+library(gridExtra)
+```
+
+# Validation results for Bayesian GGMs calculated on KORA and LOLIPOP cohort
+
+This document is a (graphical) summary of the results from the validation output.
+It uses the results collected in $results/validation.summary.txt$.
+
+## Mediation results
+
+```{r}
+# load the large result table for all loci
+# TODO we currently remove the results for the GO enrichment
+tab <- read.table("results/validation.summary.txt", header=T, sep="\t")[,1:15]
+
+# create a mediation specific plot
+mediation <- tab[,c(1,2,7,8,9)]
+# for now we ignore results where we didn't have SNP genes at all
+mediation <- mediation[!is.infinite(mediation$log10_med), ,drop=F]
+mediation <- mediation[order(mediation$mediation_selected),]
+mediation <- reshape2::melt(mediation, measure.vars=c(3,4), value.name = "pval")
+
+head(mediation)
+
+p <- ggplot(data=mediation, aes(x=sentinel, y=-log10(pval), fill=variable)) +
+  geom_bar(stat="identity", position="dodge") + 
+  facet_grid(cohort ~ .) +
+  theme(axis.text.x = 
+          element_text(angle = 90, hjust = 1))
+p
+
+```
+
+Above the mediation results on the different cohorts for all hotspots 
+in which at least one SNP gene was extracted by our algorithm are shown.
+The *mediation_selected* group shows the significance of the mediation analysis of 
+those selected genes, the *mediation* group shows the significance of all NOT selected genes. 
+[Several hotspots are currently not being shown, since we had either problems with 
+the GGM calculation or the no SNP genes were selected.]
+
+## Gene-Gene validation 
+
+The gene-gene links were validated using external expression data from GEO (ARCHS4),
+Geuvadis as well as the data from either LOLIPOP or KORA, depending on which cohort 
+the bGGM was calculated.
+
+To assess how well our approach recovers co-expression of genes in the independent
+datasets, we calculate all gene-vs-gene (gvg) correlations in those data and create a
+confusion matrix as follows:
+
+```{r results='asis'}
+temp <- matrix(c("W","X","Y","Z"),nrow=2,ncol=2)
+colnames(temp) <- c("In GGM", "Not in GGM")
+rownames(temp) <- c("Correlation sign.","Correlation not sign.")
+kable(temp,align = c("c","c"))
+```
+We deem a correlation between two genes to be significant if 1) $p-value < 0.01$
+and 2) $\rho > 0.3$ ($\rho$ being the Pearson Correlation Coefficient).
+
+We test whether we can reject $H0$ (i.e. whether we detect a correlation regardless of it 
+being significant in the independent data) using a Fisher's exact test.
+Shown below are the p-values for those tests over all loci on the different datasets.
+
+```{r}
+# get the relevant data (pvalues on the different datasets)
+gg <- tab[,c(1,2,13,14,15)]
+colnames(gg) <- c("sentinel", "cohort", "Geuvadis", "GEO", "LOLIPOP_KORA")
+#gg <- gg[order(gg$LOLIPOP_KORA),]
+#gg$sentinel <- factor(gg$sentinel, levels=unique(gg$sentinel))
+
+# plot the data
+gg <- melt(gg,measure.vars=c(3,4,5), id.vars=c(1,2))
+gg$value <- -log10(gg$value)
+p <- ggplot(gg, aes(x=reorder(sentinel,value), y=value, fill=variable)) + 
+  facet_grid(cohort~variable) +
+  geom_bar(stat = "identity", position="dodge") + 
+  theme(axis.text.x = element_text(vjust=1, angle = 90)) + 
+  xlab("sentinel") +
+  geom_hline(yintercept = -log10(0.05))
+
+p
+
+#create list of plots
+#p <- lapply(split(gg,gg$variable), function(x){
+  
+#  x$sentinel <- factor(x$sentinel, levels=unique(x$sentinel[order(-log10(x$value))]))
+
+  # create the plot
+#  p <- ggplot(x, aes(x = sentinel, y = -log10(value), fill = variable)) +
+#    geom_bar(stat = "identity") +
+#    facet_grid(cohort~.) +
+#    theme(legend.position="none", axis.text.x = element_text(vjust=1, angle = 90)) + 
+#    geom_hline(yintercept = -log10(0.05)) +
+#    labs(title=unique(x$variable))
+#})
+
+#do.call(grid.arrange,(c(p, nrow=3)))
+```
+
+
+this is just some trailing text for more convenient on-the-flow-looking-at-results

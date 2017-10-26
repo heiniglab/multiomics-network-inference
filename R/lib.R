@@ -88,6 +88,27 @@ graph.from.fit <- function(ggm.fit, ranges){
   cutoff <- 0.9
   g.adj <- BDgraph::select(ggm.fit, cut = cutoff)
   g <- as_graphnel(graph.adjacency(g.adj, mode="undirected", diag=F));
+  
+  # set node and edge attributes
+  g <- annotate.graph(g, ranges)
+  
+  return(g)
+}
+
+#' Annotates a regulatory graph with appropriate node and
+#' edge attributes
+#'
+#' @param g The graph to be annotated
+#' @param ranges The ranges to be used for the annotation. Contains
+#' information on which genes are TFs, what the CpG genes are etc.
+#'
+#' @return The same graph instance as given, but annotated with specific
+#' node and edge attributes 
+#' 
+#' @author Johann Hawe
+#' 
+annotate.graph <- function(g, ranges){
+  # work on all graph nodes
   gn <- nodes(g)
   
   nodeDataDefaults(g,"cpg") <- F
@@ -103,17 +124,17 @@ graph.from.fit <- function(ggm.fit, ranges){
   nodeData(g, gn, "cpg.gene") <- gn %in% ranges$cpg.genes$SYMBOL
   
   nodeDataDefaults(g, "tf") <- F
-  nodeData(g, gn, "tf") <- gn %in% ranges$enriched.tfs$SYMBOL
+  nodeData(g, gn, "tf") <- gn %in% ranges$tfs$SYMBOL
   
   nodeDataDefaults(g, "sp.gene") <- F
-  nodeData(g, gn, "sp.gene") <- gn %in% ranges$shortestpath.genes$SYMBOL
+  nodeData(g, gn, "sp.gene") <- gn %in% ranges$spath$SYMBOL
   
   # edge data information
   edgeDataDefaults(g, "isChipSeq") <- FALSE
   edgeDataDefaults(g, "isPPI") <- FALSE 
   
   # we will also set tf2cpg priors at this point, so get all TFs
-  tfs <- ranges$enriched.tfs$SYMBOL
+  tfs <- ranges$tfs$SYMBOL
   # also get the chipseq context for our cpgs
   context <- get.chipseq.context(names(ranges$cpgs))
   
@@ -123,18 +144,18 @@ graph.from.fit <- function(ggm.fit, ranges){
     for(tf in tfs) {
       # might be that the TF was measured in more than one cell line
       if(any(context[c,grepl(tf, colnames(context))])) {
-       em <- rbind(em,c(c,tf))
+        em <- rbind(em,c(c,tf))
       }
     }
   }
   if(nrow(em) > 0){
     em <- filter.edge.matrix(g,em)
-
+    
     edgeData(g,em[,1], em[,2],"isChipSeq") <- T
   }
   # ppi edgedata
   load.string.db()
-   # get subset of edges which are in our current graph
+  # get subset of edges which are in our current graph
   STRING.SUB <- subGraph(intersect(nodes(STRING.DB), gn), STRING.DB)
   edges <- t(edgeMatrix(STRING.SUB))
   edges <- cbind(gn[edges[,1]], gn[edges[,2]])
@@ -142,7 +163,6 @@ graph.from.fit <- function(ggm.fit, ranges){
   if(nrow(edges) > 0){
     edgeData(g,edges[,1], edges[,2],"isPPI") <- T
   }
-  return(g)
 }
 
 #' Plot a GGM result graph

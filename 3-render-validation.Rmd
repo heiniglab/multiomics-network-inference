@@ -26,17 +26,17 @@ mediation <- tab[,c(1,2,7,8,9)]
 # for now we ignore results where we didn't have SNP genes at all
 mediation <- mediation[!is.infinite(mediation$log10_med), ,drop=F]
 mediation <- mediation[order(mediation$mediation_selected),]
-mediation <- reshape2::melt(mediation, measure.vars=c(3,4), value.name = "pval")
+mediation$sentinel <- factor(mediation$sentinel, levels=unique(mediation$sentinel))
 
-head(mediation)
+# plot the mediation results
+toplot <- melt(mediation, measure.vars=c(3,4), value.name = "pval")
 
-p <- ggplot(data=mediation, aes(x=sentinel, y=-log10(pval), fill=variable)) +
+p <- ggplot(data=toplot, aes(x=sentinel, y=-log10(pval), fill=variable)) +
   geom_bar(stat="identity", position="dodge") + 
   facet_grid(cohort ~ .) +
   theme(axis.text.x = 
-          element_text(angle = 90, hjust = 1))
+          element_text(angle = 90, hjust = 1, vjust=0))
 p
-
 ```
 
 Above the mediation results on the different cohorts for all hotspots 
@@ -45,6 +45,34 @@ The *mediation_selected* group shows the significance of the mediation analysis 
 those selected genes, the *mediation* group shows the significance of all NOT selected genes. 
 [Several hotspots are currently not being shown, since we had either problems with 
 the GGM calculation or the no SNP genes were selected.]
+
+
+```{r echo=F}
+# in addition we plot the log fold-change
+# sort by log_fc
+mediation <- mediation[order(mediation$log10_med, decreasing = T),]
+mediation$sentinel <- factor(mediation$sentinel, levels=unique(mediation$sentinel))
+
+toplot <- melt(mediation, measure.vars=5, value.name="log_fc")
+toplot$favored <- factor(sign(toplot$log_fc),labels = c("not selected", "selected"))
+p <- ggplot(toplot, aes(x=sentinel, y=log_fc, fill=favored)) +
+  geom_bar(stat="identity") + 
+  facet_grid(cohort~.) +
+  theme(axis.text.x = 
+          element_text(angle = 90, hjust = 1, vjust=0)) +
+  ylab("log10(all / selected)")
+p
+
+perc <- table(toplot$favored)
+perc <- perc["selected"] / sum(perc)
+
+```
+This figure shows a different summary of the mediation results. Shown is the log10 fold change
+of the mediation p-value for the not selected SNP genes ($p_n$) over the p-value for selected
+genes ($p_s$). The red bars (*selected*) indicate fold changes where $p_n$ is lower 
+than the corresponding $p_s$, whereas the blue bars indicate the opposite. Overall, 
+`r format(perc*100,digits=4)`\% of all fold changes show negative fold changes 
+(i.e. $p_s$ being smaller than their respective $p_n$s).
 
 ## Gene-Gene validation 
 

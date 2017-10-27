@@ -1,1 +1,0 @@
-/storage/groups/groups_epigenereg/analyses/meQTLs/results/20170303/epigenetic_state_annotation_weighted_all_sentinels.txt

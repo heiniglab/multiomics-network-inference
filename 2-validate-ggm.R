@@ -11,6 +11,7 @@ library(GenomicRanges)
 library(TxDb.Hsapiens.UCSC.hg19.knownGene)
 library(qvalue)
 library(Homo.sapiens)
+
 source("R/validation.R")
 source("R/lib.R")
 
@@ -27,20 +28,20 @@ cat("Using sentinel",sentinel, "\n")
 
 # load preprocessed cohort data
 env <- new.env()
-load("results/data.processed.RData", envir=env)
+load("results/current/data.processed.RData", envir=env)
 
 # load external data
-geu <- fread("data/geuvadis/GD660.GeneQuantRPKM.tsv", header=T,
+geu <- fread("data/current/geuvadis/GD660.GeneQuantRPKM.tsv", header=T,
              data.table=F, sep="\t")
 rownames(geu) <- geu[,1]
 geu <- t(geu[,-1])
-geo <- fread("data/archs4/whole_blood/expression_matrix_norm_peer.tsv", data.table=F,
+geo <- fread("data/current/archs4/whole_blood/expression_matrix_norm_peer.tsv", data.table=F,
              header=T, sep="\t")
 rownames(geo) <- geo[,1]
 geo <- t(geo[,-1])
 
 # load cis-eQTL data
-ceqtl <- fread("zcat data/joehanes-et-al-2017/eqtls/eqtl-gene-annot_cis-only.txt.gz",
+ceqtl <- fread("zcat data/current/joehanes-et-al-2017/eqtls/eqtl-gene-annot_cis-only.txt.gz",
                sep=",", 
                data.table=F, select = c("SNP_Chr","SNP_Pos_hg19","Rs_ID","SNP_MAF",
                                         "SNP_Imputation_RSq","ProbesetID","Transcript_Chr",
@@ -52,7 +53,7 @@ cat("Loaded ", nrow(ceqtl), " cis-eQTL\n")
 head(ceqtl)
 
 # load the trans-eQTL dataset
-teqtl <- fread("zcat data/joehanes-et-al-2017/eqtls/eqtl-gene-annot_trans-only_logFDR2.txt.gz", 
+teqtl <- fread("zcat data/current/joehanes-et-al-2017/eqtls/eqtl-gene-annot_trans-only_logFDR2.txt.gz", 
                sep=",", 
                data.table=F, select = c("SNP_Chr","SNP_Pos_hg19","Rs_ID","SNP_MAF","SNP_Imputation_RSq",
                                         "ProbesetID","Transcript_Chr","Transcript_GeneSymbol",
@@ -62,7 +63,7 @@ cat("only trans: ", all(teqtl$Is_Cis == 0), "\n")
 head(teqtl)
 
 # this is the main outfile, to which to write all the validation results
-ofile <- paste0("results/", sentinel, ".validation.txt")
+ofile <- paste0("results/current", sentinel, ".validation.txt")
 # add a header line
 cols <- c("sentinel","cohort","snp_genes","cpg_genes","tfs","spath",
   "mediation_selected","mediation","log10_med","cisEqtl",
@@ -92,7 +93,7 @@ temp <- lapply(cohorts, function(cohort){
   # i.e. the snp, the cpgs as well as the respective locus genes, tfs and shortest path
   # genes. Those entities can either have been selected via ggm graph or not.
   
-  load(paste0("results/", sentinel, ".", cohort, ".fit.RData"))
+  load(paste0("results/current", sentinel, ".", cohort, ".fit.RData"))
   
   # dnodes -> full set of possible nodes
   if("lolipop" %in% cohort){

@@ -3,7 +3,7 @@ title: "Validation summary"
 output: html_notebook
 ---
 
-```{r}
+```{r echo=F}
 library(ggplot2)
 library(knitr)
 library(gridExtra)
@@ -16,20 +16,20 @@ It uses the results collected in $results/validation.summary.txt$.
 
 ## Mediation results
 
-```{r}
+```{r echo=F}
 # load the large result table for all loci
 # TODO we currently remove the results for the GO enrichment
-tab <- read.table("results/validation.summary.txt", header=T, sep="\t")[,1:15]
+tab <- read.table("results/current/validation.summary.txt", header=T, sep="\t")[,1:15]
 
 # create a mediation specific plot
 mediation <- tab[,c(1,2,7,8,9)]
 # for now we ignore results where we didn't have SNP genes at all
 mediation <- mediation[!is.infinite(mediation$log10_med), ,drop=F]
-mediation <- mediation[order(mediation$mediation_selected),]
-mediation$sentinel <- factor(mediation$sentinel, levels=unique(mediation$sentinel))
 
 # plot the mediation results
-toplot <- melt(mediation, measure.vars=c(3,4), value.name = "pval")
+toplot <- mediation[order(mediation$mediation_selected),]
+toplot$sentinel <- factor(toplot$sentinel, levels=unique(toplot$sentinel))
+toplot <- melt(toplot, measure.vars=c(3,4), value.name = "pval")
 
 p <- ggplot(data=toplot, aes(x=sentinel, y=-log10(pval), fill=variable)) +
   geom_bar(stat="identity", position="dodge") + 
@@ -50,10 +50,10 @@ the GGM calculation or the no SNP genes were selected.]
 ```{r echo=F}
 # in addition we plot the log fold-change
 # sort by log_fc
-mediation <- mediation[order(mediation$log10_med, decreasing = T),]
-mediation$sentinel <- factor(mediation$sentinel, levels=unique(mediation$sentinel))
+toplot <- mediation[order(mediation$log10_med, decreasing = T),]
+toplot$sentinel <- factor(toplot$sentinel, levels=unique(toplot$sentinel))
 
-toplot <- melt(mediation, measure.vars=5, value.name="log_fc")
+toplot <- melt(toplot, measure.vars=5, value.name="log_fc")
 toplot$favored <- factor(sign(toplot$log_fc),labels = c("not selected", "selected"))
 p <- ggplot(toplot, aes(x=sentinel, y=log_fc, fill=favored)) +
   geom_bar(stat="identity") + 
@@ -69,10 +69,13 @@ perc <- perc["selected"] / sum(perc)
 ```
 This figure shows a different summary of the mediation results. Shown is the log10 fold change
 of the mediation p-value for the not selected SNP genes ($p_n$) over the p-value for selected
-genes ($p_s$). The red bars (*selected*) indicate fold changes where $p_n$ is lower 
+genes ($p_s$). The red bars (*not selected*) indicate fold changes where $p_n$ is lower 
 than the corresponding $p_s$, whereas the blue bars indicate the opposite. Overall, 
 `r format(perc*100,digits=4)`\% of all fold changes show negative fold changes 
-(i.e. $p_s$ being smaller than their respective $p_n$s).
+(i.e. $p_s$ being smaller than their respective $p_n$s). Currently, we select the
+minimal p-value obtained from the genes not selected via a GGM and the maximal p-value
+from the selected genes which is a rather conservative estimate. We could think about
+changing the way of summarizing the p-values...
 
 ## Gene-Gene validation 
 
@@ -84,7 +87,7 @@ To assess how well our approach recovers co-expression of genes in the independe
 datasets, we calculate all gene-vs-gene (gvg) correlations in those data and create a
 confusion matrix as follows:
 
-```{r results='asis'}
+```{r results='asis', echo=F }
 temp <- matrix(c("W","X","Y","Z"),nrow=2,ncol=2)
 colnames(temp) <- c("In GGM", "Not in GGM")
 rownames(temp) <- c("Correlation sign.","Correlation not sign.")
@@ -96,8 +99,8 @@ and 2) $\rho > 0.3$ ($\rho$ being the Pearson Correlation Coefficient).
 We test whether we can reject $H0$ (i.e. whether we detect a correlation regardless of it 
 being significant in the independent data) using a Fisher's exact test.
 Shown below are the p-values for those tests over all loci on the different datasets.
-
-```{r}
+The black lines indicate a significance level of $0.05$.
+```{r echo=F}
 # get the relevant data (pvalues on the different datasets)
 gg <- tab[,c(1,2,13,14,15)]
 colnames(gg) <- c("sentinel", "cohort", "Geuvadis", "GEO", "LOLIPOP_KORA")
@@ -134,4 +137,3 @@ p
 ```
 
 
-this is just some trailing text for more convenient on-the-flow-looking-at-results

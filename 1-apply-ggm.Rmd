@@ -36,7 +36,7 @@ source("R/priors.R")
 cohorts <- c("lolipop", "kora")
 
 # load the sentinel data
-load("results/data.processed.RData")
+load("results/current/data.processed.RData")
 data <- data[[sentinel]]
 ```
 
@@ -92,21 +92,29 @@ fits <- lapply(cohorts, function(c){
   ranges <- data[[c]]$ranges
   gstart <- gstarts[[c]]
   gpriors <- priors[[c]]
-  ggm.fit <- bdgraph(gdata, 
-          method="gcgm", 
-          iter=iter, 
-          burnin=burnin,
-          save.all=T, g.start = gstart,
-          g.prior = gpriors, cores=cores)
   
-  graph <- graph.from.fit(ggm.fit, ranges)
-  if(length(nodes(graph))<1){
-    warning("Resulting graph has no nodes.")
-  } else {
+  # the file in which the model fit gets saved
+  fit.out <- paste0("results/current/", sentinel, ".", c, ".fit.RData")
+  if(!file.exists(fit.out)){
+    ggm.fit <- bdgraph(gdata, 
+            method="gcgm", 
+            iter=iter, 
+            burnin=burnin,
+            save.all=T, g.start = gstart,
+            g.prior = gpriors, cores=cores)
     
-    plot.data <- plot.ggm(g=graph, id=id, dot.out = paste0("results/", sentinel, ".", c, ".fit.dot"))
-    save(file=paste0("results/", sentinel, ".", c, ".fit.RData"), 
-         ggm.fit, ranges, gdata, gstart, gpriors, graph, plot.data)
+    graph <- graph.from.fit(ggm.fit, ranges)
+    if(length(nodes(graph))<1){
+      warning("Resulting graph has no nodes.")
+    } else {
+      
+      plot.data <- plot.ggm(g=graph, id=id, dot.out = paste0("results/current/", sentinel, ".", c, ".fit.dot"))
+      save(file=fit.out, 
+           ggm.fit, ranges, gdata, gstart, gpriors, graph, plot.data)
+    }
+  } else {
+    print("Loading already available fit.")
+    load(fit.out)
   }
   # check some plots
   ggm.summary <- summary(ggm.fit)
@@ -116,5 +124,5 @@ fits <- lapply(cohorts, function(c){
 })
 names(fits) <- cohorts
 # save fits extra, although this is a bit redundant
-save(file=paste0("results/", sentinel, ".fits.RData"), fits)
+save(file=paste0("results/current/", sentinel, ".fits.RData"), fits)
 ```

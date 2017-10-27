@@ -16,6 +16,16 @@ Rscript R/validate-ggm_batch.R
 
 summarize validation results into one table:
 ```{bash}
-for i in $(find results/ -name "*validation.txt") ; do cat $i ; done | sort -r | uniq > results/validation.txt
+# ignore failed runs...
+grep "Execution halted" *.validation.out | cut -f 1 -d "." | uniq > results/failed.txt
+while read p ; do rm results/$p.validation.txt ; done < results/failed.txt
 
+cat results/*.validation.txt | sort | uniq | sort -r > results/validation.summary.txt
+
+```
+
+Display the validation results in a neat RMarkdown document
+```{r}
+library(rmarkdown)
+render("3-render-validation.Rmd")
 ```

@@ -48,7 +48,7 @@ data <- lapply(sentinels, function(sentinel){
   return(d)
 })
 names(data) <- sentinels
-save(file="results/data.processed.RData", data)
+save(file="results/current/data.processed.RData", data)
 ```
 
 We create the expression correlation plots for each sentinel for easier

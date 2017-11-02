@@ -71,7 +71,7 @@ This figure shows a different summary of the mediation results. Shown is the log
 of the mediation p-value for the not selected SNP genes ($p_n$) over the p-value for selected
 genes ($p_s$). The red bars (*not selected*) indicate fold changes where $p_n$ is lower 
 than the corresponding $p_s$, whereas the blue bars indicate the opposite. Overall, 
-`r format(perc*100,digits=4)`\% of all fold changes show negative fold changes 
+**`r format(perc*100,digits=4)`\%** of all fold changes show negative fold changes 
 (i.e. $p_s$ being smaller than their respective $p_n$s). Currently, we select the
 minimal p-value obtained from the genes not selected via a GGM and the maximal p-value
 from the selected genes which is a rather conservative estimate. We could think about

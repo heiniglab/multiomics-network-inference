@@ -7,6 +7,9 @@ render("0-preprocess.Rmd")
 Calculate GGMs:
 ```{bash}
 Rscript R/apply-ggm_batch.R
+
+# check which ggm calculations have failed
+grep "Execution halted" results/current/
 ```
 
 Perform validation
@@ -16,11 +19,11 @@ Rscript R/validate-ggm_batch.R
 
 summarize validation results into one table:
 ```{bash}
-# ignore failed runs...
-grep "Execution halted" *.validation.out | cut -f 1 -d "." | uniq > results/failed.txt
-while read p ; do rm results/$p.validation.txt ; done < results/failed.txt
+# remove outputs of failed runs...
+grep "Execution halted" results/current/*.validation.out | cut -f 1 -d "." | uniq > results/current/failed.validation.txt
+while read p ; do rm results/current/$p.validation.txt ; done < results/current/failed.validation.txt
 
-cat results/*.validation.txt | sort | uniq | sort -r > results/validation.summary.txt
+cat results/current/*.validation.txt | sort | uniq | sort -r > results/current/validation.summary.txt
 
 ```
 

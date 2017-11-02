@@ -15,7 +15,7 @@ cat("Using sentinel",sentinel, "\n")
 cat("Number of cores used:", cores, "\n")
 ```
 
-In this script we load KORA and LOLIPOP data for the `r params$SNP` sentinel and 
+In this script we load KORA and LOLIPOP data for the `r sentinel` sentinel and 
 apply the bayesian GGM algorithm implemented in the BDgraph package to them, 
 using priors for the individual links possible in the underlying graph structure. 
 Priors have to be created beforehand and provided as RData files on the results folder.
@@ -94,7 +94,7 @@ fits <- lapply(cohorts, function(c){
   gpriors <- priors[[c]]
   
   # the file in which the model fit gets saved
-  fit.out <- paste0("results/current/", sentinel, ".", c, ".fit.RData")
+  fit.out <- paste0("results/current/fits/", sentinel, ".", c, ".RData")
   if(!file.exists(fit.out)){
     ggm.fit <- bdgraph(gdata, 
             method="gcgm", 
@@ -108,7 +108,7 @@ fits <- lapply(cohorts, function(c){
       warning("Resulting graph has no nodes.")
     } else {
       
-      plot.data <- plot.ggm(g=graph, id=id, dot.out = paste0("results/current/", sentinel, ".", c, ".fit.dot"))
+      plot.data <- plot.ggm(g=graph, id=id, dot.out = paste0("results/current/fits/", sentinel, ".", c, ".dot"))
       save(file=fit.out, 
            ggm.fit, ranges, gdata, gstart, gpriors, graph, plot.data)
     }
@@ -124,5 +124,5 @@ fits <- lapply(cohorts, function(c){
 })
 names(fits) <- cohorts
 # save fits extra, although this is a bit redundant
-save(file=paste0("results/current/", sentinel, ".fits.RData"), fits)
+save(file=paste0("results/current/fits/", sentinel, ".RData"), fits)
 ```

@@ -65,7 +65,9 @@ head(teqtl)
 # this is the main outfile, to which to write all the validation results
 ofile <- paste0("results/current/", sentinel, ".validation.txt")
 # add a header line
-cols <- c("sentinel","cohort","snp_genes","cpg_genes","tfs","spath",
+cols <- c("sentinel","cohort","snp_genes", "snp_genes_selected",
+          "cpg_genes", "cpg_genes_selected", "tfs", "tfs_selected",
+          "spath", "spath_selected",
   "mediation_selected","mediation","log10_med","cisEqtl",
   "transEqtl_cgenes","transEqtl_tfs",
   "geuvadis_gene_gene", "geo_gene_gene", "cohort_gene_gene",
@@ -134,10 +136,10 @@ temp <- lapply(cohorts, function(cohort){
   
   # write to stats file
   row <- c(row,
-           length(sgenes.selected) %+% "/" %+% length(sgenes),
-           length(cgenes.selected) %+% "/" %+% length(cgenes),
-           length(tfs.selected) %+% "/" %+% length(tfs),
-           length(spath.selected) %+% "/" %+% length(spath))
+           length(sgenes), length(sgenes.selected),
+           length(cgenes), length(cgenes.selected),
+           length(tfs), length(tfs.selected), 
+           length(spath), length(spath.selected))
   
   # write to user
   cat("Summary on number of genes, total vs selected via ggm:\n")

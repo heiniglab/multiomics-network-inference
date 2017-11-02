@@ -17,8 +17,8 @@ source("R/lib.R")
 
 args <- commandArgs(trailingOnly=T)
 sentinel <- args[1]
-if(is.null(sentinel) | sentinel=="") stop("No sentinel provided!")
-#sentinel <- "rs9859077"
+#if(is.null(sentinel) | sentinel=="") stop("No sentinel provided!")
+sentinel <- "rs9859077"
 #sentinel <- "rs730775"
 
 cat("Using sentinel",sentinel, "\n")
@@ -68,10 +68,11 @@ ofile <- paste0("results/current/", sentinel, ".validation.txt")
 cols <- c("sentinel","cohort","snp_genes", "snp_genes_selected",
           "cpg_genes", "cpg_genes_selected", "tfs", "tfs_selected",
           "spath", "spath_selected",
-  "mediation_selected","mediation","log10_med","cisEqtl",
-  "transEqtl_cgenes","transEqtl_tfs",
-  "geuvadis_gene_gene", "geo_gene_gene", "cohort_gene_gene",
-  "go_ids", "go_terms", "go_pvals", "go_qvals")
+          "mediation_significant", "mediation_selected_significant",
+          "mediation","mediation_selected","log10_mediation",
+          "cisEqtl", "transEqtl_cgenes","transEqtl_tfs",
+          "geuvadis_gene_gene", "geo_gene_gene", "cohort_gene_gene",
+          "go_ids", "go_terms", "go_pvals", "go_qvals")
 # the result table
 tab <- cbind(t(cols))
 colnames(tab) <- cols
@@ -174,8 +175,17 @@ temp <- lapply(cohorts, function(cohort){
   med <- mediation(data, snp, sgenes, cpgs )
   # mediation for only ggm selected snp genes
   med.selected <- med[sgenes.selected]
+  med.selected.sign <- med.selected[unlist(lapply(med.selected, 
+                                                  function(x) { 
+                                                    x["pvalue"]<0.05 
+                                                  }))]
+  
   # mediation for only not selected snp genes
   med <- med[setdiff(sgenes,sgenes.selected)]
+  med.sign <- med[unlist(lapply(med, 
+                                function(x) { 
+                                  x["pvalue"]<0.05 
+                                }))]
   
   # TODO if we choose to do a test for comparing 
   # selected/not selected, check assumptions first
@@ -191,8 +201,10 @@ temp <- lapply(cohorts, function(cohort){
   cat("Difference (log10(ns/s)): ", log10(med.pv/med.pv.selected), "\n")
   # add to row
   row <- c(row,
-           med.pv.selected,
+           length(med.sign),
+           length(med.selected.sign),
            med.pv, 
+           med.pv.selected,
            log10(med.pv/med.pv.selected))
   
   # (2) check cis-eQTL in independent study

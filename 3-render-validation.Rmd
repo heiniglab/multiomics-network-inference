@@ -16,12 +16,15 @@ It uses the results collected in $results/validation.summary.txt$.
 
 ## Mediation results
 
+### Overall mediation pvalues
+
 ```{r echo=F}
 # load the large result table for all loci
 # TODO we currently remove the results for the GO enrichment
 tab <- read.table("results/current/validation.summary.txt", header=T, sep="\t")[,1:15]
 
 # create a mediation specific plot
+# TODO update those indices
 mediation <- tab[,c(1,2,7,8,9)]
 # for now we ignore results where we didn't have SNP genes at all
 mediation <- mediation[!is.infinite(mediation$log10_med), ,drop=F]
@@ -46,6 +49,7 @@ those selected genes, the *mediation* group shows the significance of all NOT se
 [Several hotspots are currently not being shown, since we had either problems with 
 the GGM calculation or the no SNP genes were selected.]
 
+### Mediation log-foldchanges
 
 ```{r echo=F}
 # in addition we plot the log fold-change
@@ -76,6 +80,40 @@ than the corresponding $p_s$, whereas the blue bars indicate the opposite. Overa
 minimal p-value obtained from the genes not selected via a GGM and the maximal p-value
 from the selected genes which is a rather conservative estimate. We could think about
 changing the way of summarizing the p-values...
+
+### Percentage of mediating genes
+Here we look at the percentage of significant mediation results of the GGM selected
+SNP genes versus total number of SNP genes.
+```{r echo=F}
+# create data frame with all needed values
+# TODO do this over the real validation results over all loci
+results <- tab[,c("snp_genes", "snp_genes_selected",
+                  "mediation_significant", "mediation_selected_significant")]
+# summarize results
+results <- colSums(results)
+# total amount of genes per group, selected/notselected
+sgenes.selected <- results["snp_genes_selected"]
+sgenes.notselected <- results["snp_genes"] - sgenes.selected
+# proportion of significant genes per group
+sign.selected <- results["mediation_selected_significant"] / sgenes.selected
+sign.notselected <- results["mediation_significant"] / sgenes.notselected
+
+toplot <- data.frame(selected=c(1,sign.selected), 
+                     not.selected=c(1,sign.notselected))
+rownames(toplot) <- c("total tested", "proportion significant")
+
+toplot <- melt(cbind(toplot, mediation = rownames(toplot)), 
+               id.vars = c('mediation'))
+p <- ggplot(toplot, aes(x=variable,y=value, fill=mediation)) + 
+  geom_bar(position="identity", stat="identity") +
+  theme(axis.text.x = 
+           element_text(angle = 90, hjust = 1, vjust=0)) +
+  ylab("percentage of genes") +
+  xlab("mediation group") +
+  scale_y_continuous(labels=percent_format())
+  
+p
+```
 
 ## Gene-Gene validation 
 

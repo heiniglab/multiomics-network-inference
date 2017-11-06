@@ -34,7 +34,7 @@ mediation <- function(data, snp, genes, cpgs, plot=F) {
   # calculate all linear models and get the betas
   # snp-gene
   snp.gene <- lapply(genes, function(g){
-    r <- lm(paste0(g,"~",snp), data=d)
+    r <- lm(paste0("`", g, "`~",snp), data=d)
     coefficients(r)[snp]
   })
   names(snp.gene) <- genes
@@ -49,9 +49,11 @@ mediation <- function(data, snp, genes, cpgs, plot=F) {
   betas <- lapply(genes, function(g){
     # gene-cpg
     temp <- lapply(cpgs, function(c){
-      r <- lm(paste0(c,"~",g), data=d)
+      r <- lm(paste0(c, "~`", g, "`"), data=d)
       # merge with the other betas (for each cpg and gene combi, we have 3 betas)
-      r <- c(snp.cpg[[c]], snp.gene[[g]], coefficients(r)[g])
+      r <- c(snp.cpg[[c]], 
+             snp.gene[[g]], 
+             coefficients(r)[2])
       # the estimated beta for snp-cpg via gene
       r <- c(r, r[2] * r[3])
       names(r) <- c(c,g,paste0(c,".",g), paste0(c, ".", g, ".hat"))

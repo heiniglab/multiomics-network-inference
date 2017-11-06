@@ -17,8 +17,8 @@ source("R/lib.R")
 
 args <- commandArgs(trailingOnly=T)
 sentinel <- args[1]
-#if(is.null(sentinel) | sentinel=="") stop("No sentinel provided!")
-sentinel <- "rs9859077"
+if(is.null(sentinel) | sentinel=="") stop("No sentinel provided!")
+#sentinel <- "rs9859077"
 #sentinel <- "rs730775"
 
 cat("Using sentinel",sentinel, "\n")
@@ -96,7 +96,7 @@ temp <- lapply(cohorts, function(cohort){
   # i.e. the snp, the cpgs as well as the respective locus genes, tfs and shortest path
   # genes. Those entities can either have been selected via ggm graph or not.
   
-  load(paste0("results/current/fits/", sentinel, ".", cohort, ".RData"))
+  load(paste0("results/current/", sentinel, ".", cohort, ".fit.RData"))
   
   # dnodes -> full set of possible nodes
   if("lolipop" %in% cohort){
@@ -172,7 +172,7 @@ temp <- lapply(cohorts, function(cohort){
   
   # (1) Perform mediation analysis
   # mediation over all snp genes
-  med <- mediation(data, snp, sgenes, cpgs )
+  med <- mediation(data, snp, sgenes, cpgs)
   # mediation for only ggm selected snp genes
   med.selected <- med[sgenes.selected]
   med.selected.sign <- med.selected[unlist(lapply(med.selected, 

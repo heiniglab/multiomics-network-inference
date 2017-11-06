@@ -86,43 +86,59 @@ In addition, we create some diagnostic plots to check the convergence of the
 algorithm.
 
 ```{r cache=T, results=F}
+
 fits <- lapply(cohorts, function(c){
-  gdata <- data[[c]]$data
-  id <- data[[c]]$id
-  ranges <- data[[c]]$ranges
-  gstart <- gstarts[[c]]
-  gpriors <- priors[[c]]
-  
-  # the file in which the model fit gets saved
-  fit.out <- paste0("results/current/fits/", sentinel, ".", c, ".RData")
-  if(!file.exists(fit.out)){
-    ggm.fit <- bdgraph(gdata, 
-            method="gcgm", 
-            iter=iter, 
-            burnin=burnin,
-            save.all=T, g.start = gstart,
-            g.prior = gpriors, cores=cores)
+  fit <- tryCatch({
+    gdata <- data[[c]]$data
+    id <- data[[c]]$id
+    ranges <- data[[c]]$ranges
+    gstart <- gstarts[[c]]
+    gpriors <- priors[[c]]
     
-    graph <- graph.from.fit(ggm.fit, ranges)
-    if(length(nodes(graph))<1){
-      warning("Resulting graph has no nodes.")
-    } else {
+    # the file in which the model fit gets saved
+    fit.out <- paste0("results/current/fits/", sentinel, ".", c, ".RData")
+    if(!file.exists(fit.out)){
+      ggm.fit <- bdgraph(gdata, 
+              method="gcgm", 
+              iter=iter, 
+              burnin=burnin,
+              save.all=T, g.start = gstart,
+              g.prior = gpriors, cores=cores)
       
-      plot.data <- plot.ggm(g=graph, id=id, dot.out = paste0("results/current/fits/", sentinel, ".", c, ".dot"))
-      save(file=fit.out, 
-           ggm.fit, ranges, gdata, gstart, gpriors, graph, plot.data)
+      graph <- graph.from.fit(ggm.fit, ranges)
+      if(length(nodes(graph))<1){
+        warning("Resulting graph has no nodes.")
+      } else {
+        
+        plot.data <- plot.ggm(g=graph, id=id, dot.out = paste0("results/current/fits/", sentinel, ".", c, ".dot"))
+        save(file=fit.out, 
+             ggm.fit, ranges, gdata, gstart, gpriors, graph, plot.data)
+      }
+    } else {
+      print("Loading already available fit.")
+      load(fit.out)
     }
-  } else {
-    print("Loading already available fit.")
-    load(fit.out)
-  }
-  # check some plots
-  ggm.summary <- summary(ggm.fit)
-  traceplot(ggm.fit)
-  plotcoda(ggm.fit)
-  return(list(ggm.fit = ggm.fit, graph=graph, ranges=ranges, summary = ggm.summary))
+    # check some plots
+    ggm.summary <- summary(ggm.fit)
+    traceplot(ggm.fit)
+    plotcoda(ggm.fit)
+    return(list(ggm.fit = ggm.fit, graph=graph, ranges=ranges, summary = ggm.summary))
+  },
+  #try-catch error
+  error=function(m){
+    f <- paste0("results/current/fits/", sentinel, ".out")
+    cat("ERROR for sentinel", sentinel, "in cohort", c, "\n", 
+        file=f)
+    cat(paste0(m,collapse="\n"),file=f, append=T)
+    return(NULL)
+  })
+  fit
 })
-names(fits) <- cohorts
-# save fits extra, although this is a bit redundant
-save(file=paste0("results/current/fits/", sentinel, ".RData"), fits)
+
+# check for error
+if(!any(is.null(unlist(fits)))) {
+  names(fits) <- cohorts
+  # save fits extra, although this is a bit redundant
+  save(file=paste0("results/current/fits/", sentinel, ".RData"), fits)
+}
 ```

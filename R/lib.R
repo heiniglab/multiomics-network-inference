@@ -64,7 +64,7 @@ get.snp.range <- function(snp){
 #' @author Johann Hawe
 #' 
 get.chipseq.context <- function(cpgs){
-  load("data/cpgs_with_chipseq_context_100.RData")
+  load("data/current/cpgs_with_chipseq_context_100.RData")
   tfbs.ann <- tfbs.ann[rownames(tfbs.ann) %in% cpgs,,drop=F]
   
   return(tfbs.ann[cpgs,,drop=F])
@@ -163,6 +163,8 @@ annotate.graph <- function(g, ranges){
   if(nrow(edges) > 0){
     edgeData(g,edges[,1], edges[,2],"isPPI") <- T
   }
+  
+  return(g)
 }
 
 #' Plot a GGM result graph
@@ -337,10 +339,10 @@ load.string.db <- function(reload=F) {
   
   cat("Loading string db\n")
  
-  fcache <- "results/string.v9.expr.RData"
+  fcache <- "results/current/string.v9.expr.RData"
   if(reload || !file.exists(fcache)){
   # load db anew
-  string.all <- fread(paste0("data/string/human_gene_hgnc_symbol.links.detailed.v9.0.txt"),
+  string.all <- fread(paste0("data/current/string/human_gene_hgnc_symbol.links.detailed.v9.0.txt"),
                         data.table=F, header=T, stringsAsFactors=F)
   string.inter <- string.all[string.all$experimental>=1 | string.all$database>=1,]
   rm(string.all)
@@ -351,7 +353,7 @@ load.string.db <- function(reload=F) {
                        string.inter[,2], 
                        string.db)
 
-  expr = read.csv("data/gtex/GTEx_Analysis_v6_RNA-seq_RNA-SeQCv1.1.8_gene_median_rpkm.gct", 
+  expr = read.csv("data/current/gtex/GTEx_Analysis_v6_RNA-seq_RNA-SeQCv1.1.8_gene_median_rpkm.gct", 
                         sep="\t", 
                         skip=2, 
                         stringsAsFactors=F)

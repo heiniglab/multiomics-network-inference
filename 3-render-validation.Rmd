@@ -5,6 +5,8 @@ output: html_notebook
 
 ```{r echo=F}
 library(ggplot2)
+library(reshape2)
+library(scales)
 library(knitr)
 library(gridExtra)
 ```
@@ -25,7 +27,7 @@ tab <- read.table("results/current/validation.summary.txt", header=T, sep="\t")[
 
 # create a mediation specific plot
 # TODO update those indices
-mediation <- tab[,c(1,2,7,8,9)]
+mediation <- tab[,c(1,2,13,14,15)]
 # for now we ignore results where we didn't have SNP genes at all
 mediation <- mediation[!is.infinite(mediation$log10_med), ,drop=F]
 
@@ -113,6 +115,10 @@ p <- ggplot(toplot, aes(x=variable,y=value, fill=mediation)) +
   scale_y_continuous(labels=percent_format())
   
 p
+
+print("Difference between groups:")
+di <- max(sign.notselected, sign.selected) - min(sign.notselected, sign.selected)
+print(paste0(format(di,digits=2), "%"))
 ```
 
 ## Gene-Gene validation 

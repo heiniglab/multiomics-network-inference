@@ -14,7 +14,7 @@ get.gsc <- function(db, idtype) {
   return (gsc)
 }
 
-gsc.file = "data/geneset-collection.RData"
+gsc.file = "data/current/geneset-collection.RData"
 if (!file.exists(gsc.file)) {
   library(Homo.sapiens)
   gsc = get.gsc(Homo.sapiens, "SYMBOL")

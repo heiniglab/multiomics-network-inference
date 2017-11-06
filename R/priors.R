@@ -55,7 +55,7 @@ get.link.priors <- function(ranges, nodes) {
   colnames(priors) <- rownames(priors) <- nodes
 
   # load annotation needed for cpg2gene priors
-  epigen.states <- read.table("data/epigenetic_state_annotation_weighted_all_sentinels.txt", 
+  epigen.states <- read.table("data/current/epigenetic_state_annotation_weighted_all_sentinels.txt", 
                         header = T, sep="\t", row.names = 1)
   
   for(i in names(all.dists)){
@@ -241,10 +241,10 @@ create.priors <- function(nbins, window) {
 
   load.string.db();
  
-  gtex.eqtl.file <- paste0("data/gtex/Whole_Blood_Analysis.v6p.all_snpgene_pairs.txt.gz")
-  gtex.rpkm.file <- paste0("data/gtex/GTEx_Analysis_v6_RNA-seq_RNA-SeQCv1.1.8_gene_rpkm.gct.gz")
-  gtex.sampleDS.file <- paste0("data/gtex/GTEx_Data_V6_Annotations_SampleAttributesDS.txt")
-  gtex.phenotypeDS.file <- paste0("data/gtex/GTEx_Data_V6_Annotations_SubjectPhenotypesDS.txt")
+  gtex.eqtl.file <- paste0("data/current/gtex/Whole_Blood_Analysis.v6p.all_snpgene_pairs.txt.gz")
+  gtex.rpkm.file <- paste0("data/current/gtex/GTEx_Analysis_v6_RNA-seq_RNA-SeQCv1.1.8_gene_rpkm.gct.gz")
+  gtex.sampleDS.file <- paste0("data/current/gtex/GTEx_Data_V6_Annotations_SampleAttributesDS.txt")
+  gtex.phenotypeDS.file <- paste0("data/current/gtex/GTEx_Data_V6_Annotations_SubjectPhenotypesDS.txt")
   
   if(!file.exists(gtex.eqtl.file)){
     stop("Provided gtex-eqtl file does not exist.\n");
@@ -259,7 +259,7 @@ create.priors <- function(nbins, window) {
     stop("Provided gtex-sample file does not exist.\n");
   }
 
-  GTEX.PLOTS <- paste0("results/gtex_plots/")
+  GTEX.PLOTS <- paste0("results/current/gtex_plots/")
   dir.create(GTEX.PLOTS)
   
   # create the binned vector
@@ -295,7 +295,7 @@ create.priors <- function(nbins, window) {
   # scale between 1 an 0
   gtex.eqtl.priors <- gtex.eqtl.priors / max(gtex.eqtl.priors);
   
-  save(file=paste0("results",
+  save(file=paste0("results/current/",
                    "/gtex.eqtl.priors.RData"), gtex.eqtl.priors)
   
   # plot the prior distribution (significant/bin)
@@ -385,7 +385,7 @@ create.priors <- function(nbins, window) {
   gtex.gg.prior <- pi1
   
   # report prior
-  save(file=paste0("results/gtex.gg.prior.RData"), gtex.gg.cors,
+  save(file=paste0("results/current/gtex.gg.prior.RData"), gtex.gg.cors,
        gtex.gg.prior)
 }
 
@@ -394,8 +394,8 @@ create.priors <- function(nbins, window) {
 #' @return nothing
 #'
 load.gtex.priors <- function() {
-  load("results/gtex.eqtl.priors.RData");
-  load("results/gtex.gg.prior.RData");
+  load("results/current/gtex.eqtl.priors.RData");
+  load("results/current/gtex.gg.prior.RData");
   
   assign("gtex.eqtl.priors", gtex.eqtl.priors, .GlobalEnv);
   assign("gtex.gg.prior", gtex.gg.prior, .GlobalEnv);

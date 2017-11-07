@@ -7,6 +7,6 @@ for(sentinel in c("rs3809627","rs17850402","rs12412214","rs11793438")) { #names(
   cmd <- paste0(cmd, "-N ", sentinel, " ",
                 "-o results/current/", sentinel, ".validation.out ", 
                 "-e results/current/", sentinel, ".validation.out ")
-  cmd <- paste0(cmd, "Rscript 2-validate-ggm.R ", sentinel)
+  cmd <- paste0(cmd, "Rscript R/2-validate-ggm.R ", sentinel)
   system(cmd)
 }

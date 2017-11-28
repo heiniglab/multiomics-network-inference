@@ -9,7 +9,10 @@ Calculate GGMs:
 Rscript R/1-apply-ggm_batch.R
 
 # check which ggm calculations have failed
-grep "Execution halted" results/current/
+for i in *.out ; do echo $i ; tail -n 1 $i | grep angehalten ; done | grep angehalten -B1 | grep rs | cut -f 1 -d "." > failed.txt
+
+# call again for failed runs
+R/1-apply-ggm_batch.R results/current/fits/failed.txt
 ```
 
 Perform validation

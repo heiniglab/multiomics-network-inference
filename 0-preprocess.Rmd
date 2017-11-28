@@ -8,10 +8,15 @@ library(pheatmap)
 library(GenomicRanges)
 ```
 
+## Cohort data preprocessing
+We first preprocess the data for the individual cohorts and save it in a single
+RData file for more convenient analysis later on.
+We remove any ranges from the ranges collection for each sentinel which had no
+data available (e.g. genes having no epxression probes in the data).
 
 ```{r}
 # parse the sentinels from the available data files
-files <- list.files("data/current/cohorts/", ".*.KORA.adjusted.data.RData", full.names = F)
+files <- list.files("data/current/cohorts/", ".*ranges.RData", full.names = F)
 sentinels <- unlist(lapply(sapply(files, strsplit, "\\."), "[[", 1))
 # get data for both cohorts for all sentinels
 cohorts <- c("kora", "lolipop")
@@ -22,7 +27,6 @@ if(!dir.exists(plot.dir)){
   dir.create(plot.dir, recursive = T)
 }
 data <- lapply(sentinels, function(sentinel){
-  cat(sentinel, "\n")
   d <- lapply(cohorts, function(co){
     # load data into new environment
     env <- new.env()
@@ -51,17 +55,18 @@ names(data) <- sentinels
 save(file="results/current/data.processed.RData", data)
 ```
 
-We create the expression correlation plots for each sentinel for easier
-diagnostics.
+In addition to the adjustment of the ranges, we create expression correlation plots
+for all genes in a single locus and save them for later.
+We also report any loci, which show a mean absolute correlation of $\rho > 0.05$.
+
 ```{r}
 hmps <- unlist(lapply(names(data), function(sentinel){
-  print(sentinel)
   d <- data[[sentinel]]
   lapply(cohorts, function(co){
     expr.data <- d[[co]]$data[,!grepl("^rs|^cg", d[[co]]$nodes)]
     cor.mat <- cor((expr.data))
     mean.cor <- mean(cor.mat)
-    if(mean.cor >= 0.05){
+    if(abs(mean.cor) >= 0.05){
       cat(sentinel, "\t", co, "\t", mean.cor, "\n")
     }
     # plot gene expression correlations
@@ -71,3 +76,41 @@ hmps <- unlist(lapply(names(data), function(sentinel){
   })
 }))
 ```
+
+
+## eQTL preprocessing
+We use the eQTL results from LOLIPOP and KORA to validate our cis genes (cis-eQTL)
+and the tfs/sp/cpg genes (trans-eQTL) identifiied using the GGM. 
+We got a list from B. Lehne which contains the betas and standard errors for each
+sentinel and the corresponding probes. We get the pvalue from the t-distribution 
+by using n-2 degrees of freedom.
+
+
+```{r}
+# get eqtl results
+env <- new.env()
+load("data/current/cohorts/eqtls/lolipop-eqtls.RData", envir = env)
+eqtl <- with(env, results)
+rm(env)
+
+# select the relevant cohorts (only oX_ia for lolipop)
+eqtl <- eqtl[,c("snp", "probe", "beta.oX_ia", "se.oX_ia", "beta.kora", "se.kora")]
+
+# get the t-statistic
+eqtl <- with(eqtl, cbind(eqtl, stat.oX_ia=beta.oX_ia/se.oX_ia, stat.kora=beta.kora/se.kora))
+
+# get the pvals and corrected pvals
+eqtl <- with(eqtl, cbind(eqtl, 
+                         p.lolipop = 2*pnorm(-abs(stat.oX_ia)), 
+                         p.kora  = 2*pnorm(-abs(stat.kora))))
+eqtl <- with(eqtl, cbind(eqtl, 
+             q.lolipop = p.adjust(p.lolipop, "BH"),
+             q.kora  = p.adjust(p.kora, "BH")))
+
+# save the processed matrix, only keep p-vals and qvals
+eqtl <- eqtl[,c("snp", "probe", "p.lolipop", "q.lolipop", "p.kora", "q.kora")]
+
+save(file="results/current/eqtls.RData", eqtl)
+
+```
+

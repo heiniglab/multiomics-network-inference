@@ -148,9 +148,8 @@ annotate.graph <- function(g, ranges){
       }
     }
   }
+  em <- filter.edge.matrix(g,em)
   if(nrow(em) > 0){
-    em <- filter.edge.matrix(g,em)
-    
     edgeData(g,em[,1], em[,2],"isChipSeq") <- T
   }
   # ppi edgedata
@@ -311,6 +310,13 @@ plot.ggm <- function(g, id, dot.out=NULL){
 #' @date 2017/03/13
 #' 
 filter.edge.matrix <- function(g, em){
+  if(!is.matrix(em)){
+    stop("Provided edge matrix is not an actual matrix.")
+  }
+  if(nrow(em)<1){
+    return(em)
+  }
+  
   e <- graph::edges(g)
   out <- matrix(ncol=2,nrow=0)
   for(i in 1:nrow(em)){

@@ -2,7 +2,7 @@
 # the ggm modelling scripts.
 
 # first load the custom BDgraph library plus others
-library(BDgraph, lib.loc = "~/epigenereg/packages/2017/R/3.4/")
+library(BDgraph, lib.loc = "/storage/groups/groups_epigenereg/packages/2017/R/3.4/")
 library(pheatmap)
 library(GenomicRanges)
 library(igraph)
@@ -12,6 +12,7 @@ library(graph)
 args <- commandArgs(trailingOnly = T)
 sentinel <- args[1]
 cores <- args[2]
+
 plotdir <- "results/current/plots/"
 outdir <- "results/current/fits/"
 
@@ -70,8 +71,8 @@ gstarts <- lapply(cohorts, function(c){
 names(gstarts) <- cohorts
 
 # set ggm parameters
-iter=5000
-burnin=1000
+iter=100000
+burnin=50000
 
 #We use `r iter` iterations with a burnin of `r burnin` as well as a total of
 #`r cores` cores. We then extract the graph from the ggm fit and create a dot file

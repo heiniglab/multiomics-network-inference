@@ -1,6 +1,9 @@
 ---
 title: "Validation summary"
-output: html_notebook
+output:
+  html_document: default
+  html_notebook: default
+  pdf_document: default
 ---
 
 ```{r echo=F}
@@ -9,6 +12,8 @@ library(reshape2)
 library(scales)
 library(knitr)
 library(gridExtra)
+library(graph)
+source("R/lib.R")
 ```
 
 # Validation results for Bayesian GGMs calculated on KORA and LOLIPOP cohort
@@ -23,8 +28,8 @@ It uses the results collected in $results/validation.summary.txt$.
 ```{r echo=F}
 # load the large result table for all loci
 # TODO we currently remove the results for the GO enrichment
-tab <- read.table("results/current/validation.summary.txt", header=T, sep="\t")[,1:15]
-
+tab <- read.table("results/current/validation.summary.txt", header=T, sep="\t")[,1:21]
+head(tab)
 # create a mediation specific plot
 # TODO update those indices
 mediation <- tab[,c(1,2,13,14,15)]
@@ -82,6 +87,61 @@ than the corresponding $p_s$, whereas the blue bars indicate the opposite. Overa
 minimal p-value obtained from the genes not selected via a GGM and the maximal p-value
 from the selected genes which is a rather conservative estimate. We could think about
 changing the way of summarizing the p-values...
+
+#### Non-selected genes with strong mediation effect
+Apparently, some of the results above indicate that there are genes, which show
+a very strong effect mediation but are not selected by our model. Here we briefly
+analyse those genes to get an idea of what went wrong.
+
+```{r}
+source("R/validation.R")
+
+# check the most extreme sentinel here
+snp <- "rs3809627"
+#snp <- "rs3764289"
+# load preprocessed cohort data
+env <- new.env()
+load("results/current/data.processed.RData", envir=env)
+data <- with(env, data[[snp]]$lolipop$data)
+cohort <- "kora"
+load(paste0("results/current/", snp, ".", cohort, ".fit.RData"))
+dnodes <- colnames(data)
+# the nodes retained in the fitted graph model
+gnodes <- nodes(graph)
+# for now, filter only for those nodes for which data was available
+# should change once we update the data matrix...
+gnodes <- gnodes[gnodes %in% dnodes]
+# get names of all entities, total and selected by ggm
+data[,snp] <- as.integer(as.character(data[,snp]))
+cpgs <- intersect(dnodes, names(ranges$cpgs))
+cpgs.selected <- cpgs[cpgs %in% gnodes]
+sgenes <- intersect(dnodes, ranges$snp.genes$SYMBOL)
+sgenes.selected <- sgenes[sgenes %in% unlist(adj(graph,snp))]
+med <- mediation(data, snp, sgenes, cpgs)
+
+# build plotting data.frame
+temp <- cbind.data.frame(gene=names(med), pvalue=unlist(lapply(med, "[", "pvalue")))
+temp$gene <- as.character(temp$gene)
+temp <- cbind.data.frame(temp, selected=(temp$gene %in% sgenes.selected))
+temp <- cbind.data.frame(temp, snp.prior=gpriors[temp$gene,snp], in.gstart=gstart[temp$gene,snp])
+
+# get the linear model fits between genes and our snp
+cors <- lapply(temp$gene, function(g){
+  mod <- lm(paste0("`", g, "`~", snp), data=data)
+  lmp(mod)
+})
+names(cors) <- temp$gene
+temp <- cbind.data.frame(temp, lmp=unlist(cors)[temp$gene])
+
+# create to summary plots
+ggplot(aes(y=snp.prior, x=selected, fill=selected), data = temp) + geom_boxplot()
+ggplot(aes(y=-log10(lmp), x=-log10(pvalue),  col=snp.prior, shape=selected, size=2), data = temp) + geom_point()
+
+# interesting gene to follow up prior/selected/mediation associations
+med[["TBC1D10B"]]
+
+```
+
 
 ### Percentage of mediating genes
 Here we look at the percentage of significant mediation results of the GGM selected
@@ -146,7 +206,7 @@ Shown below are the p-values for those tests over all loci on the different data
 The black lines indicate a significance level of $0.05$.
 ```{r echo=F}
 # get the relevant data (pvalues on the different datasets)
-gg <- tab[,c(1,2,13,14,15)]
+gg <- tab[,c(1,2,19,20,21)]
 colnames(gg) <- c("sentinel", "cohort", "Geuvadis", "GEO", "LOLIPOP_KORA")
 #gg <- gg[order(gg$LOLIPOP_KORA),]
 #gg$sentinel <- factor(gg$sentinel, levels=unique(gg$sentinel))

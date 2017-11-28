@@ -35,31 +35,39 @@ geu <- fread("data/current/geuvadis/GD660.GeneQuantRPKM.tsv", header=T,
              data.table=F, sep="\t")
 rownames(geu) <- geu[,1]
 geu <- t(geu[,-1])
-geo <- fread("data/current/archs4/whole_blood/expression_matrix_norm_peer.tsv", data.table=F,
-             header=T, sep="\t")
+geo <- fread("data/current/archs4/whole_blood/expression_matrix_norm_peer.tsv", 
+             data.table=F, header=T, sep="\t")
 rownames(geo) <- geo[,1]
 geo <- t(geo[,-1])
 
+kora.ceqtl <- fread("data/current/cohorts/eqtls/kora-cis-eqtls.csv", sep=";",
+                         header=T, data.table=F)
+kora.teqtl <- fread("data/current/cohorts/eqtls/kora-trans-eqtls.csv", sep=";",
+                    header=T, data.table=F)
+
 # load cis-eQTL data
-ceqtl <- fread("zcat data/current/joehanes-et-al-2017/eqtls/eqtl-gene-annot_cis-only.txt.gz",
-               sep=",", 
-               data.table=F, select = c("SNP_Chr","SNP_Pos_hg19","Rs_ID","SNP_MAF",
-                                        "SNP_Imputation_RSq","ProbesetID","Transcript_Chr",
-                                        "Transcript_GeneSymbol","Transcript_EntrezGeneID",
-                                        "Is_Cis","log10FDR"))
+#ceqtl <- fread("zcat data/current/joehanes-et-al-2017/eqtls/eqtl-gene-annot_cis-only.txt.gz",
+#               sep=",", 
+#               data.table=F, select = c("SNP_Chr","SNP_Pos_hg19","Rs_ID","SNP_MAF",
+#                                        "SNP_Imputation_RSq","ProbesetID","Transcript_Chr",
+#                                        "Transcript_GeneSymbol","Transcript_EntrezGeneID",
+#                                        "Is_Cis","log10FDR"))
 # get only cis eqtls defined in the paper
-ceqtl <- ceqtl[ceqtl$Is_Cis==1 & ceqtl$log10FDR < -2,,drop=F]
+#ceqtl <- ceqtl[ceqtl$Is_Cis==1 & ceqtl$log10FDR < -2,,drop=F]
+ceqtl <- kora.ceqtl
 cat("Loaded ", nrow(ceqtl), " cis-eQTL\n")
 head(ceqtl)
 
 # load the trans-eQTL dataset
-teqtl <- fread("zcat data/current/joehanes-et-al-2017/eqtls/eqtl-gene-annot_trans-only_logFDR2.txt.gz", 
-               sep=",", 
-               data.table=F, select = c("SNP_Chr","SNP_Pos_hg19","Rs_ID","SNP_MAF","SNP_Imputation_RSq",
-                                        "ProbesetID","Transcript_Chr","Transcript_GeneSymbol",
-                                        "Transcript_EntrezGeneID","Is_Cis","log10FDR"))
+#teqtl <- fread("zcat data/current/joehanes-et-al-2017/eqtls/eqtl-gene-annot_trans-only_logFDR2.txt.gz", 
+#               sep=",", 
+#               data.table=F, select = c("SNP_Chr","SNP_Pos_hg19","Rs_ID","SNP_MAF","SNP_Imputation_RSq",
+#                                        "ProbesetID","Transcript_Chr","Transcript_GeneSymbol",
+#                                        "Transcript_EntrezGeneID","Is_Cis","log10FDR"))
 # sanity check
-cat("only trans: ", all(teqtl$Is_Cis == 0), "\n")
+#cat("only trans: ", all(teqtl$Is_Cis == 0), "\n")
+teqtl <- kora.teqtl
+cat("Loaded ", nrow(teqtl), " trans-eQTL\n")
 head(teqtl)
 
 # this is the main outfile, to which to write all the validation results
@@ -125,7 +133,6 @@ temp <- lapply(cohorts, function(cohort){
   cgenes <- intersect(dnodes, ranges$cpg.genes$SYMBOL)
   cgenes.selected <- cgenes[cgenes %in% unlist(adj(graph,cpgs))]
   
-  # TODO adjust this for new data
   # TODO also check TF to cpg-gene association..
   tfs <- intersect(dnodes, ranges$tfs$SYMBOL)
   tfs.selected <- tfs[tfs %in% unlist(adj(graph,cpgs))]
@@ -250,8 +257,8 @@ temp <- lapply(cohorts, function(cohort){
   
   # filter teqtl to be only related to our sentinel SNP
   # TODO use proxy/high ld snps to increase teqtl number?
-  teqtlsub <- teqtl[teqtl$Rs_ID %in% snp & (teqtl$log10FDR) < (-2),,drop=F]
-  if(nrow(teqtlsub)<1){
+  teqtlsub <- teqtl[teqtl$`top SNP KORA` %in% snp,,drop=F]# & (teqtl$log10FDR) < (-2),,drop=F]
+  if(nrow(teqtlsub)<1) {
     warning("Sentinel " %+% sentinel %+% " not available in trans-eQTL data.")
     # report NA in stats file 
     row <- c(row,

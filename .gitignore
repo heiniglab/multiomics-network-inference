@@ -1,3 +1,4 @@
 *.out
 *.RData
 *.html
+*.gz

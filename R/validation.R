@@ -89,6 +89,7 @@ mediation <- function(data, snp, genes, cpgs, plot=F) {
     pv <- r$p.value
     
     if(plot){
+      pdf(paste0("results/current/plots/", snp, "_mediation_plots.pdf"))
       plot(x = d1,y = d2,
            main=paste0(g),
            ylab=expression(hat(beta)[c]),
@@ -97,6 +98,7 @@ mediation <- function(data, snp, genes, cpgs, plot=F) {
       abline(fit, col="red")
       text(x=-0.01, y=max(d1), labels = paste0("cor=", format(cor, digits=2), 
                              "\np.value=", format(pv, digits=2)))
+      dev.off()
     }
     c(correlation=unname(cor),pvalue=pv)
   })

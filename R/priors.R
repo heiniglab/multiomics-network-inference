@@ -14,7 +14,7 @@
 get.link.priors <- function(ranges, nodes) {
   
   # assume single SNP
-  message("WARNING: Assuming single SNP in givne data.")
+  message("WARNING: Assuming single SNP in given data.")
   id <- nodes[grepl("^rs", nodes)]
   
   # load string db
@@ -30,13 +30,12 @@ get.link.priors <- function(ranges, nodes) {
   bins <- seq(0,wnd-step, by=step);
   
   
-  # get distances to all genes for cpgs and snps
+  # get distances to all genes for cpgs  and snps
   cpg.dists <- get.nearby.ranges(ranges$cpgs, 
                                  promoters(ranges$cpg.genes))
-  all.dists <- append(cpg.dists, snp.dists);
 
   # sanity check
-  if(!all(names(all.dists) %in% nodes)){
+  if(!all(names(cpg.dists) %in% nodes)){
     cat("Some elements were not available in data:\n")
     na <- names(all.dists)
     cat(na[which(!na %in% nodes)])
@@ -54,8 +53,8 @@ get.link.priors <- function(ranges, nodes) {
                         header = T, sep="\t", row.names = 1)
   
   ## SET CPG-CPGGENE PRIOR
-  for(i in names(all.dists)){
-    gene.ranges <- all.dists[[i]];
+  for(i in names(cpg.dists)){
+    gene.ranges <- cpg.dists[[i]];
     temp <- lapply(gene.ranges, function(r) {
       s <- r$SYMBOL;
       if(s %in% colnames(priors)) {
@@ -89,10 +88,14 @@ get.link.priors <- function(ranges, nodes) {
     idx <- which(grepl(paste0(paste0(",",g,"$"),"|", 
                               paste0(",",g,","),"|",
                               paste0("^",g,","),"|",
-                              paste0("^",g,"$")), gtex.eqtl$gene_id))[1]
+                              paste0("^",g,"$")), gtex.eqtl$symbol))[1]
     # did we find the gene? then set prior
     if(!is.na(idx)){
-      priors[g,id] <- priors[id,g] <- (1-gtex.eqtl[idx,"lfdr"])
+      p <- (1-gtex.eqtl[idx]$lfdr)
+      if(p == 0) {
+        p <- pseudo.prior
+      }
+      priors[g,id] <- priors[id,g] <- p
     }
   }
   
@@ -219,8 +222,8 @@ get.link.priors <- function(ranges, nodes) {
   # Also: we found the influence of priors on model almost too large in 
   # a first run, consider this when thinking about uncommenting line below
   #priors.w <- priors.w / (max(priors.w) + 0.1)
-
-  return(priors)
+  priors.w[priors.w==0] <- pseudo.prior
+  return(priors.w)
 }
 
 #' Gets priors for the GGMs from the GTEX dataset
@@ -433,11 +436,12 @@ create.priors <- function(nbins, window) {
 #' @return nothing
 #'
 load.gtex.priors <- function(sentinel=NULL) {
+  cat("Loading gtex priors.\n")
   gtex.eqtl <- readRDS("results/current/gtex.eqtl.priors.rds");
   load("results/current/gtex.gg.cors.RData");
   
   # keep only some of the columns of the eqtl priors
-  gtex.eqtl <- gtex.eqtl[,c("gene_id",
+  gtex.eqtl <- gtex.eqtl[,c("symbol",
                               "RS_ID_dbSNP135_original_VCF",
                               "RS_ID_dbSNP142_CHG37p13",
                               "lfdr")]
@@ -459,7 +463,7 @@ load.gtex.priors <- function(sentinel=NULL) {
 #' @author Johann Hawe
 #' @return nothing
 #'
-preprocess.gtex.eqtl <- function(){
+preprocess.gtex.eqtl <- function() {
   library(fdrtool)
   library(data.table)
   library(Homo.sapiens)
@@ -500,9 +504,7 @@ preprocess.gtex.eqtl <- function(){
   ids <- ids[ids %in% symbols$ENSEMBL]
   
   symbols.by.id <- tapply(symbols$SYMBOL, symbols$ENSEMBL, function(x) paste(x,collapse=","))
-  pairs[, ("gene_id") := symbols.by.id[ids]]
-
-  pairs[,"gene_id"] <- paste(symbols[ids,"SYMBOL"], collapse=",")
+  pairs[, ("symbol") := symbols.by.id[ids]]
 
   # output gzip file
   out <- "results/current/gtex.eqtl.priors.rds"

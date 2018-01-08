@@ -414,13 +414,17 @@ get.nearby.ranges <- function(query, subject) {
 
   #return a list, where each query gets its nearby ranges annotated with their distance
   res <- lapply(query, function(q) {
-    n <- nearby(q, subject);
-    n$ranges$distance <- rep(-1, times=length(n$ranges));
-    for(i in 1:length(n$ranges)) {
-      d <- distance(q,n$ranges[i]);
-      n$ranges[i]$distance <- d;
+    n <- nearby(q, subject)
+    if(length(n$hits)>0){
+      n$ranges$distance <- rep(-1, times=length(n$ranges))
+      for(i in 1:length(n$ranges)) {
+        d <- distance(q,n$ranges[i])
+        n$ranges[i]$distance <- d
+      }
+      return(n$ranges)
+    } else {
+      return(NULL)
     }
-    return(n$ranges);
   });
   return(res);
 }
@@ -968,7 +972,7 @@ get.residuals <- function(data, cov) {
   # process GTEX data
   res <- lapply(colnames(data), function(n) {      
     fm <- as.formula(paste0("`", n, "`~",
-                      "1+age+sex"))     
+                      "1+age+sex+batch1+batch2"))     
     d <- cbind(data[,n],cov)
     colnames(d)[1] <- n
     return(lm(fm,data=d))

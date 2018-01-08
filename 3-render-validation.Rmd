@@ -104,7 +104,7 @@ env <- new.env()
 load("results/current/data.processed.RData", envir=env)
 data <- with(env, data[[snp]]$lolipop$data)
 cohort <- "kora"
-load(paste0("results/current/", snp, ".", cohort, ".fit.RData"))
+load(paste0("results/current/fits/", snp, ".", cohort, ".RData"))
 dnodes <- colnames(data)
 # the nodes retained in the fitted graph model
 gnodes <- nodes(graph)
@@ -117,8 +117,7 @@ cpgs <- intersect(dnodes, names(ranges$cpgs))
 cpgs.selected <- cpgs[cpgs %in% gnodes]
 sgenes <- intersect(dnodes, ranges$snp.genes$SYMBOL)
 sgenes.selected <- sgenes[sgenes %in% unlist(adj(graph,snp))]
-med <- mediation(data, snp, sgenes, cpgs)
-
+med <- mediation(data, snp, "TBC1D10B", cpgs, plot=T)
 # build plotting data.frame
 temp <- cbind.data.frame(gene=names(med), pvalue=unlist(lapply(med, "[", "pvalue")))
 temp$gene <- as.character(temp$gene)

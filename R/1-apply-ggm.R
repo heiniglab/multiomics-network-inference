@@ -45,9 +45,10 @@ priors <- lapply(cohorts, function(c){
   # get the prior definitions and plot the prior heatmap
   priors <- get.link.priors(cohort$ranges, cohort$nodes)
   cat("Prior min-value: ", min(priors), "\n")
-  
+  print(dim(priors))
   pheatmap(priors, cex=0.7, main=paste0(c, " priors"),
-           filename=paste0(plotdir, sentinel, ".", c, ".priors.pdf"))
+           filename=paste0(plotdir, sentinel, ".", c, ".priors.pdf"),
+           cex=0.7)
   
   return(priors)
 })
@@ -64,7 +65,8 @@ gstarts <- lapply(cohorts, function(c){
   g.start <- get.g.start.from.priors(priors[[c]])
   
   pheatmap(g.start, cex=0.7, main=paste0(c, " start graph"),
-           filename=paste0(plotdir, sentinel, ".", c, ".gstart.pdf"))
+           filename=paste0(plotdir, sentinel, ".", c, ".gstart.pdf"),
+           cex=0.7)
   
   return(g.start)
 })
@@ -114,7 +116,7 @@ fits <- lapply(cohorts, function(c) {
       load(fit.out)
     }
     # check some plots
-    pdf(paste0(plotdir, sentinel, ".", c, ".ggmout.pdf"))  
+    pdf(paste0(plotdir, sentinel, ".", c, ".ggm.info.pdf"))  
     ggm.summary <- summary(ggm.fit)
     traceplot(ggm.fit)
     plotcoda(ggm.fit)
@@ -127,6 +129,7 @@ fits <- lapply(cohorts, function(c) {
     cat("ERROR for sentinel", sentinel, "in cohort", c, "\n", 
         file=f)
     cat(paste0(m,collapse="\n"),file=f, append=T)
+    cat(file="results/current/apply.ggm.failed.txt", append=T, sentinel, "\t", c)
     return(NULL)
   })
   fit

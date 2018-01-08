@@ -71,7 +71,7 @@ cat("Loaded ", nrow(teqtl), " trans-eQTL\n")
 head(teqtl)
 
 # this is the main outfile, to which to write all the validation results
-ofile <- paste0("results/current/", sentinel, ".validation.txt")
+ofile <- paste0("results/current/validation/", sentinel, ".validation.txt")
 # add a header line
 cols <- c("sentinel","cohort","snp_genes", "snp_genes_selected",
           "cpg_genes", "cpg_genes_selected", "tfs", "tfs_selected",
@@ -104,7 +104,7 @@ temp <- lapply(cohorts, function(cohort){
   # i.e. the snp, the cpgs as well as the respective locus genes, tfs and shortest path
   # genes. Those entities can either have been selected via ggm graph or not.
   
-  load(paste0("results/current/", sentinel, ".", cohort, ".fit.RData"))
+  load(paste0("results/current/fits/", sentinel, ".", cohort, ".RData"))
   
   # dnodes -> full set of possible nodes
   if("lolipop" %in% cohort){
@@ -446,3 +446,4 @@ if(nrow(tab) == 2){
   # report error
   cat(file=ofile, "Error for sentinel with id", sentinel, "\n")
 }
+

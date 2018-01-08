@@ -21,9 +21,11 @@ cores <- 10
 # create output dir
 dir.create("results/current/fits")
 for(sentinel in sentinels) {
-  cmd <- paste0("qsub -cwd -V -q long_fed25 -pe smp ", cores, " -hard -l job_mem=1G -b y ")
-  cmd <- paste0(cmd, "-N ", sentinel," -o results/current/fits/", sentinel, 
-                ".out -e results/current/fits/", sentinel, ".out ")
-  cmd <- paste0(cmd, "Rscript R/1-apply-ggm.R ", sentinel, " ", cores)
-  system(cmd)
+  if(!file.exists(paste0("results/current/fits/",sentinel,".RData"))) {
+    cmd <- paste0("qsub -cwd -V -q long_fed25 -pe smp ", cores, " -hard -l job_mem=1G -b y ")
+    cmd <- paste0(cmd, "-N ", sentinel," -o results/current/fits/", sentinel, 
+                  ".out -e results/current/fits/", sentinel, ".out ")
+    cmd <- paste0(cmd, "Rscript R/1-apply-ggm.R ", sentinel, " ", cores)
+    system(cmd)
+  }
 }

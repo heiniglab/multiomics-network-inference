@@ -17,10 +17,18 @@ if(!is.null(args[1]) & !is.na(args[1])){
 cat("Loaded", length(sentinels), "sentinels.\n")
 
 for(sentinel in sentinels) {
-  cmd <- paste0("qsub -cwd -V -q long_fed25 -pe smp 1 -hard -l job_mem=4G -b y ")
-  cmd <- paste0(cmd, "-N ", sentinel, " ",
-                "-o results/current/", sentinel, ".validation.out ", 
-                "-e results/current/", sentinel, ".validation.out ")
-  cmd <- paste0(cmd, "Rscript R/2-validate-ggm.R ", sentinel)
-  system(cmd)
+  # check whether output files exist
+  rdir <- "results/current/fits/"
+  f1 <- paste0(rdir, sentinel, ".lolipop.RData")
+  f2 <- paste0(rdir, sentinel, ".kora.RData")
+  if(file.exists(f1) & file.exists(f2)) {
+    cmd <- paste0("qsub -cwd -V -q long_fed25 -pe smp 1 -hard -l job_mem=4G -b y ")
+    cmd <- paste0(cmd, "-N ", sentinel, " ",
+                  "-o results/current/validation/", sentinel, ".validation.out ", 
+                  "-e results/current/validation/", sentinel, ".validation.out ")
+    cmd <- paste0(cmd, "Rscript R/2-validate-ggm.R ", sentinel)
+    system(cmd)
+  } else {
+    cat(sentinel, file="results/current/validation.call.failed.txt\n", append=T)
+  }
 }

@@ -79,23 +79,25 @@ get.link.priors <- function(ranges, nodes) {
     });
   }
 
-  ## SET SNP PRIOR
+  ## SET SNP PRIOR (if available)
   # iterate over each of the snp genes and set prior according to
-  # gtex pre-calculate priors
-  snp.genes <- ranges$snp.genes$SYMBOL
-  for(g in snp.genes) {
-    # already filtered for sentinel id, just check gene
-    idx <- which(grepl(paste0(paste0(",",g,"$"),"|", 
-                              paste0(",",g,","),"|",
-                              paste0("^",g,","),"|",
-                              paste0("^",g,"$")), gtex.eqtl$symbol))[1]
-    # did we find the gene? then set prior
-    if(!is.na(idx)){
-      p <- (1-gtex.eqtl[idx]$lfdr)
-      if(p == 0) {
-        p <- pseudo.prior
+  # gtex pre-calculated priors
+  if(exists("gtex.eqtl")) {
+    snp.genes <- ranges$snp.genes$SYMBOL
+    for(g in snp.genes) {
+      # already filtered for sentinel id, just check gene
+      idx <- which(grepl(paste0(paste0(",",g,"$"),"|", 
+                                paste0(",",g,","),"|",
+                                paste0("^",g,","),"|",
+                                paste0("^",g,"$")), gtex.eqtl$symbol))[1]
+      # did we find the gene? then set prior
+      if(!is.na(idx)){
+        p <- (1-gtex.eqtl[idx]$lfdr)
+        if(p == 0) {
+          p <- pseudo.prior
+        }
+        priors[g,id] <- priors[id,g] <- p
       }
-      priors[g,id] <- priors[id,g] <- p
     }
   }
   
@@ -166,8 +168,8 @@ get.link.priors <- function(ranges, nodes) {
   # define weights for our priors
   # do we need those?
   tf.cpg.weight <- 0.34
-  cg.gene.weight <- 0.15;
-  snp.gene.weight <- 0.15;
+  cg.gene.weight <- 0.10;
+  snp.gene.weight <- 0.2;
   gene.gene.weight <- 0.34;
   rest.weight <- (1 - (cg.gene.weight + snp.gene.weight + 
                        gene.gene.weight + tf.cpg.weight))
@@ -370,14 +372,14 @@ create.priors <- function(nbins, window) {
   
   # now calculate the data-driven priors for gene-gene interactions
   rpkms <- fread(paste0("zcat ", gtex.rpkm.file), skip=2, sep="\t", 
-                 header=T, select=c("Name","Description",samples$id));
+                 header=T, select=c("Name","Description",samples$id))
   gene.matrix <- as.matrix(rpkms[,-c(1,2),with=F])
   rownames(gene.matrix) <- rpkms$Description
   rm(rpkms)
   
-  cat("Subsetting genes.\n");
+  cat("Subsetting genes.\n")
 
-  gene.matrix <- t(gene.matrix[which(rownames(gene.matrix) %in% STRING.NODES),]);
+  gene.matrix <- t(gene.matrix[which(rownames(gene.matrix) %in% STRING.NODES),])
   gene.matrix <- log10(gene.matrix+1)
   gene.matrix <- get.residuals(as.data.frame(gene.matrix),
                                samples[rownames(gene.matrix),])
@@ -387,7 +389,7 @@ create.priors <- function(nbins, window) {
   dev.off()
   
   # calculate correlations for priors
-  cat("Calculating gene-wise correlations.\n");
+  cat("Calculating gene-wise correlations.\n")
   
   cnames <- colnames(gene.matrix)
 
@@ -395,8 +397,8 @@ create.priors <- function(nbins, window) {
     if(e %in% names(STRING.EDGES)) {
       temp2 <- lapply(STRING.EDGES[[e]], function(j) {
         if((e %in% cnames) & (j %in% cnames)) {
-          x <- gene.matrix[,e];
-          y <- gene.matrix[,j];
+          x <- gene.matrix[,e]
+          y <- gene.matrix[,j]
           # check sd
           if(sd(x)!=0 | sd(y) != 0) {
             pval <- cor.test(x,y)$p.value;
@@ -409,7 +411,7 @@ create.priors <- function(nbins, window) {
     }
   })
 
-  cat("Done.\n");
+  cat("Done.\n")
 
   gtex.gg.cors <- matrix(unlist(temp), ncol=4, byrow = T)
   colnames(gtex.gg.cors) <- c("g1", "g2", "pval", "correlation")
@@ -424,7 +426,7 @@ create.priors <- function(nbins, window) {
   print(paste0("1-pi0 is: ", pi1))
 
   # report prior
-  save(file=paste0("results/current/gtex.gg.cors.RData"), gtex.gg.cors)
+  saveRDS(file=paste0("results/current/gtex.gg.cors.rds"), gtex.gg.cors)
 }
 
 #' Load gtex priors into environment
@@ -438,7 +440,7 @@ create.priors <- function(nbins, window) {
 load.gtex.priors <- function(sentinel=NULL) {
   cat("Loading gtex priors.\n")
   gtex.eqtl <- readRDS("results/current/gtex.eqtl.priors.rds");
-  load("results/current/gtex.gg.cors.RData");
+  gtex.gg.cors <- readRDS("results/current/gtex.gg.cors.rds");
   
   # keep only some of the columns of the eqtl priors
   gtex.eqtl <- gtex.eqtl[,c("symbol",
@@ -449,10 +451,19 @@ load.gtex.priors <- function(sentinel=NULL) {
   # check whether to filter eqtl data
   
   if(!is.null(sentinel)){
-    gtex.eqtl <- gtex.eqtl[(gtex.eqtl$RS_ID_dbSNP135_original_VCF==sentinel | 
+    if(sentinel %in% gtex.eqtl$RS_ID_dbSNP135_original_VCF | 
+       sentinel %in% gtex.eqtl$RS_ID_dbSNP142_CHG37p13) {
+      gtex.eqtl <- gtex.eqtl[(gtex.eqtl$RS_ID_dbSNP135_original_VCF==sentinel | 
                               gtex.eqtl$RS_ID_dbSNP142_CHG37p13==sentinel), ]
+    } else {
+      cat("WARNING: Sentinel", sentinel, "has no GTEx eQTL!\n")
+      gtex.eqtl <- NULL
+    }
   }
-  assign("gtex.eqtl", gtex.eqtl, .GlobalEnv);
+  # check whether we have eqtl results
+  if(!is.null(gtex.eqtl)){
+    assign("gtex.eqtl", gtex.eqtl, .GlobalEnv);
+  }
   assign("gtex.gg.cors", gtex.gg.cors, .GlobalEnv);
 }
 

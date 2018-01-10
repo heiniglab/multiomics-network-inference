@@ -29,6 +29,6 @@ for(sentinel in sentinels) {
     cmd <- paste0(cmd, "Rscript R/2-validate-ggm.R ", sentinel)
     system(cmd)
   } else {
-    cat(sentinel, file="results/current/validation.call.failed.txt\n", append=T)
+    cat(sentinel, "\n", file="results/current/validation.call.failed.txt", append=T)
   }
 }

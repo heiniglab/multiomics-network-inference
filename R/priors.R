@@ -1,4 +1,4 @@
-#' Get priors for links between entities
+# Get priors for links between entities
 #'
 #' Given appropriate information, creates a matrix for all GGM entitites (i.e.
 #' snps, cpgs and cis-/trans-genes) reflecting respective prior probabilities for links
@@ -37,14 +37,14 @@ get.link.priors <- function(ranges, nodes) {
   # sanity check
   if(!all(names(cpg.dists) %in% nodes)){
     cat("Some elements were not available in data:\n")
-    na <- names(all.dists)
+    na <- names(cpg.dists)
     cat(na[which(!na %in% nodes)])
-    all.dists <- all.dists[!names(all.dists) %in% na]
-    warning("Some data mysteriously went missing..")
+    cpg.dists <- cpg.dists[!names(cpg.dists) %in% na]
+    warning("WARNING: Some data mysteriously went missing..")
   }
   
   # now build the prior matrix using a pseudo prior
-  pseudo.prior <- 0.0000001
+  pseudo.prior <- 1e-7
   priors <- matrix(data = pseudo.prior, nrow = length(nodes), ncol=length(nodes))
   colnames(priors) <- rownames(priors) <- nodes
 
@@ -76,7 +76,7 @@ get.link.priors <- function(ranges, nodes) {
           priors[s,i] <<- p
         }
       }
-    });
+    })
   }
 
   ## SET SNP PRIOR (if available)
@@ -107,23 +107,27 @@ get.link.priors <- function(ranges, nodes) {
 
   # get subset of edges which are in our current graph
   STRING.SUB <- subGraph(intersect(nodes(STRING.DB), genes),STRING.DB)
-  edges <- edgeL(STRING.SUB)
-  nodes <- nodes(STRING.SUB)
+  sedges <- edgeL(STRING.SUB)
+  snodes <- nodes(STRING.SUB)
   edge.priors <- gtex.gg.cors
   rnames <- rownames(gtex.gg.cors)
 
-  temp <- lapply(names(edges), function(n) {
-    l <- edges[[n]]$edges;
+  temp <- lapply(names(sedges), function(n) {
+    l <- sedges[[n]]$edges;
     if (length(l) > 0) {
       temp2 <- sapply(l, function(i) {
-        m <- nodes[i]
+        m <- snodes[i]
         # set priors for those validated connections found in STRING
         # check whether we have a specific prior for this gene-gene connection
         # match genes either at the beginning with a trailing "_" or at the end with a 
         # beginning "_" (rownames are: gene1_gene2)
         idxs <- which((grepl(paste0("^", n, "_"), rnames) & grepl(paste0("_", m, "$"), rnames)) |
-                        (grepl(paste0("^", m, "_"), rnames) & grepl(paste0("_", n, "$"), rnames)))
-        p <- gtex.gg.cors[idxs[1], "prior"]
+                        (grepl(paste0("^", m, "_"), rnames) & grepl(paste0("_", n, "$"), rnames)))[1]
+        if(!is.na(idxs)) {
+          p <- pseudo.prior + gtex.gg.cors[idxs, "prior"]
+        } else {
+          p <- pseudo.prior
+        }
         return(list(g1=m, g2=n, prior=p));
       });
       temp2
@@ -138,8 +142,7 @@ get.link.priors <- function(ranges, nodes) {
       g1 <- temp[i,1]
       g2 <- temp[i,2]
       prior <- as.numeric(temp[i,3])
-      priors[g1,g2] <- prior
-      priors[g2,g1] <- prior
+      priors[g1,g2] <- priors[g2,g1] <- pseudo.prior + prior
     }
   }
   
@@ -159,7 +162,7 @@ get.link.priors <- function(ranges, nodes) {
             priors[c,tf] <- 0.7
             priors[tf,c] <- 0.7
         } else {
-          warning("TF-CpG link not available:",c,"-", tf, "\n")
+          message("WARNING: TF-CpG link not available:",c,"-", tf, "\n")
         }
       }
     }
@@ -167,10 +170,10 @@ get.link.priors <- function(ranges, nodes) {
   
   # define weights for our priors
   # do we need those?
-  tf.cpg.weight <- 0.34
-  cg.gene.weight <- 0.10;
-  snp.gene.weight <- 0.2;
-  gene.gene.weight <- 0.34;
+  tf.cpg.weight <- 0.3
+  cg.gene.weight <- 0.2;
+  snp.gene.weight <- 0.3;
+  gene.gene.weight <- 0.19;
   rest.weight <- (1 - (cg.gene.weight + snp.gene.weight + 
                        gene.gene.weight + tf.cpg.weight))
 
@@ -179,7 +182,7 @@ get.link.priors <- function(ranges, nodes) {
   cat("\tcg.gene:", cg.gene.weight, "\n")
   cat("\tsnp.gene:", snp.gene.weight, "\n")
   cat("\tgene.gene:", gene.gene.weight, "\n")
-  cat("\trest.gene:", rest.weight, "\n")
+  cat("\trest:", rest.weight, "\n")
 
   # build weighted prior matrix
   # TODO we surely could do this in a more refined way...
@@ -189,34 +192,30 @@ get.link.priors <- function(ranges, nodes) {
     for(i in 1:(nrow(priors)-1)){
       r <- rownames(priors)[i]
       
-      # check which prior to use for this current link
+      p <- priors[i,j]
       
-      # cg-tf
-      if(grepl("cg", c) & r %in% ranges$tfs$SYMBOL) {
-        priors.w[i,j] <- priors[i,j] * tf.cpg.weight
-      } else if(grepl("cg", c) & r %in% ranges$cpg.genes$SYMBOL) {
-      # cg-gene
-        priors.w[i,j] <- priors[i,j] * cg.gene.weight
-      } else if(grepl("rs", c) & r %in% ranges$snp.genes$SYMBOL) { 
-      # snp-gene
-        priors.w[i,j] <- priors[i,j] * snp.gene.weight
-      } else if(c %in% genes & r %in% genes) {
-      # gene-gene
-        priors.w[i,j] <- priors[i,j] * gene.gene.weight
-      } else {
-      # rest
-        priors.w[i,j] <- priors[i,j] * rest.weight
+      # perform weighting only on set priors, skip  
+      # pseudo prior values
+      if(p != pseudo.prior) {
+        # check which prior to use for this current link
+        
+        # cg-tf
+        if(grepl("cg", c) & r %in% ranges$tfs$SYMBOL) {
+          priors.w[j,i] <- priors.w[i,j] <- p * tf.cpg.weight
+        } else if(grepl("cg", c) & r %in% ranges$cpg.genes$SYMBOL) {
+        # cg-gene
+          priors.w[j,i] <- priors.w[i,j] <- p * cg.gene.weight
+        } else if(grepl("rs", c) & r %in% ranges$snp.genes$SYMBOL) { 
+        # snp-gene
+          priors.w[j,i] <- priors.w[i,j] <- p * snp.gene.weight
+        } else if(c %in% genes & r %in% genes) {
+        # gene-gene
+          priors.w[j,i] <- priors.w[i,j] <- p * gene.gene.weight
+        }
       }
     }
   }
   colnames(priors.w) <- rownames(priors.w) <- colnames(priors)
-  
-  # copy upper tri matrix to lower tri
-  for(i in 1:nrow(priors.w)) {
-    for(j in 1:(i-1)) {
-      priors.w[i,j] <- priors.w[j,i];
-    }
-  }
 
   # scale to overall increase priors.
   # TODO check whether this is even allowed. this would
@@ -224,7 +223,12 @@ get.link.priors <- function(ranges, nodes) {
   # Also: we found the influence of priors on model almost too large in 
   # a first run, consider this when thinking about uncommenting line below
   #priors.w <- priors.w / (max(priors.w) + 0.1)
-  priors.w[priors.w==0] <- pseudo.prior
+  
+  # sanity check, matrix should not contain 0s or 1s
+  if(any(priors.w==0) | any(priors.w==1)) {
+    stop("ERROR: Sanity check for priors failed. (contain 0s/1s)")
+  }
+
   return(priors.w)
 }
 
@@ -415,6 +419,7 @@ create.priors <- function(nbins, window) {
 
   gtex.gg.cors <- matrix(unlist(temp), ncol=4, byrow = T)
   colnames(gtex.gg.cors) <- c("g1", "g2", "pval", "correlation")
+  rownames(gtex.gg.cors) <- with(gtex.gg.cors, paste(g1,g2,sep="_"))
   gtex.gg.cors <- as.data.frame(gtex.gg.cors, stringsAsFactors=F)  
   gtex.gg.cors$pval <- as.numeric(gtex.gg.cors$pval)
   gtex.gg.cors$correlation <- as.numeric(gtex.gg.cors$correlation)

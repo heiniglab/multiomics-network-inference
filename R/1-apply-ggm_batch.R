@@ -13,7 +13,7 @@ if(!is.null(args[1]) & !is.na(args[1])){
 } else {
   # instead of argument, load sentinel names from the preprocessed data
   load("results/current/data.processed.RData")
-  sentinels <- names(data)
+  sentinels <- sort(names(data), T)
 }
 cat("Loaded", length(sentinels), "sentinels.\n")
 cores <- 10

@@ -9,10 +9,12 @@ Calculate GGMs:
 Rscript R/1-apply-ggm_batch.R
 
 # check which ggm calculations have failed
-for i in *.out ; do echo $i ; tail -n 1 $i | grep angehalten ; done | grep angehalten -B1 | grep rs | cut -f 1 -d "." > failed.txt
+odir="results/current/fits/"
+for i in $odir/*.out ; do echo $i ; tail -n 1 $i | grep angehalten ; done | \
+                          grep angehalten -B1 | grep rs | cut -f 1 -d "." > $odir/failed.txt
 
 # call again for failed runs
-Rscript R/1-apply-ggm_batch.R results/current/fits/failed.txt
+Rscript R/1-apply-ggm_batch.R $odir/failed.txt
 ```
 
 Perform validation
@@ -23,10 +25,11 @@ Rscript R/2-validate-ggm_batch.R
 summarize validation results into one table:
 ```{bash}
 # remove outputs of failed runs...
-for i in results/current/validation/*.validation.out ; do echo $i ; cat $i | tail -n 20 | grep Execution ; done | grep Execution -A0 -B1
-while read p ; do rm results/current/validation/$p.validation.txt ; done < results/current/failed.validation.txt
+odir="results/current/validation"
+for i in $odir/*.validation.out ; do echo $i ; cat $i | tail -n 20 | grep Execution ; done | grep Execution -A0 -B1
+while read p ; do rm $odir/$p.validation.txt ; done < $odir/failed.validation.txt
 
-cat results/current/validation/*.validation.txt | sort | uniq | sort -r > results/current/validation.summary.txt
+cat $odir/*.validation.txt | sort | uniq | sort -r > results/current/validation.summary.txt
 
 ```
 

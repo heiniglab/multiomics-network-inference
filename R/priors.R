@@ -201,17 +201,18 @@ get.link.priors <- function(ranges, nodes) {
         
         # cg-tf
         if(grepl("cg", c) & r %in% ranges$tfs$SYMBOL) {
-          priors.w[j,i] <- priors.w[i,j] <- p * tf.cpg.weight
+          p <- p * tf.cpg.weight
         } else if(grepl("cg", c) & r %in% ranges$cpg.genes$SYMBOL) {
         # cg-gene
-          priors.w[j,i] <- priors.w[i,j] <- p * cg.gene.weight
+          p <- p * cg.gene.weight
         } else if(grepl("rs", c) & r %in% ranges$snp.genes$SYMBOL) { 
         # snp-gene
-          priors.w[j,i] <- priors.w[i,j] <- p * snp.gene.weight
+          p <- p * snp.gene.weight
         } else if(c %in% genes & r %in% genes) {
         # gene-gene
-          priors.w[j,i] <- priors.w[i,j] <- p * gene.gene.weight
+          p <- p * gene.gene.weight
         }
+        priors.w[j,i] <- priors.w[i,j] <- max(pseudo.prior, p)
       }
     }
   }
@@ -224,9 +225,11 @@ get.link.priors <- function(ranges, nodes) {
   # a first run, consider this when thinking about uncommenting line below
   #priors.w <- priors.w / (max(priors.w) + 0.1)
   
-  # sanity check, matrix should not contain 0s or 1s
-  if(any(priors.w==0) | any(priors.w==1)) {
-    stop("ERROR: Sanity check for priors failed. (contain 0s/1s)")
+  # sanity check, matrix should not contain 0s or 1s or values smaller than our
+  # peudo prior
+  if(any(priors.w==0) | any(priors.w==1) | any(priors.w<pseudo.prior)) {
+    stop(paste0("ERROR: Sanity check for priors failed. ",
+                "(contain 0s/1s or values smaller than ", pseudo.prior, ")"))
   }
 
   return(priors.w)

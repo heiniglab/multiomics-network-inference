@@ -15,6 +15,9 @@ for i in $odir/*.out ; do echo $i ; tail -n 1 $i | grep angehalten ; done | \
 
 # call again for failed runs
 Rscript R/1-apply-ggm_batch.R $odir/failed.txt
+
+# merge gstart pdf files 
+gs -dBATCH -dNOPAUSE -q -sDEVICE=pdfwrite -sOutputFile=merged.gstart.pdf results/current/plots/*.gstart.pdf
 ```
 
 Perform validation

@@ -889,69 +889,85 @@ get.g.start.from.priors <- function(priors){
   return(out)
 }
 
+#' Normalize external (geuvadis, gtex) expression data
+#'
+#' @param data The expression matrix to normalize, expecting
+#' log-transformed RPKM values with individuals in the rows and
+#' probes/genes in the columns
+#'
+#' @return The normalized expression matrix
+#'
+#' @author Johann Hawe
+#'
+normalize.expression <- function(data) {
+  library(preprocessCore)
+  library(peer)
+
+  # quantile normalize 
+  scaled = normalize.quantiles(t(data))
+  rownames(scaled) <- colnames(data)
+  colnames(scaled) <- rownames(data)
+
+  # transform the scaled counts to std normal per gene
+  stdnorm <- function(x) {
+    r = rank(x, ties.method="random")
+    qnorm(r / (length(x) + 1))
+  }
+  transformed <- apply(scaled, 1, stdnorm)
+
+  # remove peer factors
+  corrected <- correct.peer(transformed, Nk = 10)
+  colnames(corrected) <- colnames(transformed)
+  return(corrected)
+}
+
 #' Calculate peer factors for given data and covariates
-#' 
+#' Then get residual data matrix 
+#'
 #' @param data nxg matrix (n=samples, g=genes/variables)
 #' @param covariates nxc matrix (n=samples, c=covariates)
 #' @param get.residuals Flag whether to directly return the residuals
 #' calculated on the data matrix instead of the peer factors calculated
 #' @param Nk Number of factors to estimate. Default: N/4
 #' 
-#' @return Matrix of peer factors calculated
+#' @return Matrix of corrected expression data
 #' 
 #' @author Johann Hawe
 #' 
 #' @date 20170328
 #' 
-get.peer.factors <- function(data, 
-                             covariates=NULL, 
-                             get.residuals=F,
+correct.peer <- function(data,
+                             covariates=NULL,
                              Nk=ceiling(nrow(data)*0.25)) {
-     
-  library(peer)
-  
   # create model
   model <- PEER();
+
   # input has to be a matrix!
   PEER_setPhenoMean(model, as.matrix(data));
-  
+
   # add the mean estimation as default since it is recommended in the tutorial
   # of peer. will return Nk+1 factors
   PEER_setAdd_mean(model, TRUE)
-  
+
   # set number of hidden factors to identify. If unknown, a good measure is N/4 (see howto)
   PEER_setNk(model, Nk);
-  
+
   # should not be neccessary but increase anyways
   PEER_setNmax_iterations(model, 5000);
-  
+
   if(!is.null(covariates)){
     # set matrix of known and important covariates, 
     # since we want to acknowledge their effect
     PEER_setCovariates(model, as.matrix(covariates));
   }
-  
+
   # learn 
   PEER_update(model);
 
-  # directly return the residuals if wanted
-  if(get.residuals) {
-    re <- PEER_getResiduals(model)
-    colnames(re) <- colnames(data)
-    rownames(re) <- rownames(data)
-    return(re)
-  }
-  
-  # get identified factors, contains design.matrix in the first few columns!
-  factors <- PEER_getX(model);
-
-  if(!is.null(covariates)){
-    # return only the calculated factors, ignoring the original design components  
-    factors <- factors[,-c(1:ncol(covariates))]
-  }
-  
-  colnames(factors) <- paste0("f", seq(1:ncol(factors)))
-  return(factors);
+  re <- PEER_getResiduals(model)
+  colnames(re) <- colnames(data)
+  rownames(re) <- rownames(data)
+  return(re)
 }
 
 #' Gets residuals based on linear models from a data matrix (individuals in the rows). This

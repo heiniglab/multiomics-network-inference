@@ -89,7 +89,7 @@ mediation <- function(data, snp, genes, cpgs, plot=F) {
     pv <- r$p.value
     
     if(plot){
-      pdf(paste0("results/current/plots/", snp, "_mediation_plots.pdf"))
+      pdf(paste0("results/current/plots/", snp, "_", g, "_mediation.pdf"))
       plot(x = d1,y = d2,
            main=paste0(g),
            ylab=expression(hat(beta)[c]),

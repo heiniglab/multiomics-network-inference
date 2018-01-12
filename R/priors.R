@@ -170,61 +170,65 @@ get.link.priors <- function(ranges, nodes) {
   
   # define weights for our priors
   # do we need those?
-  tf.cpg.weight <- 0.3
-  cg.gene.weight <- 0.2;
-  snp.gene.weight <- 0.3;
-  gene.gene.weight <- 0.19;
-  rest.weight <- (1 - (cg.gene.weight + snp.gene.weight + 
-                       gene.gene.weight + tf.cpg.weight))
-
-  cat("Prior weights used: \n")
-  cat("\ttf.cpg:", tf.cpg.weight, "\n")
-  cat("\tcg.gene:", cg.gene.weight, "\n")
-  cat("\tsnp.gene:", snp.gene.weight, "\n")
-  cat("\tgene.gene:", gene.gene.weight, "\n")
-  cat("\trest:", rest.weight, "\n")
-
-  # build weighted prior matrix
-  # TODO we surely could do this in a more refined way...
-  priors.w <- priors
-  for(j in 2:ncol(priors)){
-    c <- colnames(priors)[j]
-    for(i in 1:(nrow(priors)-1)){
-      r <- rownames(priors)[i]
-      
-      p <- priors[i,j]
-      
-      # perform weighting only on set priors, skip  
-      # pseudo prior values
-      if(p != pseudo.prior) {
-        # check which prior to use for this current link
+  if(FALSE) {
+    message("Using priors weighting.")
+    tf.cpg.weight <- 0.3
+    cg.gene.weight <- 0.2;
+    snp.gene.weight <- 0.3;
+    gene.gene.weight <- 0.19;
+    rest.weight <- (1 - (cg.gene.weight + snp.gene.weight + 
+                         gene.gene.weight + tf.cpg.weight))
+  
+    cat("Prior weights used: \n")
+    cat("\ttf.cpg:", tf.cpg.weight, "\n")
+    cat("\tcg.gene:", cg.gene.weight, "\n")
+    cat("\tsnp.gene:", snp.gene.weight, "\n")
+    cat("\tgene.gene:", gene.gene.weight, "\n")
+    cat("\trest:", rest.weight, "\n")
+  
+    # build weighted prior matrix
+    # TODO we surely could do this in a more refined way...
+    priors.w <- priors
+    for(j in 2:ncol(priors)){
+      c <- colnames(priors)[j]
+      for(i in 1:(nrow(priors)-1)){
+        r <- rownames(priors)[i]
         
-        # cg-tf
-        if(grepl("cg", c) & r %in% ranges$tfs$SYMBOL) {
-          p <- p * tf.cpg.weight
-        } else if(grepl("cg", c) & r %in% ranges$cpg.genes$SYMBOL) {
-        # cg-gene
-          p <- p * cg.gene.weight
-        } else if(grepl("rs", c) & r %in% ranges$snp.genes$SYMBOL) { 
-        # snp-gene
-          p <- p * snp.gene.weight
-        } else if(c %in% genes & r %in% genes) {
-        # gene-gene
-          p <- p * gene.gene.weight
+        p <- priors[i,j]
+        
+        # perform weighting only on set priors, skip  
+        # pseudo prior values
+        if(p != pseudo.prior) {
+          # check which prior to use for this current link
+          
+          # cg-tf
+          if(grepl("cg", c) & r %in% ranges$tfs$SYMBOL) {
+            p <- p * tf.cpg.weight
+          } else if(grepl("cg", c) & r %in% ranges$cpg.genes$SYMBOL) {
+          # cg-gene
+            p <- p * cg.gene.weight
+          } else if(grepl("rs", c) & r %in% ranges$snp.genes$SYMBOL) { 
+          # snp-gene
+            p <- p * snp.gene.weight
+          } else if(c %in% genes & r %in% genes) {
+          # gene-gene
+            p <- p * gene.gene.weight
+          }
+          priors.w[j,i] <- priors.w[i,j] <- max(pseudo.prior, p)
         }
-        priors.w[j,i] <- priors.w[i,j] <- max(pseudo.prior, p)
       }
     }
-  }
-  colnames(priors.w) <- rownames(priors.w) <- colnames(priors)
-
-  # scale to overall increase priors.
-  # TODO check whether this is even allowed. this would
-  # increase the relevance of priors for the bdgraph algorithm?
-  # Also: we found the influence of priors on model almost too large in 
-  # a first run, consider this when thinking about uncommenting line below
-  #priors.w <- priors.w / (max(priors.w) + 0.1)
+    colnames(priors.w) <- rownames(priors.w) <- colnames(priors)
   
+    # scale to overall increase priors.
+    # TODO check whether this is even allowed. this would
+    # increase the relevance of priors for the bdgraph algorithm?
+    # Also: we found the influence of priors on model almost too large in 
+    # a first run, consider this when thinking about uncommenting line below
+    #priors.w <- priors.w / (max(priors.w) + pseudo.prior)
+  } else {
+    priors.w <- priors
+  }
   # sanity check, matrix should not contain 0s or 1s or values smaller than our
   # peudo prior
   if(any(priors.w==0) | any(priors.w==1) | any(priors.w<pseudo.prior)) {
@@ -386,10 +390,10 @@ create.priors <- function(nbins, window) {
   
   cat("Subsetting genes.\n")
 
-  gene.matrix <- t(gene.matrix[which(rownames(gene.matrix) %in% STRING.NODES),])
-  gene.matrix <- log10(gene.matrix+1)
-  gene.matrix <- get.residuals(as.data.frame(gene.matrix),
-                               samples[rownames(gene.matrix),])
+  gene.matrix <- t(gene.matrix)
+  gene.matrix <- log2(gene.matrix+1)
+  gene.matrix <- normalize.expression(gene.matrix)
+  gene.matrix <- gene.matrix[,which(colnames(gene.matrix) %in% STRING.NODES)]
   # plot gene expression values
   pdf(paste0(GTEX.PLOTS, "/expression.values.pdf"))
   hist(gene.matrix, breaks=150, xlab="expression residuals")
@@ -528,4 +532,106 @@ preprocess.gtex.eqtl <- function() {
   # output gzip file
   out <- "results/current/gtex.eqtl.priors.rds"
   saveRDS(file=out, pairs)
+}
+
+#' Method creates priors for TF~CpG links for application of the GGM
+#' Loads Remap/ENCODE TFBS and uses score column of bed files to infer 
+#' prior values.
+#' 
+#' TODO: a possible extension could be to get the sequences where the TFBS are 
+#' identified to be bound and check their PWM score for those positions...
+#' 
+#' @author Johann Hawe
+#' 
+create.tfbs.priors <- function() {
+  ## annotation of CpG sites with functional genomics data and TFBS predictions
+  
+  ## compute TF affinities with the tRap package
+  library(tRap)
+  
+  ## load the CpG positions from the bioconductor package
+  if (!require(FDb.InfiniumMethylation.hg19)) {
+    source("http://bioconductor.org/biocLite.R")
+    biocLite("FDb.InfiniumMethylation.hg19")
+  }
+  
+  ## genome sequences
+  if (!require(BSgenome.Hsapiens.UCSC.hg19)) {
+    source("http://bioconductor.org/biocLite.R")
+    biocLite("BSgenome.Hsapiens.UCSC.hg19")
+  }
+  
+  ## get 100bp intervals around the CpG sites
+  cpgs = features(FDb.InfiniumMethylation.hg19)
+  context = resize(cpgs, 100, fix="center")
+  
+  ## get the corresponding sequence
+  seq = as.character(getSeq(Hsapiens, context))
+  
+  ## Code below would presumably performs the PWM steps, however
+  ## currently only for a single TF
+  ## get the PWMs
+  #data(transfac)
+  #matrices = read.transfac("data/current/pwms/znf333.txt")
+  ## onlly use vertebrate factors
+  #matrices = matrices[substr(names(matrices), 1, 1) == "V"]
+  #affinities = mclapply(matrices, function(pwm) affinity(pwm, seq, both.strands=T))
+  #save(affinities, file="results/current/cpgs_with_affinties.RData")
+  
+  
+  ## also annotate CpGs with ChIP-seq binding sites
+  library(rtracklayer)
+  library(data.table)
+  
+  tfbs = import("data/current/tfbs/filPeaks_public.bed")
+  ann = t(matrix(unlist(strsplit(values(tfbs)[,"name"], ".", fixed=T)), nrow=3))
+  ann <- cbind(ann, score=tfbs$score)
+  colnames(ann) = c("geo_id", "TF", "condition", "score")
+  values(tfbs) = DataFrame(name=values(tfbs)[,"name"], data.frame(ann, stringsAsFactors=F))
+  
+  ## we write out a table with all conditions and select the blood related ones
+  conditions = t(matrix(unlist(strsplit(unique(values(tfbs)[,"name"]), ".", fixed=T)), nrow=3))
+  colnames(conditions) = c("geo_id", "TF", "condition")
+  conditions = conditions[order(conditions[,"condition"]),]
+  conditions = conditions[,c(1,3)]
+  conditions = conditions[!duplicated(paste(conditions[,1], conditions[,2])),]
+  conditions = data.frame(conditions, blood.related=F)
+  # set the 'blood.related' flag
+  for (term in c("amlpz12_leukemic", "aplpz74_leukemia", "bcell", "bjab", "bl41", "blood", "lcl", "erythroid", "gm", "hbp", "k562", "kasumi", "lymphoblastoid", "mm1s", "p493", "plasma", "sem", "thp1", "u937")) {
+    conditions[grep(term, conditions[,2]),"blood.related"] = TRUE
+  }
+  
+  # gets us 35 distinct TFs only!
+  selected = tfbs[values(tfbs)[,"condition"] %in% conditions[conditions[,"blood.related"],"condition"]]
+  selected$score <- as.numeric(selected$score)
+  
+  # gets us 24 distinct TFs only!
+  selected <- selected[selected$score>0]
+ 
+  # TODO!!
+  
+   ## load the encode tfs separately
+  #encode = as.data.frame(fread("data/current/tfbs/wgEncodeRegTfbsClusteredWithCellsV3.bed", header=F))
+  #encode = GRanges(seqnames=encode[,1], 
+  #                 ranges=IRanges(encode[,2] + 1, 
+  #                                encode[,3]), 
+  #                 name=paste("ENCODE", encode[,4], tolower(encode[,6]), sep="."), 
+  #                 geo_id="ENCODE", 
+  #                 TF=encode[,4], 
+  #                 condition=tolower(encode[,6]))
+  
+  #encode.lcl = encode[grep("gm", values(encode)[,"condition"])]
+  #values(encode.lcl)[,"condition"] = "lcl"
+  #encode.k562 = encode[grep("k562", values(encode)[,"condition"])]
+  #values(encode.k562)[,"condition"] = "k562"
+  #selected = c(selected, encode.lcl, encode.k562)
+  #chip = paste(values(selected)[,"TF"], values(selected)[,"condition"], sep=".")
+  #chip.exp = unique(chip)
+  
+  ## create an annotation matrix for the CpGs
+  #tfbs.ann = sapply(chip.exp, function(x) overlapsAny(context, selected[chip == x]))
+  #rownames(tfbs.ann) = names(cpgs)
+  
+  #saveRDS(tfbs.ann, file="results/current/cpgs_with_chipseq_context_100.rds")
+  
 }

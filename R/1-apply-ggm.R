@@ -73,8 +73,8 @@ gstarts <- lapply(cohorts, function(c){
 names(gstarts) <- cohorts
 
 # set ggm parameters
-iter=100000
-burnin=50000
+iter=50000
+burnin=40000
 
 #We use `r iter` iterations with a burnin of `r burnin` as well as a total of
 #`r cores` cores. We then extract the graph from the ggm fit and create a dot file

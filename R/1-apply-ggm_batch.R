@@ -18,8 +18,9 @@ if(!is.null(args[1]) & !is.na(args[1])){
 cat("Loaded", length(sentinels), "sentinels.\n")
 cores <- 10
 
-# create output dir
+# create output dirs
 dir.create("results/current/fits")
+dir.create("results/current/plots")
 for(sentinel in sentinels) {
   if(!file.exists(paste0("results/current/fits/",sentinel,".RData"))) {
     cmd <- paste0("qsub -cwd -V -q long_fed25 -pe smp ", cores, " -hard -l job_mem=1G -b y ")

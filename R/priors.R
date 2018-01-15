@@ -433,6 +433,12 @@ create.priors <- function(nbins, window) {
   gtex.gg.cors$lfdr <- fdrtool(gtex.gg.cors$pval, statistic="pvalue")$lfdr
   gtex.gg.cors$prior <- 1-gtex.gg.cors$lfdr
   
+  # plot correlation histogram
+  pdf(paste0(GTEX.PLOTS, "/expression.correlation.pdf"))
+  hist(gtex.gg.cors$correlation, breaks=100, xlab="correlation", main="gtex gene corerlations")
+  abline(v=0, col="red")
+  dev.off()
+  
   # report the pi0 and the proportion of significant tests for qvalue packge
   pi1 <- 1-pi0est(gtex.gg.cors[,"pval"])$pi0
   print(paste0("1-pi0 is: ", pi1))

@@ -20,7 +20,17 @@ get.link.priors <- function(ranges, nodes) {
   # load string db
   load.string.db();
   # load predefined prior definitions from gtex
-  load.gtex.priors(id);
+  load.gtex.priors();
+  
+  # subset eqtl priors
+  if(id %in% gtex.eqtl$RS_ID_dbSNP135_original_VCF | 
+     id %in% gtex.eqtl$RS_ID_dbSNP142_CHG37p13) {
+    gtex.eqtl <- gtex.eqtl[(gtex.eqtl$RS_ID_dbSNP135_original_VCF==id | 
+                              gtex.eqtl$RS_ID_dbSNP142_CHG37p13==id), ]
+  } else {
+    cat("WARNING: Sentinel", id, "has no GTEx eQTL!\n")
+    gtex.eqtl <- NULL
+  }
   
   # default window (needed for distance calculation) and number of bins
   wnd <- 1e6;
@@ -93,8 +103,11 @@ get.link.priors <- function(ranges, nodes) {
       # did we find the gene? then set prior
       if(!is.na(idx)){
         p <- (1-gtex.eqtl[idx]$lfdr)
-        if(p == 0) {
+        if(p <= pseudo.prior) {
           p <- pseudo.prior
+        }
+        if(p==1) { 
+          p = 1 - pseudo.prior
         }
         priors[g,id] <- priors[id,g] <- p
       }
@@ -455,7 +468,13 @@ create.priors <- function(nbins, window) {
 #' @author Johann Hawe
 #' @return nothing
 #'
-load.gtex.priors <- function(sentinel=NULL) {
+load.gtex.priors <- function(sentinel=NULL, env=.GlobalEnv) {
+  # check whether prior were already loaded
+  if(with(env, exists("gtex.eqtl")) &
+     with(env, exists("gtex.gg.cors"))){
+    # nothing to do
+    return();
+  }
   cat("Loading gtex priors.\n")
   gtex.eqtl <- readRDS("results/current/gtex.eqtl.priors.rds");
   gtex.gg.cors <- readRDS("results/current/gtex.gg.cors.rds");
@@ -480,9 +499,9 @@ load.gtex.priors <- function(sentinel=NULL) {
   }
   # check whether we have eqtl results
   if(!is.null(gtex.eqtl)){
-    assign("gtex.eqtl", gtex.eqtl, .GlobalEnv);
+    assign("gtex.eqtl", gtex.eqtl, env);
   }
-  assign("gtex.gg.cors", gtex.gg.cors, .GlobalEnv);
+  assign("gtex.gg.cors", gtex.gg.cors, env);
 }
 
 #' Preprocesses the gtex Whole_Blood eqtl data to add a column of local FDR

@@ -1,12 +1,39 @@
-First preprocess data. (call in R...)
+###################################################################
+#                                                                 #
+# Description: Creates GGM results based on the                   #
+#              LOLIPOP and KORA data.                             #
+#              Additionally performs a simulation study on these  #
+#              data to evaluate models and priors.                #
+#                                                                 #
+# Author:      Johann Hawe                                        #
+# Date:        12.12.2017                                         #
+#                                                                 #
+###################################################################
+
+In the first part of this document we run all ggm calculations for the individual
+SNPs, for which the data was calculated previously (compare meQTL project).
+In the second part we perform a simulation study in order to assess the performance of the 
+GGMs, given that we set a certain 'true' graph and simulate data based on this graph. The evaluation
+then checks how well we can recover this true graph, given simulated data and our prior information.
+
+## Application of GGM on real data
+First we preprocess data, collecting the necessary data for all downstream analysis
+in a single R object and file.
+
 ```{r}
 library(rmarkdown)
 render("0-preprocess.Rmd")
 ```
 
-Calculate GGMs:
+Based on the collected data, we can now batch process each sentinel and calcaulte the GGMs. 
+For this, we collect the priors for each possible link, determine a start graph G and apply
+the BDgraph package's bdgraph() method on all these data.
+
 ```{bash}
 Rscript R/1-apply-ggm_batch.R
+
+# TODO do this error handling in a more 
+# sophisticated way...
 
 # check which ggm calculations have failed
 odir="results/current/fits/"
@@ -17,15 +44,19 @@ for i in $odir/*.out ; do echo $i ; tail -n 1 $i | grep angehalten ; done | \
 Rscript R/1-apply-ggm_batch.R $odir/failed.txt
 
 # merge gstart pdf files 
-gs -dBATCH -dNOPAUSE -q -sDEVICE=pdfwrite -sOutputFile=merged.gstart.pdf results/current/plots/*.gstart.pdf
+#gs -dBATCH -dNOPAUSE -q -sDEVICE=pdfwrite -sOutputFile=merged.gstart.pdf results/current/plots/*.gstart.pdf
 ```
 
-Perform validation
+Now that all models have been calcaulted, we validate the results of each sentinel individually.
+The validation uses 1) external data and 2) data from the cohort which was not used for calcaulting the GGM, 
+i.e. KORA or LOLIPOP.
+
 ```{bash}
 Rscript R/2-validate-ggm_batch.R 
 ```
 
-summarize validation results into one table:
+Now we just summarize validation results into large table, making it easier to 
+create a final report.
 ```{bash}
 # remove outputs of failed runs...
 odir="results/current/validation"
@@ -41,3 +72,8 @@ Display the validation results in a neat RMarkdown document
 library(rmarkdown)
 render("3-render-validation.Rmd")
 ```
+
+
+## Simulation study
+In this section we perform the simulation study, evaluating the models and our priors
+based on simulated data and truth.

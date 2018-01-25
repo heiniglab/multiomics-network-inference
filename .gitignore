@@ -2,3 +2,6 @@
 *.RData
 *.html
 *.gz
+rework/results/current/*
+rework/logs/
+rework/.snakemake/

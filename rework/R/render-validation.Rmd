@@ -1,0 +1,300 @@
+---
+title: "Validation summary"
+output:
+  html_document: default
+---
+
+```{r echo=F}
+library(ggplot2)
+library(reshape2)
+library(scales)
+library(knitr)
+library(gridExtra)
+library(graph)
+source("R/lib.R")
+```
+
+# Validation results for Bayesian GGMs calculated on KORA and LOLIPOP cohort
+
+This document is a (graphical) summary of the results from the validation output.
+It uses the results collected in $results/validation.summary.txt$.
+
+## Mediation results
+
+### Overall mediation pvalues
+
+```{r echo=F}
+# load the large result table for all loci
+# TODO we currently remove the results for the GO enrichment
+tab <- read.table("results/current/validation.summary_nopriors.txt", header=T, sep="\t")[1:26]
+head(tab)
+# create a mediation specific plot
+# TODO update those indices
+mediation <- tab[,c("sentinel", "cohort", 
+                    "mediation", "mediation_selected","log10_mediation")]
+# for now we ignore results where we didn't have SNP genes at all
+mediation <- mediation[!is.infinite(mediation$log10_mediation), ,drop=F]
+
+# plot the mediation results
+toplot <- mediation[order(mediation$mediation_selected),]
+toplot$sentinel <- factor(toplot$sentinel, levels=unique(toplot$sentinel))
+toplot <- melt(toplot, measure.vars=c(3,4), value.name = "pval")
+
+p <- ggplot(data=toplot, aes(x=sentinel, y=-log10(pval), fill=variable)) +
+  geom_bar(stat="identity", position="dodge") + 
+  facet_grid(cohort ~ .) +
+  theme(axis.text.x = 
+          element_text(angle = 90, hjust = 1, vjust=0))
+p
+```
+
+Above the mediation results on the different cohorts for all hotspots 
+in which at least one SNP gene was extracted by our algorithm are shown.
+The *mediation_selected* group shows the significance of the mediation analysis of 
+those selected genes, the *mediation* group shows the significance of all NOT selected genes. 
+[Several hotspots are currently not being shown, since we had either problems with 
+the GGM calculation or the no SNP genes were selected.]
+
+### Mediation log-foldchanges
+
+```{r echo=F}
+# in addition we plot the log fold-change
+# sort by log_fc
+toplot <- mediation[order(mediation$log10_mediation, decreasing = T),]
+toplot$sentinel <- factor(toplot$sentinel, levels=unique(toplot$sentinel))
+
+toplot <- melt(toplot, measure.vars=5, value.name="log_fc")
+toplot$favored <- factor(sign(toplot$log_fc),labels = c("not selected", "selected"))
+p <- ggplot(toplot, aes(x=sentinel, y=log_fc, fill=favored)) +
+  geom_bar(stat="identity") + 
+  facet_grid(cohort~.) +
+  theme(axis.text.x = 
+          element_text(angle = 90, hjust = 1, vjust=0)) +
+  ylab("log10(all / selected)")
+p
+
+perc <- table(toplot$favored)
+perc <- perc["selected"] / sum(perc)
+perc
+
+```
+This figure shows a different summary of the mediation results. Shown is the log10 fold change
+of the mediation p-value for the not selected SNP genes ($p_n$) over the p-value for selected
+genes ($p_s$). The red bars (*not selected*) indicate fold changes where $p_n$ is lower 
+than the corresponding $p_s$, whereas the blue bars indicate the opposite. Overall, 
+**`r format(perc*100,digits=4)`\%** of all fold changes show negative fold changes 
+(i.e. $p_s$ being smaller than their respective $p_n$s). Currently, we select the
+minimal p-value obtained from the genes not selected via a GGM and the maximal p-value
+from the selected genes which is a rather conservative estimate. We could think about
+changing the way of summarizing the p-values...
+
+#### Non-selected genes with strong mediation effect
+Apparently, some of the results above indicate that there are genes, which show
+a very strong effect mediation but are not selected by our model. Here we briefly
+analyse those genes to get an idea of what went wrong.
+
+```{r}
+source("R/validation.R")
+
+# check the most extreme sentinel here
+snp <- "rs3809627"
+#snp <- "rs3764289"
+# load preprocessed cohort data
+env <- new.env()
+load("results/current/data.processed.RData", envir=env)
+data <- with(env, data[[snp]]$lolipop$data)
+cohort <- "kora"
+load(paste0("results/current/fits_nopriors/", snp, ".", cohort, ".RData"))
+dnodes <- colnames(data)
+# the nodes retained in the fitted graph model
+gnodes <- nodes(graph)
+# for now, filter only for those nodes for which data was available
+# should change once we update the data matrix...
+gnodes <- gnodes[gnodes %in% dnodes]
+# get names of all entities, total and selected by ggm
+data[,snp] <- as.integer(as.character(data[,snp]))
+cpgs <- intersect(dnodes, names(ranges$cpgs))
+cpgs.selected <- cpgs[cpgs %in% gnodes]
+sgenes <- intersect(dnodes, ranges$snp.genes$SYMBOL)
+sgenes.selected <- sgenes[sgenes %in% unlist(adj(graph,snp))]
+med <- mediation(data, snp, sgenes, cpgs, plot=T)
+# build plotting data.frame
+temp <- cbind.data.frame(gene=names(med), pvalue=unlist(lapply(med, "[", "pvalue")))
+temp$gene <- as.character(temp$gene)
+temp <- cbind.data.frame(temp, selected=(temp$gene %in% sgenes.selected))
+temp <- cbind.data.frame(temp, snp.prior=gpriors[temp$gene,snp], in.gstart=gstart[temp$gene,snp])
+
+# get the linear model fits between genes and our snp
+cors <- lapply(temp$gene, function(g){
+  mod <- lm(paste0("`", g, "`~", snp), data=data)
+  lmp(mod)
+})
+names(cors) <- temp$gene
+temp <- cbind.data.frame(temp, lmp=unlist(cors)[temp$gene])
+# show only data for entities where a prior was assigned
+temp <- temp[temp$snp.prior>min(temp$snp.prior),]
+temp$snp.prior
+
+# create to summary plots
+ggplot(aes(y=snp.prior, x=selected, fill=selected), data = temp) + geom_boxplot()
+ggplot(aes(y=-log10(lmp), x=-log10(pvalue),  col=snp.prior, shape=selected, size=2), data = temp) + geom_point()
+
+# interesting gene to follow up prior/selected/mediation associations
+med[["TBC1D10B"]]
+
+```
+
+
+### Percentage of mediating genes
+Here we look at the percentage of significant mediation results of the GGM selected
+SNP genes versus total number of SNP genes.
+```{r echo=F}
+# create data frame with all needed values
+# TODO do this over the real validation results over all loci
+results <- tab[,c("snp_genes", "snp_genes_selected",
+                  "mediation_significant", "mediation_selected_significant")]
+# summarize results
+results <- colSums(results)
+# total amount of genes per group, selected/notselected
+sgenes.selected <- results["snp_genes_selected"]
+sgenes.notselected <- results["snp_genes"] - sgenes.selected
+# proportion of significant genes per group
+sign.selected <- results["mediation_selected_significant"] / sgenes.selected
+sign.notselected <- results["mediation_significant"] / sgenes.notselected
+
+toplot <- data.frame(selected=c(1,sign.selected), 
+                     not.selected=c(1,sign.notselected))
+rownames(toplot) <- c("total tested", "proportion significant")
+
+toplot <- melt(cbind(toplot, mediation = rownames(toplot)), 
+               id.vars = c('mediation'))
+p <- ggplot(toplot, aes(x=variable,y=value, fill=mediation)) + 
+  geom_bar(position="identity", stat="identity") +
+  theme(axis.text.x = 
+           element_text(angle = 90, hjust = 1, vjust=0)) +
+  ylab("percentage of genes") +
+  xlab("mediation group") +
+  scale_y_continuous(labels=percent_format())
+  
+p
+
+print("Difference between groups:")
+di <- max(sign.notselected, sign.selected) - min(sign.notselected, sign.selected)
+print(paste0(format(di,digits=2), "%"))
+```
+
+### Specificity and sensitivity of gene selection over all sentinels
+Here we look at all sentinels and summarize the selected/not selected SNP genes and their mediation values by producing a table like the following for each sentinel and summing up over all of them:
+```{r results='asis', echo=F }
+temp <- matrix(c("W","X","Y","Z"),nrow=2,ncol=2)
+colnames(temp) <- c("In GGM", "Not in GGM")
+rownames(temp) <- c("Mediation sign","Mediation not sign")
+kable(temp,align = c("c","c"))
+```
+```{r}
+# do it for both cohorts separately for now
+# we canin the endsum up the tables to get an overall view
+cohorts <- c("kora", "lolipop")
+values <- lapply(cohorts, function(cohort){
+  dat <- tab[tab$cohort ==cohort ,
+             c("sentinel", "snp_genes", "snp_genes_selected",
+               "mediation_significant", "mediation_selected_significant")]
+  result <- sapply(dat$sentinel, function(s) {
+    d <- dat[dat$sentinel==s,,drop=F]
+    v1 <- d$mediation_significant==0 & d$snp_genes_selected == 0
+    v2 <- d$mediation_significant==0 & d$snp_genes_selected > 0
+    v3 <- d$mediation_significant>0 & d$snp_genes_selected == 0 
+    v4 <- d$mediation_selected_significant > 0
+    # todo
+    v5 <- ""
+    return(c(v1,v2,v3,v4))
+  })
+  result <- matrix(unlist(result), byrow = T, ncol=4)
+  result <- colSums(result)
+  names(result) <- c("TN", "FP", "FN", "TP")
+  result
+})
+names(values) <- cohorts
+
+print.perf <- function(v, msg) {
+  print(msg) 
+  print(paste0("Sensitivity: ", 
+             v["TP"] / (v["TP"] + v["FN"])))
+  print(paste0("Specificity: ", 
+             v["TN"] / (v["TN"] + v["FP"])))
+}
+
+v <- values$kora
+print.perf(v, "## Results for KORA:")
+v <- values$lolipop
+print.perf(v, "## Results for LOLIPOP:")
+v <- v + values$kora[names(v)]
+print.perf(v, "## Results summed over both cohorts:")
+
+```
+
+## CpG-Gene validation
+```{r}
+# TODO not yet implemented
+hist(tab$bonder_cis_eQTM)
+```
+## Gene-Gene validation 
+
+The gene-gene links were validated using external expression data from GEO (ARCHS4),
+Geuvadis as well as the data from either LOLIPOP or KORA, depending on which cohort 
+the bGGM was calculated.
+
+To assess how well our approach recovers co-expression of genes in the independent
+datasets, we calculate all gene-vs-gene (gvg) correlations in those data and create a
+confusion matrix as follows:
+
+```{r results='asis', echo=F }
+temp <- matrix(c("W","X","Y","Z"),nrow=2,ncol=2)
+colnames(temp) <- c("In GGM", "Not in GGM")
+rownames(temp) <- c("Correlation sign.","Correlation not sign.")
+kable(temp,align = c("c","c"))
+```
+We deem a correlation between two genes to be significant if 1) $p-value < 0.01$
+and 2) $\rho > 0.3$ ($\rho$ being the Pearson Correlation Coefficient).
+
+We test whether we can reject $H0$ (i.e. whether we detect a correlation regardless of it 
+being significant in the independent data) using a Fisher's exact test.
+Shown below are the p-values for those tests over all loci on the different datasets.
+The black lines indicate a significance level of $0.05$.
+```{r echo=F}
+# get the relevant data (pvalues on the different datasets)
+gg <- tab[,c("sentinel","cohort","geuvadis_gene_gene","geo_gene_gene","cohort_gene_gene")]
+colnames(gg) <- c("sentinel", "cohort", "Geuvadis", "GEO", "LOLIPOP_KORA")
+#gg <- gg[order(gg$LOLIPOP_KORA),]
+#gg$sentinel <- factor(gg$sentinel, levels=unique(gg$sentinel))
+
+# plot the data
+gg <- melt(gg,measure.vars=c(3,4,5), id.vars=c(1,2))
+gg$value <- -log10(gg$value)
+p <- ggplot(gg, aes(x=reorder(sentinel,value), y=value, fill=variable)) + 
+  facet_grid(cohort~variable) +
+  geom_bar(stat = "identity", position="dodge") + 
+  theme(axis.text.x = element_text(vjust=1, angle = 90)) + 
+  xlab("sentinel") +
+  geom_hline(yintercept = -log10(0.05))
+
+p
+
+#create list of plots
+#p <- lapply(split(gg,gg$variable), function(x){
+  
+#  x$sentinel <- factor(x$sentinel, levels=unique(x$sentinel[order(-log10(x$value))]))
+
+  # create the plot
+#  p <- ggplot(x, aes(x = sentinel, y = -log10(value), fill = variable)) +
+#    geom_bar(stat = "identity") +
+#    facet_grid(cohort~.) +
+#    theme(legend.position="none", axis.text.x = element_text(vjust=1, angle = 90)) + 
+#    geom_hline(yintercept = -log10(0.05)) +
+#    labs(title=unique(x$variable))
+#})
+
+#do.call(grid.arrange,(c(p, nrow=3)))
+```
+
+

@@ -1,0 +1,45 @@
+SENT_COHO = glob_wildcards("data/current/cohorts/{sentinel}.{cohort}.adjusted.data.RData")
+
+
+localrules: all, preprocess, summarize_validation
+
+rule preprocess:
+	output:
+		"results/current/data.processed.RData"
+	log:
+		"logs/preprocess.log"
+	script:
+		"R/preprocess.R"
+		
+rule apply_ggm:
+	input: "results/current/data.processed.RData"
+	output: "results/current/fits/{sentinel}.RData"
+	threads: 10
+	params:
+		plotdir="results/current/plots/",
+		nopriors=False
+	resources:
+		mem_mb=1000
+	log:
+		"logs/apply-ggm/{sentinel}.log"
+	script:
+		"R/apply-ggm.R"
+
+rule validate_ggm:
+	input: rules.preprocess.output, "results/current/fits/{sentinel}.RData"
+	output: "results/current/validation/{sentinel}.txt"
+	log: "logs/validate-ggm/{sentinel}.log"
+	resources:
+		mem_mb=4000
+	script:
+		"R/validate-ggm.R"
+
+rule summarize_validation:
+	input: expand("results/current/validation/{sentinel}.txt", zip, sentinel=SENT_COHO.sentinel)
+	output: txt="results/current/validation/validation.all.txt", pdf="results/current/validation.html"
+	log:	"logs/validation.log"
+	script:
+		"R/render-validation.Rmd"
+
+rule all:
+	input: "results/current/validation.html"

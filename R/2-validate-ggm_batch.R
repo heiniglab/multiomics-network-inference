@@ -16,8 +16,8 @@ if(!is.null(args[1]) & !is.na(args[1])){
 }
 cat("Loaded", length(sentinels), "sentinels.\n")
 
-rdir <- "results/current/fits/"
-vdir <- "results/current/validation/"
+rdir <- "results/current/fits_nopriors/"
+vdir <- "results/current/validation_nopriors/"
 dir.create(vdir)
 
 for(sentinel in sentinels) {

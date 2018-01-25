@@ -70,15 +70,21 @@ teqtl <- kora.teqtl
 cat("Loaded ", nrow(teqtl), " trans-eQTL\n")
 head(teqtl)
 
+# load the bonder cis-eQTMs for cpg-gene validation
+# TODO we could use those for prior definitions, then use the ROADMAP 
+# chromhmm states for validation...
+eqtms <- fread("data/current/bonder-et-al-2017/2015_09_02_cis_eQTMsFDR0.05-CpGLevel.txt", data.table=F)
+
 # this is the main outfile, to which to write all the validation results
-ofile <- paste0("results/current/validation/", sentinel, ".validation.txt")
+ofile <- paste0("results/current/validation_nopriors/", sentinel, ".validation.txt")
 # add a header line
-cols <- c("sentinel","cohort","snp_genes", "snp_genes_selected",
-          "cpg_genes", "cpg_genes_selected", "tfs", "tfs_selected",
+cols <- c("sentinel","cohort","snp_genes", "snp_genes_selected", "snp_genes.list", 
+          "snp_genes_selected.list", "cpg_genes", "cpg_genes_selected", "tfs", "tfs_selected",
           "spath", "spath_selected",
           "mediation_significant", "mediation_selected_significant",
+          "mediation_significant.list", "mediation_selected_significant.list",
           "mediation","mediation_selected","log10_mediation",
-          "cisEqtl", "transEqtl_cgenes","transEqtl_tfs",
+          "cisEqtl", "transEqtl_cgenes","transEqtl_tfs", "bonder_cis_eQTM",
           "geuvadis_gene_gene", "geo_gene_gene", "cohort_gene_gene",
           "go_ids", "go_terms", "go_pvals", "go_qvals")
 # the result table
@@ -104,7 +110,7 @@ temp <- lapply(cohorts, function(cohort){
   # i.e. the snp, the cpgs as well as the respective locus genes, tfs and shortest path
   # genes. Those entities can either have been selected via ggm graph or not.
   
-  load(paste0("results/current/fits/", sentinel, ".", cohort, ".RData"))
+  load(paste0("results/current/fits_nopriors/", sentinel, ".", cohort, ".RData"))
   
   # dnodes -> full set of possible nodes
   if("lolipop" %in% cohort){
@@ -145,6 +151,7 @@ temp <- lapply(cohorts, function(cohort){
   # write to stats file
   row <- c(row,
            length(sgenes), length(sgenes.selected),
+           paste(sgenes, collapse=";"), paste(sgenes.selected, collapse=";"),
            length(cgenes), length(cgenes.selected),
            length(tfs), length(tfs.selected), 
            length(spath), length(spath.selected))
@@ -210,6 +217,8 @@ temp <- lapply(cohorts, function(cohort){
   row <- c(row,
            length(med.sign),
            length(med.selected.sign),
+           paste(names(med.sign), collapse=";"),
+           paste(names(med.selected.sign), collapse=";"),
            med.pv, 
            med.pv.selected,
            log10(med.pv/med.pv.selected))
@@ -304,6 +313,28 @@ temp <- lapply(cohorts, function(cohort){
              fisher.test(cont)$p.value)
   }
   
+  # we can also count how many of the identified cpg
+  # genes are eQTMs in the bonder dataset
+  
+  # first convert bonder ensembl ids to symbols
+  # (bonder results already filtered for sign. assoc.)
+  bnd.symbol <- symbol.from.ensembl(eqtms$ProbeName)$SYMBOL
+  bnd.symbol <- bnd.symbol[!is.na(bnd.symbol)]
+  v1 <- sum(setdiff(cgenes, cgenes.selected) %in% bnd.symbol)
+  v2 <- sum(!setdiff(cgenes, cgenes.selected) %in% bnd.symbol)
+  v3 <- sum(cgenes.selected %in% bnd.symbol)
+  v4 <- sum(!cgenes.selected %in% bnd.symbol)
+  # build the confusion matrix 
+  cat("confusion matrix for cpg-genes:\n")
+  cont <- matrix(c(v3,v1,v4,v2), 
+                 ncol=2, byrow=T)
+  rownames(cont) <- c("has_eQTM", "has_no_eQTM")
+  colnames(cont) <- c("ggm_selected", "not_gmm_selected")
+  cont
+  # report fisher test
+  row <- c(row,
+           fisher.test(cont)$p.value)
+
   ## Gene-Gene validation
   # Finally we perform the gene-gene validation:
   # 1. check co-expression in independent data. 

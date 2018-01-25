@@ -7,17 +7,35 @@ library(pheatmap)
 library(GenomicRanges)
 library(igraph)
 library(graph)
+library(optparse)
+
+opt = parse_args(OptionParser(option_list=list(
+  make_option(c("-s", "--sentinel"), type="character", default=NULL),
+  make_option("--nopriors", type="logical", action="store_true", default=FALSE),
+  make_option(c("--cores", "-c"), type="integer", default=1))))
 
 # get parameters
-args <- commandArgs(trailingOnly = T)
-sentinel <- args[1]
-cores <- args[2]
+sentinel <- opt$sentinel
+cores <- opt$cores
+# whether no priors should used in GGM
+# we always use priors for gstart generation
+nopriors <- opt$nopriors
 
-plotdir <- "results/current/plots/"
-outdir <- "results/current/fits/"
+if(is.null(sentinel)) {
+  stop("No sentinel id provided.")
+}
+
+if(nopriors) {
+  plotdir <- "results/current/plots_nopriors/"
+  outdir <- "results/current/fits_nopriors/"
+} else {
+  plotdir <- "results/current/plots/"
+  outdir <- "results/current/fits/"
+}
 
 cat("Using sentinel", sentinel, "\n")
 cat("Number of cores used:", cores, "\n")
+cat("Using priors:", !nopriors, "\n")
 
 #In this script we load KORA and LOLIPOP data for the `r sentinel` sentinel and 
 #apply the bayesian GGM algorithm implemented in the BDgraph package to them, 
@@ -27,6 +45,7 @@ cat("Number of cores used:", cores, "\n")
 # source the library scripts
 source("R/lib.R")
 source("R/priors.R")
+source("R/bdgraph-supplement.R")
 
 # define the available cohorts
 cohorts <- c("lolipop", "kora")
@@ -41,7 +60,7 @@ data <- data[[sentinel]]
 
 priors <- lapply(cohorts, function(c){
   cohort <- data[[c]]
-  
+
   # get the prior definitions and plot the prior heatmap
   priors <- get.link.priors(cohort$ranges, cohort$nodes)
   cat("Prior min-value: ", min(priors), "\n")
@@ -49,7 +68,7 @@ priors <- lapply(cohorts, function(c){
   pheatmap(priors, cex=0.7, main=paste0(c, " priors"),
            filename=paste0(plotdir, sentinel, ".", c, ".priors.pdf"),
            cex=0.7)
-  
+   
   return(priors)
 })
 names(priors) <- cohorts
@@ -63,7 +82,6 @@ names(priors) <- cohorts
 gstarts <- lapply(cohorts, function(c){
   # create start graph
   g.start <- get.g.start.from.priors(priors[[c]])
-  
   pheatmap(g.start, cex=0.7, main=paste0(c, " start graph"),
            filename=paste0(plotdir, sentinel, ".", c, ".gstart.pdf"),
            cex=0.7)
@@ -74,7 +92,7 @@ names(gstarts) <- cohorts
 
 # set ggm parameters
 iter=50000
-burnin=40000
+burnin=25000
 
 #We use `r iter` iterations with a burnin of `r burnin` as well as a total of
 #`r cores` cores. We then extract the graph from the ggm fit and create a dot file
@@ -92,6 +110,11 @@ fits <- lapply(cohorts, function(c) {
     gstart <- gstarts[[c]]
     gpriors <- priors[[c]]
     
+    # check whether to use priors
+    # if not, set the package default prior as our prior (uniform)
+    if(nopriors) {
+      gpriors <- 0.5
+    }    
     # the file in which the model fit gets saved
     fit.out <- paste0(outdir, sentinel, ".", c, ".RData")
     if(!file.exists(fit.out)){

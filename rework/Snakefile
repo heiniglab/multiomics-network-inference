@@ -1,7 +1,12 @@
 SENT_COHO = glob_wildcards("data/current/cohorts/{sentinel}.{cohort}.adjusted.data.RData")
 
 
-localrules: all, preprocess, summarize_validation
+localrules: all, preprocess, summarize_validation, simulate_data, all_sim
+
+
+#####
+# Rules for application of GGM on real data
+#####
 
 rule preprocess:
 	output:
@@ -20,6 +25,8 @@ rule apply_ggm:
 		nopriors=False
 	resources:
 		mem_mb=1000
+	benchmark:
+		"benchmarks/apply-ggm/{sentinel}.bmk"
 	log:
 		"logs/apply-ggm/{sentinel}.log"
 	script:
@@ -29,6 +36,8 @@ rule validate_ggm:
 	input: rules.preprocess.output, "results/current/fits/{sentinel}.RData"
 	output: "results/current/validation/{sentinel}.txt"
 	log: "logs/validate-ggm/{sentinel}.log"
+	benchmark:
+		"benchmarks/validate-ggm/{sentinel}.bmk"
 	resources:
 		mem_mb=4000
 	script:
@@ -43,3 +52,32 @@ rule summarize_validation:
 
 rule all:
 	input: "results/current/validation.html"
+
+
+#####
+# Rules for simulation study
+#####
+
+SENT = glob_wildcards("data/current/networks/{sentinel}.RData")
+
+
+rule simulate_data:
+	input: "results/current/data.processed.RData"
+	output: expand("results/current/simulation/data/{sentinel}.RData", zip, sentinel=SENT.sentinel)
+	params:
+		random_walk_results="data/current/networks/"
+	log:	"logs/simulation/simulate_data.log"
+	benchmark: "benchmark/simulation/simulate_data.bmk"
+	script:
+		"R/simulate-data.R"
+
+rule apply_ggm_simulation:
+	input: "results/current/simulation/data/{sentinel}.RData"
+	output: "results/current/simulation/fits/{sentinel}.RData"
+	log: "logs/simulation/apply-ggm.{sentinel}.log"
+	benchmark: "benchmark/simulation/apply-ggm.{sentinel}.bmk"
+	script:
+		"R/apply-ggm-simulation.R"
+
+rule all_sim:
+	input: expand("results/current/simulation/fits/{sentinel}.RData", zip, sentinel=SENT.sentinel)

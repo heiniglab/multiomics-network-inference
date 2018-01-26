@@ -1,3 +1,25 @@
+###
+# data prep
+###
+We first need to gather some data from other projects:
+
+cohort data:
+TODO
+
+get the randwom_walk data:
+```{bash}
+d="data/current/networks/"
+mkdir $d
+cd $d
+for i in /storage/groups/groups_epigenereg/analyses/meQTLs/results/20170517/networks/random_walk/rw_string_v9_ld_wb_plots/*.RData ; do 
+  ln -s $i ; 
+done
+```
+
+###
+# pipeline
+###
+
 The pipeline is described as a snakemake pipeline.
 However, the already existing scripts merely have been altered such that they allow execution
 using snakemake and likely more improvements could/should be done.

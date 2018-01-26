@@ -7,7 +7,6 @@
 sink(file = snakemake@log[[1]])
 
 # load needed packages
-library(BDgraph, lib="~/epigenereg/packages/2017/R/3.4/")
 library(graph)
 
 # source needed scripts
@@ -17,7 +16,7 @@ source("R/lib.R")
 # input file containing ranges/data of sentinel
 ifile <- snakemake@input[[1]]
 rwdir <- snakemake@params$random_walk_results
-ofile <- snakemake@output[[1]]
+odir <- snakemake@output[["odir"]]
 
 # load data and utilize lolipop cohort
 load(ifile)
@@ -86,10 +85,14 @@ for(s in names(data)) {
   data.sim <- bdgraph.sim(p, graph=gr_adj, N, mean = 0)
   colnames(data.sim$data) <- colnames(gr_adj)
   # split the 'gaussian' snp data into 3 groups (0,1,2)
-  # TODO do this more sophistcally! this is a rather quick hack...
-  data.sim$data[,s] <- as.numeric(cut(data.sim$data[, s], breaks = 3, labels=c(0,1,2)))
+  # TODO do this more sophistcally! this is but a quick hack...
+  data.sim$data[, s] <- as.numeric(cut(data.sim$data[, s], 
+                                       breaks = 3, 
+                                       labels=c(0,1,2)))
+  
+  print(paste0("Saving results to ", odir))
   
   # write out the results
-  save(file=ofile, data.sim, N, p, gr, gr_adj, ranges, nodes, ggm.data)
+  save(file=paste0(odir, s, ".RData"), data.sim, N, p, gr, gr_adj, ranges, nodes, ggm.data)
 }
 sink()

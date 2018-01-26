@@ -63,19 +63,22 @@ SENT = glob_wildcards("data/current/networks/{sentinel}.RData")
 
 rule simulate_data:
 	input: "results/current/data.processed.RData"
-	output: expand("results/current/simulation/data/{sentinel}.RData", zip, sentinel=SENT.sentinel)
+	output: 
+		expand("results/current/simulation/data/{sentinel}.RData", zip, sentinel=SENT.sentinel),
+		odir="results/current/simulation/data/"
 	params:
 		random_walk_results="data/current/networks/"
 	log:	"logs/simulation/simulate_data.log"
-	benchmark: "benchmark/simulation/simulate_data.bmk"
+	benchmark: "benchmarks/simulation/simulate_data.bmk"
 	script:
 		"R/simulate-data.R"
 
 rule apply_ggm_simulation:
 	input: "results/current/simulation/data/{sentinel}.RData"
 	output: "results/current/simulation/fits/{sentinel}.RData"
+	threads: 10
 	log: "logs/simulation/apply-ggm.{sentinel}.log"
-	benchmark: "benchmark/simulation/apply-ggm.{sentinel}.bmk"
+	benchmark: "benchmarks/simulation/apply-ggm.{sentinel}.bmk"
 	script:
 		"R/apply-ggm-simulation.R"
 

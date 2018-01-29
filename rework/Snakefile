@@ -1,7 +1,7 @@
 SENT_COHO = glob_wildcards("data/current/cohorts/{sentinel}.{cohort}.adjusted.data.RData")
 
 
-localrules: all, preprocess, summarize_validation, simulate_data, all_sim
+localrules: all, preprocess, summarize_validation, simulate_data, all_sim, validate_ggm_simulation
 
 
 #####
@@ -76,11 +76,22 @@ rule simulate_data:
 rule apply_ggm_simulation:
 	input: "results/current/simulation/data/{sentinel}.RData"
 	output: "results/current/simulation/fits/{sentinel}.RData"
+	params:
+		plotdir="results/current/simulation/plots/"
 	threads: 10
+        resources:
+                mem_mb=1000
 	log: "logs/simulation/apply-ggm.{sentinel}.log"
 	benchmark: "benchmarks/simulation/apply-ggm.{sentinel}.bmk"
 	script:
 		"R/apply-ggm-simulation.R"
 
+rule validate_ggm_simulation:
+	input: "results/current/simulation/fits/{sentinel}.RData"
+	output: "results/current/simulation/validation/{sentinel}.txt"
+	log: "logs/simulation/validate-ggm.{sentinel}.log"
+	script:
+		"R/validate-ggm-simulation.R"
+
 rule all_sim:
-	input: expand("results/current/simulation/fits/{sentinel}.RData", zip, sentinel=SENT.sentinel)
+	input: expand("results/current/simulation/validation/{sentinel}.txt", zip, sentinel=SENT.sentinel)

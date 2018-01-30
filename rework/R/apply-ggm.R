@@ -13,8 +13,6 @@ library(GenomicRanges)
 library(igraph)
 library(graph)
 
-
-
 # get parameters
 sentinel <- snakemake@wildcards$sentinel
 cores <- snakemake@threads
@@ -29,11 +27,11 @@ if(is.null(sentinel)) {
 
 outfile <- snakemake@output[[1]]
 plotdir <- snakemake@params$plotdir
-nopriors <- snakemake@params$nopriors
+nriter <- snakemake@params$nriter
+burnin <- snakemake@params$burnin
 
 cat("Using sentinel", sentinel, "\n")
 cat("Number of cores used:", cores, "\n")
-cat("Using priors:", !nopriors, "\n")
 
 #In this script we load KORA and LOLIPOP data for the `r sentinel` sentinel and 
 #apply the bayesian GGM algorithm implemented in the BDgraph package to them, 
@@ -44,7 +42,6 @@ cat("Using priors:", !nopriors, "\n")
 source("R/lib.R")
 source("R/priors.R")
 source("R/bdgraph-supplement.R")
-
 
 # define the available cohorts
 cohorts <- c("lolipop", "kora")
@@ -89,11 +86,7 @@ gstarts <- lapply(cohorts, function(c){
 })
 names(gstarts) <- cohorts
 
-# set ggm parameters
-iter=50000
-burnin=25000
-
-#We use `r iter` iterations with a burnin of `r burnin` as well as a total of
+#We use `r nriter` iterations with a burnin of `r burnin` as well as a total of
 #`r cores` cores. We then extract the graph from the ggm fit and create a dot file
 #representing the graph. If the graph is less then 500 edges it will be plotted graphically
 #as well.
@@ -108,21 +101,23 @@ fits <- lapply(cohorts, function(c) {
     ranges <- data[[c]]$ranges
     gstart <- gstarts[[c]]
     gpriors <- priors[[c]]
-    
-    # check whether to use priors
-    # if not, set the package default prior as our prior (uniform)
-    if(nopriors) {
-      gpriors <- 0.5
-    }    
-    # create the fit
-    ggm.fit <- bdgraph(gdata, 
+
+    # create the fits
+    ggm_fit <- bdgraph(gdata, 
                          method="gcgm", 
-                         iter=iter, 
+                         iter=nriter, 
                          burnin=burnin,
                          save.all=T, g.start = gstart,
                          g.prior = gpriors, cores=cores)
+    ggm_fit_no_priors <- bdgraph(gdata, 
+                                 method="gcgm", 
+                                 iter=nriter, 
+                                 burnin=burnin,
+                                 save.all=T, g.start = gstart,
+                                 cores=cores)
       
-    graph <- graph.from.fit(ggm.fit, ranges)
+    graph <- graph.from.fit(ggm_fit, ranges)
+    graph_no_priors <- graph.from.fit(ggm_fit_no_priors, ranges)
     if(length(nodes(graph))<1){
       warning("Resulting graph has no nodes.")
     } else {        
@@ -131,12 +126,15 @@ fits <- lapply(cohorts, function(c) {
 
     # check some plots
     pdf(paste0(plotdir, sentinel, ".", c, ".ggm.info.pdf"))  
-    ggm.summary <- summary(ggm.fit)
-    traceplot(ggm.fit)
-    plotcoda(ggm.fit)
+    ggm_summary <- summary(ggm_fit)
+    traceplot(ggm_fit)
+    plotcoda(ggm_fit)
+    ggm_summary_no_priors <- summary(ggm_fit_no_priors)
+    traceplot(ggm_fit_no_priors)
+    plotcoda(ggm_fit_no_priors)
     dev.off()
-    return(list(ggm.fit = ggm.fit, graph=graph, ranges=ranges, 
-                gstart=gstart, gpriors=gpriors, gdata=gdata, summary = ggm.summary))
+    return(list(ggm_fit, ggm_fit_no_priors, graph, graph_no_priors, ranges, 
+                gstart, gpriors, gdata, ggm_summary, ggm_summar_no_priors))
   },
   #try-catch error
   error=function(m){

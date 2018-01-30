@@ -79,7 +79,7 @@ rule apply_ggm_simulation:
 	output: "results/current/simulation/fits/{sentinel}.RData"
 	params:
 		plotdir="results/current/simulation/plots/",
-		iter=20000,
+		nriter=20000,
 		burnin=5000
 	threads: 10
         resources:
@@ -98,10 +98,12 @@ rule validate_ggm_simulation:
 
 rule summarize_simulation:
 	input: expand("results/current/simulation/validation/{sentinel}.txt", zip, sentinel=SENT.sentinel)
-	output: "R/summarize-simulation.html"
+	params:
+		indir="../results/current/simulation/validation/"
+	output: "results/current/simulation/summarize-simulation.html"
 	log: "logs/simulation/summarize-simulation.log"
 	script:
 		"R/summarize-simulation.Rmd"
 
 rule all_sim:
-	input: "R/summarize-simulation.html"
+	input: "results/current/simulation/summarize-simulation.html"

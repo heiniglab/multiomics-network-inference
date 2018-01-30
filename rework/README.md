@@ -3,10 +3,21 @@
 ###
 We first need to gather some data from other projects:
 
-cohort data:
-TODO
+Collect the already preprocessed cohort data:
+```{bash}
+WDIR=$(pwd)
+d="data/current/cohorts/"
+mkdir $d
+cd $d
+for i in /home/icb/johann.hawe/work/analysis/meQTLs/results/current/ggm/*.adjusted.data.RData ; do
+  ln -s $i ;
+done
+rm rs60626639*.RData
 
-get the randwom_walk data:
+cd $WDIR
+```
+
+Get the randwom_walk data:
 ```{bash}
 d="data/current/networks/"
 mkdir $d
@@ -14,7 +25,14 @@ cd $d
 for i in /storage/groups/groups_epigenereg/analyses/meQTLs/results/20170517/networks/random_walk/rw_string_v9_ld_wb_plots/*.RData ; do 
   ln -s $i ; 
 done
+rm rs60626639.RData
+
+cd $WDIR
 ```
+
+Note that we actually removed the data for the following sentinel, since at the moment it is too unconvenient to 
+wait for the results of this snp in the pipeline (>900 nodes):
+rs60626639
 
 ###
 # pipeline
@@ -34,4 +52,14 @@ A new run of the pipeline can be performed (with cluster execution) using the fo
 nohup nice snakemake -u cluster.config --jobs=100 --local-cores=10 \
            --cluster "qsub -pe smp {threads} -hard -l job_mem={resources.mem_mb}M \
            -q {cluster.q} -cwd -V -o {cluster.o} -e {cluster.e} -N {cluster.N}" all & 
+```
+
+Currently, we are also performing a 'sub-analysis' (simulation), which we could include into the main
+pipeline on a later point.
+For now we just call snakemake with a specific target:
+
+```{bash}
+nohup nice snakemake -u cluster.config --jobs=100 --local-cores=10 \
+           --cluster "qsub -pe smp {threads} -hard -l job_mem={resources.mem_mb}M \
+           -q {cluster.q} -cwd -V -o {cluster.o} -e {cluster.e} -N {cluster.N}" all_sim &
 ```

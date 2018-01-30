@@ -22,7 +22,6 @@ rule apply_ggm:
 	threads: 10
 	params:
 		plotdir="results/current/plots/",
-		nopriors=False,
 		nriter=20000,
 		burnin=5000
 	resources:

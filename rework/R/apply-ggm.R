@@ -27,8 +27,8 @@ if(is.null(sentinel)) {
 
 outfile <- snakemake@output[[1]]
 plotdir <- snakemake@params$plotdir
-nriter <- snakemake@params$nriter
-burnin <- snakemake@params$burnin
+nriter <- as.numeric(snakemake@params$nriter)
+burnin <- as.numeric(snakemake@params$burnin)
 
 cat("Using sentinel", sentinel, "\n")
 cat("Number of cores used:", cores, "\n")
@@ -134,7 +134,7 @@ fits <- lapply(cohorts, function(c) {
     plotcoda(ggm_fit_no_priors)
     dev.off()
     return(list(ggm_fit, ggm_fit_no_priors, graph, graph_no_priors, ranges, 
-                gstart, gpriors, gdata, ggm_summary, ggm_summar_no_priors))
+                gstart, gpriors, gdata, ggm_summary, ggm_summary_no_priors))
   },
   #try-catch error
   error=function(m){

@@ -13,8 +13,8 @@ ifile <- snakemake@input[[1]]
 ofile <- snakemake@output[[1]]
 cores <- snakemake@threads
 plotdir <- snakemake@params$plotdir
-iter <- snakemake@params$iter
-burnin <- snakemake@params$butnin
+nriter <- as.numeric(snakemake@params$nriter)
+burnin <- as.numeric(snakemake@params$burnin)
 
 print(paste0("Processing file: ", ifile, 
              " using ", cores, " cores."))
@@ -31,12 +31,12 @@ priors <- get.link.priors(ranges, colnames(d))
 gstart <- get.g.start.from.priors(priors)
 
 ggm_fit <- bdgraph(d, method = "gcgm",
-                   iter = iter, burnin = burnin, 
+                   iter = nriter, burnin = burnin, 
                    g.prior = priors, g.start = gstart, 
                    save.all=T, cores=cores)
 
 ggm_fit_no_priors <- bdgraph(d, method = "gcgm",
-                             iter = iter, burnin = burnin, 
+                             iter = nriter, burnin = burnin, 
                              g.start = gstart, 
                              save.all=T, cores=cores)
 

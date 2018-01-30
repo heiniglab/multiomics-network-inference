@@ -1,0 +1,65 @@
+---
+title: "Simulation summary"
+author: "Johann Hawe"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+params:
+   rmd: "summarize-simulation.Rmd"
+output:
+  html_document:
+  highlight: tango
+  number_sections: no
+  theme: default
+  toc: yes
+  toc_depth: 3
+  toc_float:
+    collapsed: no
+    smooth_scroll: yes
+---
+
+```{r}
+library(ggplot2)
+```
+
+This document summarizes the simmulation study for the bayesian Gaussian Graphical Modelling approach.
+For each of the sentinels which had a 'true graph' available (currently based on the network-randwomwalk
+approach) we generated data and applied the bdgraph algorithm.
+
+```{r}
+test <- function() {
+  # get all results into a single large table
+  indir <- snakemake@params$indir
+  
+  print(indir)
+  files <- list.files(indir, "*.txt", full.names = T)
+  print("Number of files being processed:")
+  print(length(files))
+  tab <- c()
+  for(i in 1:length(files)) {
+    f <- read.table(files[i], sep="\t", 
+                    header=T, row.names=1)
+    f$ggm.type <- rownames(f)
+    s <- gsub(".txt", "", gsub(".*/rs", "rs", files[i]))
+    rownames(f) <- paste(s, rownames(f), sep=".")
+    tab <- rbind(tab, f[2:3,])
+    colnames(tab) <- colnames(f)
+  }
+  return(tab)
+}
+tab <- test()
+```
+
+Overall we are looking at `r nrow(tab)/2` sentinels for we which we have calculated GGM fits with and without prior information, depicted in the plots below as 'ggm.type'. We show summary plots for the individual ggm.types for some standard performance measures (specificity, sensitivity, F1.score) as well as he Matthew's Correlation Coefficient (MCC) which is a correlation measure which can be applied if the individual classes differe largely in size.
+
+```{r}
+# jitter the points shown in the boxplot
+gp <- geom_point(position = position_jitter(width = 0.15, height = 0))
+gb <- geom_boxplot(outlier.shape = NA)
+
+ggplot(tab, aes(y=specificity,x=ggm.type,fill=ggm.type)) + gb + gp + ggtitle("Specificity")
+ggplot(tab, aes(y=sensitivity,x=ggm.type,fill=ggm.type)) + gb + gp + ggtitle("Sensitivity")
+ggplot(tab, aes(y=F1.score,x=ggm.type,fill=ggm.type)) + gb + gp + ggtitle("F1.score")
+ggplot(tab, aes(y=MCC,x=ggm.type,fill=ggm.type)) + gb + gp + ggtitle("MCC")
+
+```
+
+<a download="summarize-simulation.Rmd" href="`r base64enc::dataURI(file = params$rmd, mime = 'text/rmd', encoding = 'base64')`">R Markdown source file (to produce this document)</a>

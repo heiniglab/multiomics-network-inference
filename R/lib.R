@@ -899,3 +899,17 @@ get.residuals <- function(data, cov) {
   rownames(residual.mat) <- rownames(data);
   return(residual.mat)
 }
+
+#' Small helper for a list() function automatically setting
+#' the variable names as the names of the created list
+#' 
+#' compare: https://stackoverflow.com/a/21059868
+#'
+#' @author Johann Hawe
+#' 
+listN <- function(...){
+  ln <- list(...)
+  names(ln) <- as.character(substitute(list(...)))[-1]
+  ln
+}
+

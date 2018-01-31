@@ -93,7 +93,6 @@ names(gstarts) <- cohorts
 #In addition, we create some diagnostic plots to check the convergence of the 
 #algorithm.
 
-
 fits <- lapply(cohorts, function(c) {
   fit <- tryCatch({
     gdata <- data[[c]]$data
@@ -133,7 +132,7 @@ fits <- lapply(cohorts, function(c) {
     traceplot(ggm_fit_no_priors)
     plotcoda(ggm_fit_no_priors)
     dev.off()
-    return(list(ggm_fit, ggm_fit_no_priors, graph, graph_no_priors, ranges, 
+    return(listN(ggm_fit, ggm_fit_no_priors, graph, graph_no_priors, ranges, 
                 gstart, gpriors, gdata, ggm_summary, ggm_summary_no_priors))
   },
   #try-catch error

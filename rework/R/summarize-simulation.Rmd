@@ -54,6 +54,7 @@ Overall we are looking at `r nrow(tab)/2` sentinels for we which we have calcula
 # jitter the points shown in the boxplot
 gp <- geom_point(position = position_jitter(width = 0.15, height = 0))
 gb <- geom_boxplot(outlier.shape = NA)
+theme_update(plot.title = element_text(hjust = 0.5))
 
 ggplot(tab, aes(y=specificity,x=ggm.type,fill=ggm.type)) + gb + gp + ggtitle("Specificity")
 ggplot(tab, aes(y=sensitivity,x=ggm.type,fill=ggm.type)) + gb + gp + ggtitle("Sensitivity")

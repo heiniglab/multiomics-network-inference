@@ -37,10 +37,11 @@ rule validate_ggm:
 	input: rules.preprocess.output, "results/current/fits/{sentinel}.RData"
 	output: "results/current/validation/{sentinel}.txt"
 	log: "logs/validate-ggm/{sentinel}.log"
+	threads: 1
 	benchmark:
 		"benchmarks/validate-ggm/{sentinel}.bmk"
 	resources:
-		mem_mb=4000
+		mem_mb=3000
 	script:
 		"R/validate-ggm.R"
 

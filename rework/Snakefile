@@ -47,8 +47,15 @@ rule validate_ggm:
 
 rule summarize_validation:
 	input: expand("results/current/validation/{sentinel}.txt", zip, sentinel=SENT_COHO.sentinel)
-	output: txt="results/current/validation/validation.all.txt", pdf="results/current/validation.html"
-	log:	"logs/validation.log"
+	output: "results/current/validation/validation.all.txt"
+	shell:
+		"cat {input} | sort -r | uniq > {output}"
+
+rule render_validation:
+	input: "results/current/validation/validation.all.txt"
+	output: "results/current/validation.html"
+	log:	
+		"logs/validation.log"
 	script:
 		"R/render-validation.Rmd"
 

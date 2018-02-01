@@ -87,7 +87,7 @@ graph.from.fit <- function(ggm.fit, ranges){
   # get the graph instance from the ggm fit
   cutoff <- 0.9
   g.adj <- BDgraph::select(ggm.fit, cut = cutoff)
-  g <- as_graphnel(graph.adjacency(g.adj, mode="undirected", diag=F));
+  g <- as_graphnel(graph.adjacency(g.adj, mode="undirected", diag=F))
   
   # set node and edge attributes
   g <- annotate.graph(g, ranges)

@@ -108,10 +108,10 @@ rule summarize_simulation:
 	input: expand("results/current/simulation/validation/{sentinel}.txt", zip, sentinel=SENT.sentinel)
 	params:
 		indir="../results/current/simulation/validation/"
-	output: "results/current/simulation/summarize-simulation.html"
+	output: "results/current/simulation/simulation.html"
 	log: "logs/simulation/summarize-simulation.log"
 	script:
 		"R/summarize-simulation.Rmd"
 
 rule all_sim:
-	input: "results/current/simulation/summarize-simulation.html"
+	input: "results/current/simulation/simulation.html"

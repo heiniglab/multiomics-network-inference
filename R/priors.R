@@ -55,7 +55,9 @@ get.link.priors <- function(ranges, nodes) {
   
   # now build the prior matrix using a pseudo prior
   pseudo.prior <- 1e-7
-  priors <- matrix(data = pseudo.prior, nrow = length(nodes), ncol=length(nodes))
+  priors <- matrix(data = pseudo.prior, 
+                   nrow = length(nodes), 
+                   ncol=length(nodes))
   colnames(priors) <- rownames(priors) <- nodes
 
   # load annotation needed for cpg2gene priors
@@ -116,7 +118,7 @@ get.link.priors <- function(ranges, nodes) {
   
   ## SET GENE-GENE PRIOR
   # here we add the priors based on the string interaction network
-  genes <- colnames(priors)[!grepl("^rs|^cg", colnames(priors))];
+  genes <- colnames(priors)[!grepl("^rs|^cg", colnames(priors))]
 
   # get subset of edges which are in our current graph
   STRING.SUB <- subGraph(intersect(nodes(STRING.DB), genes),STRING.DB)
@@ -141,11 +143,11 @@ get.link.priors <- function(ranges, nodes) {
         } else {
           p <- pseudo.prior
         }
-        return(list(g1=m, g2=n, prior=p));
-      });
+        return(list(g1=m, g2=n, prior=p))
+      })
       temp2
     }
-  });
+  })
 
   temp <- unlist(temp)
   # did we have at least one connection?

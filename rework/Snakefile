@@ -21,7 +21,7 @@ rule create_priors:
 		eqtl=protected("results/current/gtex.eqtl.priors.rds")
 	threads: 1
 	log:
-		"log/create-priors.log"
+		"logs/create-priors.log"
 	benchmark:
 		"benchmarks/create-priors.bmk"
 	resources:

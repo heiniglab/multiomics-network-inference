@@ -1,8 +1,32 @@
 SENT_COHO = glob_wildcards("data/current/cohorts/{sentinel}.{cohort}.adjusted.data.RData")
 
 
-localrules: all, preprocess, summarize_validation, simulate_data, all_sim, validate_ggm_simulation
+localrules: all, preprocess, summarize_validation, simulate_data, all_sim, validate_ggm_simulation, create_priors
 
+
+#####
+# Rule used in both 'subworkflows'
+#####
+rule create_priors:
+	input:	
+		eqtl="data/current/gtex/Whole_Blood_Analysis.v6p.all_snpgene_pairs.txt.gz",
+		snpinfo="data/current/gtex/GTEx_Analysis_v6_OMNI_genot_1KG_imputed_var_chr1to22_info4_maf01_CR95_CHR_POSb37_ID_REF_ALT.txt",
+		expr="data/current/gtex/GTEx_Analysis_v6_RNA-seq_RNA-SeQCv1.1.8_gene_rpkm.gct.gz",
+		sampleinfo="data/current/gtex/GTEx_Data_V6_Annotations_SampleAttributesDS.txt",
+		pheno="data/current/gtex/GTEx_Data_V6_Annotations_SubjectPhenotypesDS.txt"
+	output:	
+		gene="results/current/gtex.gg.cors.rds",
+		eqtl="results/current/gtex.eqtl.priors.rds"
+	threads: 1
+	log:
+		"log/create-priors.log"
+	benchmark:
+		"benchmarks/create-priors.bmk"
+	resources:
+		mem_mb=14000
+	script:
+		"R/create-priors.R"
+		
 
 #####
 # Rules for application of GGM on real data
@@ -15,9 +39,11 @@ rule preprocess:
 		"logs/preprocess.log"
 	script:
 		"R/preprocess.R"
-		
+
 rule apply_ggm:
-	input: "results/current/data.processed.RData"
+	input: "results/current/data.processed.RData", 
+		"results/current/gtex.gg.cors.rds", 
+		"results/current/gtex.eqtl.priors.rds"
 	output: "results/current/fits/{sentinel}.RData"
 	threads: 10
 	params:
@@ -83,8 +109,11 @@ rule simulate_data:
 		"R/simulate-data.R"
 
 rule apply_ggm_simulation:
-	input: "results/current/simulation/data/{sentinel}.RData"
-	output: "results/current/simulation/fits/{sentinel}.RData"
+	input: "results/current/simulation/data/{sentinel}.RData",
+		"results/current/gtex.gg.cors.rds",
+                "results/current/gtex.eqtl.priors.rds"
+	output: 
+		"results/current/simulation/fits/{sentinel}.RData"
 	params:
 		plotdir="results/current/simulation/plots/",
 		nriter=20000,

@@ -321,9 +321,9 @@ create.priors <- function() {
   plot.dir <- paste0("results/current/gtex_plots/")
   dir.create(plot.dir)
   
-  create.gtex.eqtl.priors(eqtl.file, snpInfo.file)
-  gc()
   create.gtex.gene.priors(sampleDS.file, phenotypeDS.file, rpkm.file, plot.dir)
+  gc()
+  create.gtex.eqtl.priors(eqtl.file, snpInfo.file)
 }
 
 #' Creates the gtex gene-gene priors under consideration of the 
@@ -346,7 +346,7 @@ create.gtex.gene.priors <- function(sampleDS.file, pheno.file,
   
   # create the Gene-Gene priors
   # format: 1:ID, 7:SMTSD (tissue)
-  samples <- fread(gtex.sampleDS.file, select=c("SAMPID", 
+  samples <- fread(sampleDS.file, select=c("SAMPID", 
                                                 "SMTSD", 
                                                 "SMNABTCH",
                                                 "SMGEBTCH", 
@@ -366,7 +366,7 @@ create.gtex.gene.priors <- function(sampleDS.file, pheno.file,
   samples <- samples[complete.cases(samples),]
   samples <- samples[which(samples$RIN>=6),]
   # get covariates (age, sex) for all samples used
-  covariates <- read.table(gtex.phenotypeDS.file,
+  covariates <- read.table(pheno.file,
                            header=T, 
                            sep="\t")
   colnames(covariates) <- c("id", "sex", "age", "death_hardy")
@@ -374,10 +374,10 @@ create.gtex.gene.priors <- function(sampleDS.file, pheno.file,
   samples <- merge(samples, covariates, by.x="donor_id", by.y="id")
   rownames(samples) <- samples$id
   
-  print(paste0("Processing", nrow(samples), "GTEX samples."))
+  print(paste0("Processing ", nrow(samples), " GTEX samples."))
   
   # now calculate the data-driven priors for gene-gene interactions
-  rpkms <- fread(paste0("zcat ", gtex.rpkm.file), skip=2, sep="\t", 
+  rpkms <- fread(paste0("zcat ", rpkm.file), skip=2, sep="\t", 
                  header=T, select=c("Name","Description",samples$id))
   gene.matrix <- as.matrix(rpkms[,-c(1,2),with=F])
   rownames(gene.matrix) <- rpkms$Description
@@ -419,8 +419,8 @@ create.gtex.gene.priors <- function(sampleDS.file, pheno.file,
   
   gtex.gg.cors <- matrix(unlist(temp), ncol=4, byrow = T)
   colnames(gtex.gg.cors) <- c("g1", "g2", "pval", "correlation")
-  rownames(gtex.gg.cors) <- with(gtex.gg.cors, paste(g1,g2,sep="_"))
   gtex.gg.cors <- as.data.frame(gtex.gg.cors, stringsAsFactors=F)  
+  rownames(gtex.gg.cors) <- with(gtex.gg.cors, paste(g1,g2,sep="_"))
   gtex.gg.cors$pval <- as.numeric(gtex.gg.cors$pval)
   gtex.gg.cors$correlation <- as.numeric(gtex.gg.cors$correlation)
   gtex.gg.cors$lfdr <- fdrtool(gtex.gg.cors$pval, statistic="pvalue")$lfdr

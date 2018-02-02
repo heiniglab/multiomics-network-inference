@@ -183,7 +183,7 @@ get.link.priors <- function(ranges, nodes) {
   
   # define weights for our priors
   # do we need those?
-  if(FALSE) {
+  if(TRUE) {
     message("Using priors weighting.")
     tf.cpg.weight <- 0.3
     cg.gene.weight <- 0.2;
@@ -252,214 +252,6 @@ get.link.priors <- function(ranges, nodes) {
   return(priors.w)
 }
 
-#' Gets priors for the GGMs from the GTEX dataset
-#'
-#' Creates binned priors based on the distances of SNPs and their cis genes as well
-#' as for gene-gene connections. I.e. for the distance priors a window is binned
-#' and for each bin the percentage of significant cis-associations to genes is
-#' recorded. Since we want to transfer those to our data, we use the
-#' currently set window size of our main script for this analysis.
-#'
-#' @param nbins The number of bins to create
-#' @param p.cutoff The pvalue cutoff for significant associations
-#' @param gtex.eqtl.file The data file in which to find the processed gtex associations
-#' @param gtex.rpkm.file The file containing all rpkm values per GTEX sample and all genes
-#' @param gtex.sampleDD.file The file containing the sample description for the samples
-#' in the gtex.rpkm.file
-#' @param chunk.size The number of lines to be read in one chunk (we expect quite a
-#' huge file...)
-#'
-#' @return nothing
-#'
-#'
-create.priors <- function(nbins, window) {
-
-  source("R/lib.R")
-  library(qvalue)
-  library(data.table)
-  library(graph)
-  library(fdrtool)
-  
-  load.string.db();
-  STRING.NODES <- nodes(STRING.DB)
-  STRING.EDGES <- graph::edges(STRING.DB)
-
-  gtex.eqtl.file <- paste0("data/current/gtex/Whole_Blood_Analysis.v6p.all_snpgene_pairs.txt.gz")
-  gtex.rpkm.file <- paste0("data/current/gtex/GTEx_Analysis_v6_RNA-seq_RNA-SeQCv1.1.8_gene_rpkm.gct.gz")
-  gtex.sampleDS.file <- paste0("data/current/gtex/GTEx_Data_V6_Annotations_SampleAttributesDS.txt")
-  gtex.phenotypeDS.file <- paste0("data/current/gtex/GTEx_Data_V6_Annotations_SubjectPhenotypesDS.txt")
-  
-  if(!file.exists(gtex.eqtl.file)){
-    stop("Provided gtex-eqtl file does not exist.\n");
-  }
-  if(!file.exists(gtex.rpkm.file)){
-    stop("Provided gtex-rpkm file does not exist.\n");
-  }
-  if(!file.exists(gtex.sampleDS.file)){
-    stop("Provided gtex-sample file does not exist.\n");
-  }
-  if(!file.exists(gtex.phenotypeDS.file)){
-    stop("Provided gtex-sample file does not exist.\n");
-  }
-
-  GTEX.PLOTS <- paste0("results/current/gtex_plots/")
-  dir.create(GTEX.PLOTS)
-  
-  # create the binned vector
-  step <- window/nbins;
-  bins <- seq(0,window-step, by=step);
-
-  # read the gzfile chunk-wise
-  # open handle
-  f = paste0("zcat ", gtex.eqtl.file)
-
-  # format: gene_id variant_id      tss_distance    pval_nominal    slope   slope_se
-  pairs <- fread(f,
-                 header=T, 
-                 select=c("variant_id", "tss_distance", "pval_nominal"), 
-                 data.table=F)
-#  pairs <- cbind.data.frame(pairs, lfdr=qvalue(pairs$pval_nominal)$lfdr)
-  
-  # read the annotation information for the snps
-#  annot <- fread("data/current/gtex/GTEx_Analysis_v6_OMNI_genot_1KG_imputed_var_chr1to22_info4_maf01_CR95_CHR_POSb37_ID_REF_ALT.txt",
-#                 header=T,
-#                 select=c("VariantID", "RS_ID_dbSNP135_original_VCF", "RS_ID_dbSNP142_CHG37p13"),
-#                 data.table=F)
-  
-  # check whether we have annotation for all SNPs in the eQTL data
-  # this seems not true, however there might be SNPs without rsID?
-  # also: Check the extra column of rsIDs for overlap. maybe we can get all the
-  # information if we use both columns?
-  
- # all(pairs$variant_id %in% annot$VariantID)
-  
-  
-  
-  eqtl2bin <- findInterval(abs(pairs$tss_distance), bins)
-  
-  # for each bin, get the pvalues
-  temp <- lapply(1:length(bins), function(b) {
-    
-    pvals <- as.numeric(pairs[which(eqtl2bin == b), "pval_nominal"])
-    
-    pdf(paste0(GTEX.PLOTS, "/gtex_bin", b, ".pval.pdf"))
-    hist(pvals, breaks=100, main=paste0("bin ", b))
-    dev.off()
-    n <- 1-pi0est(pvals)$pi0
-    return(n)
-  })
-
-  # relative amount of significant associations as priors
-  gtex.eqtl.priors <- unlist(temp);
-  # scale between 1 an 0
-  gtex.eqtl.priors <- gtex.eqtl.priors / max(gtex.eqtl.priors);
-  
-  save(file=paste0("results/current/",
-                   "/gtex.eqtl.priors.RData"), gtex.eqtl.priors)
-  
-  # plot the prior distribution (significant/bin)
-  pdf(paste0(GTEX.PLOTS, "/gtex.eqtl.priors.pdf"))
-  barplot(gtex.eqtl.priors, xlab="bins")
-  dev.off()
-  
-  cat("Finished eQTL priors. Starting gene-gene priors now.\n");
-
-  # format: 1:ID, 7:SMTSD (tissue)
-  samples <- fread(gtex.sampleDS.file, select=c("SAMPID", 
-                                                "SMTSD", 
-                                                "SMNABTCH",
-                                                "SMGEBTCH", 
-                                                "SMRIN"));
-  samples <- samples[which(samples$SMTSD=="Whole Blood"),]
-  samples <- cbind.data.frame(id=samples$SAMPID, 
-                              type=samples$SMTSD, 
-                              batch1=samples$SMNABTCH, 
-                              batch2=samples$SMGEBTCH,
-                              RIN=samples$SMRIN,stringsAsFactors=F);
-  # in order to be able to merge samples with covariate frame
-  samples$donor_id <- gsub("(.{4}-.{4,5})-.*", "\\1", samples$id)
-  # drop low-RIN samples and where RIN is NA 
-  # see also: 
-  # http://www.gtexportal.org/home/documentationPage#staticTextSampleQuality
-  samples <- samples[complete.cases(samples),]
-  samples <- samples[which(samples$RIN>=6),]
-  # get covariates (age, sex) for all samples used
-  covariates <- read.table(gtex.phenotypeDS.file,
-                           header=T, 
-                           sep="\t")
-  colnames(covariates) <- c("id", "sex", "age", "death_hardy")
-  
-  samples <- merge(samples, covariates, by.x="donor_id", by.y="id")
-  rownames(samples) <- samples$id
-  
-  cat("Processing", nrow(samples), "GTEX samples.\n")
-  
-  # now calculate the data-driven priors for gene-gene interactions
-  rpkms <- fread(paste0("zcat ", gtex.rpkm.file), skip=2, sep="\t", 
-                 header=T, select=c("Name","Description",samples$id))
-  gene.matrix <- as.matrix(rpkms[,-c(1,2),with=F])
-  rownames(gene.matrix) <- rpkms$Description
-  rm(rpkms)
-  
-  cat("Subsetting genes.\n")
-
-  gene.matrix <- t(gene.matrix)
-  gene.matrix <- log2(gene.matrix+1)
-  gene.matrix <- normalize.expression(gene.matrix)
-  gene.matrix <- gene.matrix[,which(colnames(gene.matrix) %in% STRING.NODES)]
-  # plot gene expression values
-  pdf(paste0(GTEX.PLOTS, "/expression.values.pdf"))
-  hist(gene.matrix, breaks=150, xlab="expression residuals")
-  dev.off()
-  
-  # calculate correlations for priors
-  cat("Calculating gene-wise correlations.\n")
-  
-  cnames <- colnames(gene.matrix)
-
-  temp <- lapply(STRING.NODES, function(e) {
-    if(e %in% names(STRING.EDGES)) {
-      temp2 <- lapply(STRING.EDGES[[e]], function(j) {
-        if((e %in% cnames) & (j %in% cnames)) {
-          x <- gene.matrix[,e]
-          y <- gene.matrix[,j]
-          # check sd
-          if(sd(x)!=0 | sd(y) != 0) {
-            pval <- cor.test(x,y)$p.value;
-            rho <- cor(x,y)
-            return(c(e,j,pval, rho))
-          }
-        }
-      });
-      return(temp2)
-    }
-  })
-
-  cat("Done.\n")
-
-  gtex.gg.cors <- matrix(unlist(temp), ncol=4, byrow = T)
-  colnames(gtex.gg.cors) <- c("g1", "g2", "pval", "correlation")
-  rownames(gtex.gg.cors) <- with(gtex.gg.cors, paste(g1,g2,sep="_"))
-  gtex.gg.cors <- as.data.frame(gtex.gg.cors, stringsAsFactors=F)  
-  gtex.gg.cors$pval <- as.numeric(gtex.gg.cors$pval)
-  gtex.gg.cors$correlation <- as.numeric(gtex.gg.cors$correlation)
-  gtex.gg.cors$lfdr <- fdrtool(gtex.gg.cors$pval, statistic="pvalue")$lfdr
-  gtex.gg.cors$prior <- 1-gtex.gg.cors$lfdr
-  
-  # plot correlation histogram
-  pdf(paste0(GTEX.PLOTS, "/expression.correlation.pdf"))
-  hist(gtex.gg.cors$correlation, breaks=100, xlab="correlation", main="gtex gene corerlations")
-  abline(v=0, col="red")
-  dev.off()
-  
-  # report the pi0 and the proportion of significant tests for qvalue packge
-  pi1 <- 1-pi0est(gtex.gg.cors[,"pval"])$pi0
-  print(paste0("1-pi0 is: ", pi1))
-
-  # report prior
-  saveRDS(file=paste0("results/current/gtex.gg.cors.rds"), gtex.gg.cors)
-}
-
 #' Load gtex priors into environment
 #'
 #' @param sentinel The sentinel id. If given, eqtl data will immediately
@@ -481,9 +273,9 @@ load.gtex.priors <- function(sentinel=NULL, env=.GlobalEnv) {
   
   # keep only some of the columns of the eqtl priors
   gtex.eqtl <- gtex.eqtl[,c("symbol",
-                              "RS_ID_dbSNP135_original_VCF",
-                              "RS_ID_dbSNP142_CHG37p13",
-                              "lfdr")]
+                            "RS_ID_dbSNP135_original_VCF",
+                            "RS_ID_dbSNP142_CHG37p13",
+                            "lfdr")]
   
   # check whether to filter eqtl data
   
@@ -491,7 +283,7 @@ load.gtex.priors <- function(sentinel=NULL, env=.GlobalEnv) {
     if(sentinel %in% gtex.eqtl$RS_ID_dbSNP135_original_VCF | 
        sentinel %in% gtex.eqtl$RS_ID_dbSNP142_CHG37p13) {
       gtex.eqtl <- gtex.eqtl[(gtex.eqtl$RS_ID_dbSNP135_original_VCF==sentinel | 
-                              gtex.eqtl$RS_ID_dbSNP142_CHG37p13==sentinel), ]
+                                gtex.eqtl$RS_ID_dbSNP142_CHG37p13==sentinel), ]
     } else {
       cat("WARNING: Sentinel", sentinel, "has no GTEx eQTL!\n")
       gtex.eqtl <- NULL
@@ -504,6 +296,150 @@ load.gtex.priors <- function(sentinel=NULL, env=.GlobalEnv) {
   assign("gtex.gg.cors", gtex.gg.cors, env);
 }
 
+#' Create priors for the GGMs from the GTEX dataset
+#'
+#' @author Johann Hawe
+#' 
+#' @return nothing
+#'
+create.priors <- function() {
+
+  source("R/lib.R")
+  library(qvalue)
+  library(data.table)
+  library(graph)
+  library(fdrtool)
+  
+  # TODO fully integrate this into the snakemake pipeline and get the
+  # file names from the snakefile
+  eqtl.file <- "data/current/gtex/Whole_Blood_Analysis.v6p.all_snpgene_pairs.txt.gz"
+  snpInfo.file <- "data/current/gtex/GTEx_Analysis_v6_OMNI_genot_1KG_imputed_var_chr1to22_info4_maf01_CR95_CHR_POSb37_ID_REF_ALT.txt"
+  rpkm.file <- "data/current/gtex/GTEx_Analysis_v6_RNA-seq_RNA-SeQCv1.1.8_gene_rpkm.gct.gz"
+  sampleDS.file <- "data/current/gtex/GTEx_Data_V6_Annotations_SampleAttributesDS.txt"
+  phenotypeDS.file <- "data/current/gtex/GTEx_Data_V6_Annotations_SubjectPhenotypesDS.txt"
+ 
+  plot.dir <- paste0("results/current/gtex_plots/")
+  dir.create(plot.dir)
+  
+  create.gtex.eqtl.priors(eqtl.file, snpInfo.file)
+  gc()
+  create.gtex.gene.priors(sampleDS.file, phenotypeDS.file, rpkm.file, plot.dir)
+}
+
+#' Creates the gtex gene-gene priors under consideration of the 
+#' STRING database.
+#' 
+#' @param sampleDS.file The gtex sample information file
+#' @param pheno.file The gtex phenotype file
+#' @param rpkm.file File containing the gtex rpkm values
+#' @param plot.dir Directory where to save summary plots
+#' 
+#' @author Johann Hawe
+#'
+create.gtex.gene.priors <- function(sampleDS.file, pheno.file, 
+                                    rpkm.file, plot.dir) {
+  
+  # load the string information
+  load.string.db();
+  STRING.NODES <- nodes(STRING.DB)
+  STRING.EDGES <- graph::edges(STRING.DB)
+  
+  # create the Gene-Gene priors
+  # format: 1:ID, 7:SMTSD (tissue)
+  samples <- fread(gtex.sampleDS.file, select=c("SAMPID", 
+                                                "SMTSD", 
+                                                "SMNABTCH",
+                                                "SMGEBTCH", 
+                                                "SMRIN"));
+  samples <- samples[which(samples$SMTSD=="Whole Blood"),]
+  samples <- cbind.data.frame(id=samples$SAMPID, 
+                              type=samples$SMTSD, 
+                              batch1=samples$SMNABTCH, 
+                              batch2=samples$SMGEBTCH,
+                              RIN=samples$SMRIN,stringsAsFactors=F);
+  
+  # in order to be able to merge samples with covariate frame
+  samples$donor_id <- gsub("(.{4}-.{4,5})-.*", "\\1", samples$id)
+  # drop low-RIN samples and where RIN is NA 
+  # see also: 
+  # http://www.gtexportal.org/home/documentationPage#staticTextSampleQuality
+  samples <- samples[complete.cases(samples),]
+  samples <- samples[which(samples$RIN>=6),]
+  # get covariates (age, sex) for all samples used
+  covariates <- read.table(gtex.phenotypeDS.file,
+                           header=T, 
+                           sep="\t")
+  colnames(covariates) <- c("id", "sex", "age", "death_hardy")
+  
+  samples <- merge(samples, covariates, by.x="donor_id", by.y="id")
+  rownames(samples) <- samples$id
+  
+  print(paste0("Processing", nrow(samples), "GTEX samples."))
+  
+  # now calculate the data-driven priors for gene-gene interactions
+  rpkms <- fread(paste0("zcat ", gtex.rpkm.file), skip=2, sep="\t", 
+                 header=T, select=c("Name","Description",samples$id))
+  gene.matrix <- as.matrix(rpkms[,-c(1,2),with=F])
+  rownames(gene.matrix) <- rpkms$Description
+  
+  print("Subsetting genes.")
+  
+  gene.matrix <- t(gene.matrix)
+  gene.matrix <- log2(gene.matrix+1)
+  gene.matrix <- normalize.expression(gene.matrix)
+  gene.matrix <- gene.matrix[,which(colnames(gene.matrix) %in% STRING.NODES)]
+  # plot gene expression values
+  pdf(paste0(plot.dir, "/expression.values.pdf"))
+  hist(gene.matrix, breaks=150, xlab="expression residuals")
+  dev.off()
+  
+  print("Calculating gene-wise correlations.\n")
+  
+  cnames <- colnames(gene.matrix)
+  
+  temp <- lapply(STRING.NODES, function(e) {
+    if(e %in% names(STRING.EDGES)) {
+      temp2 <- lapply(STRING.EDGES[[e]], function(j) {
+        if((e %in% cnames) & (j %in% cnames)) {
+          x <- gene.matrix[,e]
+          y <- gene.matrix[,j]
+          # check sd
+          if(sd(x)!=0 | sd(y) != 0) {
+            pval <- cor.test(x,y)$p.value
+            rho <- cor(x,y)
+            return(c(e,j,pval, rho))
+          }
+        }
+      })
+      return(temp2)
+    }
+  })
+  
+  print("Done.")
+  
+  gtex.gg.cors <- matrix(unlist(temp), ncol=4, byrow = T)
+  colnames(gtex.gg.cors) <- c("g1", "g2", "pval", "correlation")
+  rownames(gtex.gg.cors) <- with(gtex.gg.cors, paste(g1,g2,sep="_"))
+  gtex.gg.cors <- as.data.frame(gtex.gg.cors, stringsAsFactors=F)  
+  gtex.gg.cors$pval <- as.numeric(gtex.gg.cors$pval)
+  gtex.gg.cors$correlation <- as.numeric(gtex.gg.cors$correlation)
+  gtex.gg.cors$lfdr <- fdrtool(gtex.gg.cors$pval, statistic="pvalue")$lfdr
+  gtex.gg.cors$prior <- 1-gtex.gg.cors$lfdr
+  
+  # plot correlation histogram
+  pdf(paste0(plot.dir, "/expression.correlation.pdf"))
+  hist(gtex.gg.cors$correlation, breaks=100, xlab="correlation", main="gtex gene corerlations")
+  abline(v=0, col="red")
+  dev.off()
+  
+  # report the pi0 and the proportion of significant tests for qvalue packge
+  pi1 <- 1-pi0est(gtex.gg.cors[,"pval"])$pi0
+  print(paste0("1-pi0 is: ", pi1))
+  
+  # report prior
+  saveRDS(file=paste0("results/current/gtex.gg.cors.rds"), gtex.gg.cors)
+}
+
 #' Preprocesses the gtex Whole_Blood eqtl data to add a column of local FDR
 #' values which we will use (1-lfdr) for our snp-gene priors
 #' Output is written to a predetermined gz-file
@@ -511,15 +447,13 @@ load.gtex.priors <- function(sentinel=NULL, env=.GlobalEnv) {
 #' @author Johann Hawe
 #' @return nothing
 #'
-preprocess.gtex.eqtl <- function() {
+create.gtex.eqtl.priors <- function(eqtl.file, snpInfo.file) {
   library(fdrtool)
   library(data.table)
   library(Homo.sapiens)
-
-  # load all gtex eqtl results
-  gtex.eqtl.file <- paste0("data/current/gtex/Whole_Blood_Analysis.v6p.all_snpgene_pairs.txt.gz")
+  
   # open handle
-  f = paste0("zcat ", gtex.eqtl.file)
+  f = paste0("zcat ", eqtl.file)
   
   # format: gene_id variant_id      tss_distance    pval_nominal    slope   slope_se
   pairs <- fread(f,
@@ -530,7 +464,7 @@ preprocess.gtex.eqtl <- function() {
   pairs[, ("lfdr") := fdrtool(pairs$pval_nominal, statistic="pvalue")$lfdr]
 
   # load annotation
-  annot <- fread("data/current/gtex/GTEx_Analysis_v6_OMNI_genot_1KG_imputed_var_chr1to22_info4_maf01_CR95_CHR_POSb37_ID_REF_ALT.txt",
+  annot <- fread(snpInfo.file,
                  header=T,
                  select=c("VariantID", "RS_ID_dbSNP135_original_VCF", "RS_ID_dbSNP142_CHG37p13"),
                  data.table=T,
@@ -554,7 +488,7 @@ preprocess.gtex.eqtl <- function() {
   symbols.by.id <- tapply(symbols$SYMBOL, symbols$ENSEMBL, function(x) paste(x,collapse=","))
   pairs[, ("symbol") := symbols.by.id[ids]]
 
-  # output gzip file
+  # output rds file
   out <- "results/current/gtex.eqtl.priors.rds"
   saveRDS(file=out, pairs)
 }

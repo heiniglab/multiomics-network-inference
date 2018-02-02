@@ -8,7 +8,7 @@ sink(file = snakemake@log[[1]])
 
 # load needed packages
 library(graph)
-
+library(BDgraph, lib="/storage/groups/groups_epigenereg/packages/2017/R/3.4/")
 # source needed scripts
 source("R/priors.R")
 source("R/lib.R")
@@ -93,6 +93,9 @@ for(s in names(data)) {
   print(paste0("Saving results to ", odir))
   
   # write out the results
-  save(file=paste0(odir, s, ".RData"), data.sim, N, p, gr, gr_adj, ranges, nodes, ggm.data)
+  save(file=paste0(odir, s, ".RData"), data.sim, N, p, gr, 
+       gr_adj, ranges, nodes, ggm.data)
 }
+
 sink()
+

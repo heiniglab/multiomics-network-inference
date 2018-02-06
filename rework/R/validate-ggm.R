@@ -28,8 +28,9 @@ cat("Using sentinel",sentinel, "\n")
 `%+%` = paste0
 
 # load preprocessed cohort data
+ifile <- snakemake@input[[1]]
 env <- new.env()
-load(snakemake@input[[1]], envir=env)
+load(ifile, envir=env)
 
 # load external data
 geu <- fread("data/current/geuvadis/GD660.GeneQuantRPKM.tsv", header=T,
@@ -101,7 +102,12 @@ ldata <- with(env, data[[sentinel]]$lolipop$data)
 # process both cohorts
 cohorts <- c("lolipop", "kora")
 
+# rdata file containing ggm fits
+ifile2 <- snakemake@input[[2]]
+
 temp <- lapply(cohorts, function(cohort){
+  
+  load(ifile2)
   
   # write basic info to output
   row <- c(sentinel, cohort)
@@ -111,8 +117,6 @@ temp <- lapply(cohorts, function(cohort){
   # used and the original data.matrix. We als retrieve the different set of entities,
   # i.e. the snp, the cpgs as well as the respective locus genes, tfs and shortest path
   # genes. Those entities can either have been selected via ggm graph or not.
-  
-  load(snakemake@input[[2]])
   graph <- fits[[cohort]]$graph
   graph_no_priors <- fits[[cohort]]$graph_no_priors
   # we apply over both graphs...

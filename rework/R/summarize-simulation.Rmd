@@ -25,27 +25,24 @@ For each of the sentinels which had a 'true graph' available (currently based on
 approach) we generated data and applied the bdgraph algorithm.
 
 ```{r}
-test <- function() {
-  # get all results into a single large table
-  indir <- snakemake@params$indir
-  
-  print(indir)
-  files <- list.files(indir, "*.txt", full.names = T)
-  print("Number of files being processed:")
-  print(length(files))
-  tab <- c()
-  for(i in 1:length(files)) {
-    f <- read.table(files[i], sep="\t", 
-                    header=T, row.names=1)
-    f$ggm.type <- rownames(f)
-    s <- gsub(".txt", "", gsub(".*/rs", "rs", files[i]))
-    rownames(f) <- paste(s, rownames(f), sep=".")
-    tab <- rbind(tab, f[2:3,])
-    colnames(tab) <- colnames(f)
-  }
-  return(tab)
+# get all results into a single large table
+indir <- snakemake@params$indir
+
+print(indir)
+files <- list.files(indir, "*.txt", full.names = T)
+print("Number of files being processed:")
+print(length(files))
+tab <- c()
+for(i in 1:length(files)) {
+  f <- read.table(files[i], sep="\t", 
+                  header=T, row.names=1)
+  f$ggm.type <- rownames(f)
+  s <- gsub(".txt", "", gsub(".*/rs", "rs", files[i]))
+  rownames(f) <- paste(s, rownames(f), sep=".")
+  tab <- rbind(tab, f[2:3,])
+  colnames(tab) <- colnames(f)
 }
-tab <- test()
+
 ```
 
 Overall we are looking at `r nrow(tab)/2` sentinels for we which we have calculated GGM fits with and without prior information, depicted in the plots below as 'ggm.type'. We show summary plots for the individual ggm.types for some standard performance measures (specificity, sensitivity, F1.score) as well as he Matthew's Correlation Coefficient (MCC) which is a correlation measure which can be applied if the individual classes differe largely in size.

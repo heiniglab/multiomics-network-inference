@@ -4,7 +4,7 @@ SENT_COHO = glob_wildcards("data/current/cohorts/{sentinel}.{cohort}.adjusted.da
 localrules: 
 	all, preprocess, summarize_validation, 
 	simulate_data, all_sim, validate_ggm_simulation, create_priors,
-	summarize_simulation
+	summarize_simulation, render_validation
 
 
 #####

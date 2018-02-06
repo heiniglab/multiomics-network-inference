@@ -257,10 +257,10 @@ validate.gene2gene <- function(expr.data, g, all.genes){
   em <- as.data.frame(em, stringsAsFactors=F)
   
   # get the gene-gene links which can be found in our graph
-  em.selected <- t(edgeMatrix(g))
+  em.selected <- t(graph::edgeMatrix(g))
   em.selected <- cbind(gnodes[em.selected[,1]], gnodes[em.selected[,2]])
-  em.selected <- em.selected[!grepl("^rs|^cg", em.selected[,1]),]
-  em.selected <- em.selected[!grepl("^rs|^cg", em.selected[,2]),]
+  em.selected <- em.selected[!grepl("^rs|^cg", em.selected[,1]),,drop=F]
+  em.selected <- em.selected[!grepl("^rs|^cg", em.selected[,2]),,drop=F]
   colnames(em) <- colnames(em.selected) <- c("n1", "n2")
   em.selected <- as.data.frame(em.selected, stringsAsFactors=F)
   

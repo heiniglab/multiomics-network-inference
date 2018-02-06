@@ -50,9 +50,9 @@ for(s in names(data)) {
   # and the nodes which were already in the graph
   set.seed(42)
   # the max number of edges to be randomly added to the graph
-  r <- ceiling(length(rw_graph_nodes) / 2)
-  r <- min(r, length(toadd))
-  gr <- addEdge(sample(rw_graph_nodes, r), sample(toadd, r), gr)
+  r <- numEdges(rw_graph)
+  gr <- addEdge(sample(rw_graph_nodes, r, replace = T), 
+                sample(toadd, r, replace = T), gr)
   
   # annotate our graph with the appropriate node- and edgeData
   gr <- annotate.graph(gr, ranges)

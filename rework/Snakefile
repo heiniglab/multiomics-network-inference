@@ -3,7 +3,7 @@ SENT_COHO = glob_wildcards("data/current/cohorts/{sentinel}.{cohort}.adjusted.da
 
 localrules: 
 	all, preprocess, summarize_validation, 
-	simulate_data, all_sim, validate_ggm_simulation, create_priors,
+	all_sim, validate_ggm_simulation, create_priors,
 	summarize_simulation, render_validation
 
 
@@ -98,16 +98,19 @@ rule all:
 # Rules for simulation study
 #####
 
-SENT = glob_wildcards("data/current/networks/{sentinel}.RData")
-
+SENT = glob_wildcards("data/current/sentinels/{sentinel}.dummy")
 
 rule simulate_data:
 	input: "results/current/data.processed.RData"
 	output: 
 		expand("results/current/simulation/data/{sentinel}.RData", zip, sentinel=SENT.sentinel),
 		odir="results/current/simulation/data/"
+	threads: 12
+	resources:
+		mem_mb=10000
 	params:
-		random_walk_results="data/current/networks/"
+		random_walk_results="data/current/networks/",
+		plotdir="results/current/simulation/plots/"
 	log:	"logs/simulation/simulate_data.log"
 	benchmark: "benchmarks/simulation/simulate_data.bmk"
 	script:

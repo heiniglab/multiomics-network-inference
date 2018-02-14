@@ -20,41 +20,51 @@ print(paste0("Processing file: ", ifile,
              " using ", cores, " cores."))
 
 # load data
+# contains: simulated_data, ranges, nodes, ggm.data
 load(ifile)
-d <- data.sim$data
 
-# sentinel name to generate plot filename
-s <- colnames(d)[grepl("^rs", colnames(d))]
+# we generated several graphs, which we all want to process now
+result <- lapply(names(simulated_data), function(n) {
+  sim <- simulated_data[[n]]
+  # sentinel name to generate plot filename
+  s <- sim$snp
+  d <- sim$data.sim
+  
+  # get the priors and create start graph
+  priors <- sim$priors
+  gstart <- get.g.start.from.priors(priors)
+  
+  ggm_fit <- bdgraph(d, method = "gcgm",
+                     iter = nriter, burnin = burnin, 
+                     g.prior = priors, g.start = gstart, 
+                     save.all=T, cores=cores)
+  
+  ggm_fit_no_priors <- bdgraph(d, method = "gcgm",
+                               iter = nriter, burnin = burnin, 
+                               g.start = gstart, 
+                               save.all=T, cores=cores)
+  
+  # plot the bdgraph summary files
+  pdf(paste0(plotdir, s, "-", n, "-simulation-ggmsummary.pdf"))
+  temp <- summary(ggm_fit)
+  plotcoda(ggm_fit)
+  temp <- summary(ggm_fit_no_priors)
+  plotcoda(ggm_fit_no_priors)
+  dev.off()
+  
+  # get the result graph
+  ggm_graph <- graph.from.fit(ggm_fit, ranges)
+  ggm_graph_no_priors <- graph.from.fit(ggm_fit_no_priors, ranges)
+ 
+  # new entry in our data collection
+  sim$fits <- list(ggm_fit, ggm_fit_no_priors, 
+                   ggm_graph, ggm_graph_no_priors)
+  sim
+})
 
-# get the priors
-priors <- get.link.priors(ranges, colnames(d))
-gstart <- get.g.start.from.priors(priors)
+names(result) <- names(simulated_data)
 
-ggm_fit <- bdgraph(d, method = "gcgm",
-                   iter = nriter, burnin = burnin, 
-                   g.prior = priors, g.start = gstart, 
-                   save.all=T, cores=cores)
-
-ggm_fit_no_priors <- bdgraph(d, method = "gcgm",
-                             iter = nriter, burnin = burnin, 
-                             g.start = gstart, 
-                             save.all=T, cores=cores)
-
-# plot the bdgraph summary files
-pdf(paste0(plotdir, s, "-simulation-ggmsummary.pdf"))
-temp <- summary(ggm_fit)
-plotcoda(ggm_fit)
-temp <- summary(ggm_fit_no_priors)
-plotcoda(ggm_fit_no_priors)
-dev.off()
-
-# get the result graph
-ggm_graph <- graph.from.fit(ggm_fit, ranges)
-ggm_graph_no_priors <- graph.from.fit(ggm_fit_no_priors, ranges)
 print(paste0("Saving results to ", ofile))
-save(file=ofile, 
-     ggm_fit, ggm_fit_no_priors, 
-     ranges, data.sim, 
-     ggm_graph, ggm_graph_no_priors)
+save(file=ofile, result)
 
 sink()

@@ -61,35 +61,36 @@ get.link.priors <- function(ranges, nodes) {
   colnames(priors) <- rownames(priors) <- nodes
 
   # load annotation needed for cpg2gene priors
-  epigen.states <- read.table("data/current/epigenetic_state_annotation_weighted_all_sentinels.txt", 
-                        header = T, sep="\t", row.names = 1)
+  # TODO add those states for cpg priors once we got our storage back
+  #epigen.states <- read.table("data/current/epigenetic_state_annotation_weighted_all_sentinels.txt", 
+  #                      header = T, sep="\t", row.names = 1)
   
   ## SET CPG-CPGGENE PRIOR
-  for(i in names(cpg.dists)){
-    gene.ranges <- cpg.dists[[i]];
-    temp <- lapply(gene.ranges, function(r) {
-      s <- r$SYMBOL;
-      if(s %in% colnames(priors)) {
-        # set the basic prior based on distance (the larger the distance, the lower the prior should be)
-        # but scale it to be between 0 and 1
-        dist <- r$distance
-        if(!is.na(dist)){
-          # if the cpg is in range of the tss (within 200bp), 
-          # set a specific prior for active TSS... 
-          p <- pseudo.prior
-          if(dist <= 200){
-            # set the cpg.state prior
-            p <- p + sum(epigen.states[i, c("Active.TSS", 
-                                        "Flanking.Active.TSS", 
-                                        "Bivalent.Poised.TSS",
-                                        "Flanking.Bivalent.TSS.Enh")]) 
-          }
-          priors[i,s] <<- p
-          priors[s,i] <<- p
-        }
-      }
-    })
-  }
+  # for(i in names(cpg.dists)){
+  #   gene.ranges <- cpg.dists[[i]];
+  #   temp <- lapply(gene.ranges, function(r) {
+  #     s <- r$SYMBOL;
+  #     if(s %in% colnames(priors)) {
+  #       # set the basic prior based on distance (the larger the distance, the lower the prior should be)
+  #       # but scale it to be between 0 and 1
+  #       dist <- r$distance
+  #       if(!is.na(dist)){
+  #         # if the cpg is in range of the tss (within 200bp), 
+  #         # set a specific prior for active TSS... 
+  #         p <- pseudo.prior
+  #         if(dist <= 200){
+  #           # set the cpg.state prior
+  #           p <- p + sum(epigen.states[i, c("Active.TSS", 
+  #                                       "Flanking.Active.TSS", 
+  #                                       "Bivalent.Poised.TSS",
+  #                                       "Flanking.Bivalent.TSS.Enh")]) 
+  #         }
+  #         priors[i,s] <<- p
+  #         priors[s,i] <<- p
+  #       }
+  #     }
+  #   })
+  # }
 
   ## SET SNP PRIOR (if available)
   # iterate over each of the snp genes and set prior according to
@@ -163,30 +164,30 @@ get.link.priors <- function(ranges, nodes) {
   
   ## SET TF-CPG PRIOR
   # we will also set tf2cpg priors at this point, so get all TFs
-  tfs <- ranges$tfs$SYMBOL
-  # also get the chipseq context for our cpgs
-  context <- get.chipseq.context(names(ranges$cpgs))
-  
-  # for all cpgs
-  for(c in rownames(context)){
-    for(tf in tfs) {
-      # might be that the TF was measured in more than one cell line
-      if(any(context[c,grepl(tf, colnames(context))])) {
-        if(c %in% colnames(priors) &
-           tf %in% colnames(priors)){
-            priors[c,tf] <- 0.7
-            priors[tf,c] <- 0.7
-        } else {
-          message("WARNING: TF-CpG link not available:",c,"-", tf, "\n")
-        }
-      }
-    }
-  }
+  # tfs <- ranges$tfs$SYMBOL
+  # # also get the chipseq context for our cpgs
+  # context <- get.chipseq.context(names(ranges$cpgs))
+  # 
+  # # for all cpgs
+  # for(c in rownames(context)){
+  #   for(tf in tfs) {
+  #     # might be that the TF was measured in more than one cell line
+  #     if(any(context[c,grepl(tf, colnames(context))])) {
+  #       if(c %in% colnames(priors) &
+  #          tf %in% colnames(priors)){
+  #           priors[c,tf] <- 0.7
+  #           priors[tf,c] <- 0.7
+  #       } else {
+  #         message("WARNING: TF-CpG link not available:",c,"-", tf, "\n")
+  #       }
+  #     }
+  #   }
+  # }
   
   # define weights for our priors
   # do we need those?
   if(TRUE) {
-    message("Using priors weighting.")
+    message("Using prior weighting.")
     tf.cpg.weight <- 0.3
     cg.gene.weight <- 0.2;
     snp.gene.weight <- 0.3;

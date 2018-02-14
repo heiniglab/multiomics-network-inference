@@ -165,12 +165,15 @@ create_prior_graphs <- function(priors,
         id <- paste0(sentinel, "_fpr", fpr, "_fnr", fnr)
         graphs[[id]] <- list(graph.hidden=g, 
                           graph.observed=gr,
-                          fpr=fpr, fnr=fnr)
+                          fpr=fpr, fnr=fnr,
+                          snp=sentinel, priors=priors)
       }
     }
     return(graphs)
   } else {
-    return(list(graph.hidden=g, graph.observed=g, fpr=0, fnr=0))
+    return(list(graph.hidden=g, graph.observed=g, 
+                fpr=0, fnr=0,
+                snp=sentinel, priors=priors))
   }
 }
 
@@ -189,12 +192,10 @@ create_prior_graphs <- function(priors,
 #' @author Johann Hawe
 #'
 simulate_data <- function(graphs, ggm.data, nodes, plot.dir) {
- 
-  # get the snp id
-  s <- nodes[grepl("^rs", nodes)]
   
   d <- lapply(graphs, function(g) {
     gr <- g$graph.observed
+    s <- g$snp
     
     # create adjacency matrix from our graph
     g_adj <- igraph::as_adj(igraph::igraph.from.graphNEL(gr), sparse = F)

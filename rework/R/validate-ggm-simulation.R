@@ -9,7 +9,7 @@
 sink(file=snakemake@log[[1]])
 
 # load needed libraries
-library(BDgraph, lib="~/epigenereg/packages/2017/R/3.4/")
+library(BDgraph, lib="/home/icb/johann.hawe/R/x86_64-redhat-linux-gnu-library/3.4")
 library(GenomicRanges)
 
 source("R/lib.R")
@@ -22,11 +22,32 @@ print(paste0("Processing file: ", ifile, "."))
 # load data
 load(ifile)
 
-# use the bdgraph internal method to get spec/sens and f1
-perf <- t(compare(data.sim, ggm_fit, ggm_fit_no_priors))
-rownames(perf) <- c("true", "ggm_fit", "ggm_fit_no_priors")
+# the result table
+tab <- c()
+
+# check each individual simulated result
+temp <- lapply(names(result), function(n) {
+  
+  # get necessary valiation data
+  r <- result[[n]]
+  d <- r$data.sim
+  ggm_fit <- r$fits$ggm_fit
+  ggm_fit_no_priors <- r$fits$ggm_fit_no_priors
+  
+  # use the bdgraph internal method to get spec/sens, f1 and MCC
+  perf <- t(compare(d, ggm_fit, ggm_fit_no_priors))
+  comparisons <- c("true", "ggm_fit", "ggm_fit_no_priors")
+  perf <- as.data.frame(perf)
+  rownames(perf) <- paste(n, comparisons, sep="_")
+  # remember for easy plotting
+  perf$fpr <- r$fpr
+  perf$fnr <- r$fnr
+  perf$snp <- r$snp
+  perf$comparison <- comparisons
+  tab <<- rbind(tab, perf)
+})
 
 # write result to output file
-write.table(file=ofile, perf, col.names=NA, sep="\t", quote=F, row.names = TRUE)
+write.table(file=ofile, tab, col.names=NA, sep="\t", quote=F, row.names = TRUE)
 
 sink()

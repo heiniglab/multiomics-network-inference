@@ -64,13 +64,14 @@ create_prior_graphs <- function(priors,
   rownames(ee) <- een
   
   ee$keep <- F
-  
+  ee$prior <- -1
   # iterate over each pair and determine whether to add
   # the pair as an 'true' edge
   set.seed(42)
   for(i in 1:nrow(ee)) {
     # get prior
     p <- priors[ee[i,"n1"], ee[i,"n2"]]
+    ee[i,"prior"] <- p
     if(p>pseudo.prior) {
       v <- runif(1)
       if(v<=p) {
@@ -78,6 +79,10 @@ create_prior_graphs <- function(priors,
       }
     }
   }
+  
+  # create a full graph for comparison
+  keep_full <- ee$prior > pseudo.prior
+  gfull <- addEdge(ee[keep_full,1], ee[keep_full,2], g)
   
   # keep only relevent edges and add to graph
   to_add <- ee[ee$keep,,drop=F]
@@ -96,78 +101,67 @@ create_prior_graphs <- function(priors,
         old <- to_add[to_switch,]
         old["keep"] <- F
         
-        to_add[to_switch,] <- c(sentinel, temp2, T)
+        to_add[to_switch,] <- c(sentinel, temp2, T, priors[sentinel,temp2])
         rownames(to_add)[to_switch] <- paste0(sort(c(sentinel, temp2)), collapse="_")
         ee[ee$n1 == old$n1 & ee$n2 == old$n2,] <- old
       }
     }
-    
-    g <- addEdge(to_add[,1], to_add[,2], g)
-  }
-  # remove nodes without edges
-  to_remove <- nodes[graph::degree(g, nodes)<1]
-  if(length(to_remove) > 0) {
-    g <- removeNode(to_remove, g)
+  } else {
+    # none of the edges made it
+    # for now add at least the edges which got any prior so that we do not 
+    # get an empty graph here; add random SNP edge to have the SNP available
+    ee[ee$prior>pseudo.prior,"keep"] <- T
+    ee[which(grepl("^rs", ee$n1) | grepl("^rs", ee$n2))[1], "keep"] <- T
+    to_add <- ee[ee$keep,,drop=F]
   }
   
-  # now we add the 'false prior' and the
-  # 'false no prior' edges to the graph
-  # (to reflect what we termed initially FPR/FNR)
+  g <- addEdge(to_add[,1], to_add[,2], g)
+  
+  # now we add the 'false prior' edges by rewiring
   if(!is.null(rates)) {
     graphs <-list()
     n <- length(rates)
     for(i in 1:n) {
-      fpr <- rates[i]
-      for(j in 1:n) {
-        fnr <- rates[j]
-      
-        # edges in hidden graph
-        em <- t(edgeMatrix(g))
-        em <- cbind(nodes[em[,1]], nodes[em[,2]])
-        rownames(em) <- seq(1:nrow(em))
-        for(i in 1:nrow(em)){
-          rownames(em)[i] <- paste0(sort(c(em[i,1], em[i,2])), collapse="_")
+      # the proportion of prior edges to keep
+      prior_prop <- rates[i]
+      needed_prior_edges <- round(prior_prop * numEdges(g))
+      g_rewired <- rewire_graph(g, 1)
+      edges_in_priors <- numEdges(graph::intersection(g_rewired, gfull))
+      counter <- 1
+      # we try at most 100 rewirings, otherwise we use the one closest to our ratio
+      max <- 100000
+      g_temp <- g_rewired
+      print("Started rewiring, this might take a while.")
+      while(needed_prior_edges != edges_in_priors)
+      {
+        to_rewire <- edges_in_priors - needed_prior_edges + 1
+        g_rewired <<- rewire_graph(g_rewired, to_rewire)
+        n <- numEdges(graph::intersection(g_rewired, gfull))
+        if(abs(needed_prior_edges - n) < abs(needed_prior_edges - edges_in_priors)) {
+          g_temp <- g_rewired
+          edges_in_priors <- n
         }
-        
-        # size (number of edges) of hidden graph
-        S <- nrow(em)
-        # size of hidden graphs 'non-edges'
-        N <- nrow(ee) - S
-        
-        # create graph
-        gr <- graphNEL(nodes, edgemode = "undirected")
-        
-        # add fraction of edges
-        # for all edges present in g, select a proportion
-        # of 1-fnr to keep in our new graph (the others being
-        # false negative)
-        to_sample <- round(S*(1-fnr))
-        idxs <- sample(1:S, to_sample)
-        gr <- addEdge(em[idxs,1],em[idxs,2], gr)
-        
-        # add fraction of 'non edges', i.e. the false positive
-        # edges w.r.t. our hiddeng graph
-        # we select a proportion of FPR from the non edges of our
-        # hidden graph
-        to_use <- ee[setdiff(rownames(ee), rownames(em)),,drop=F]
-        to_sample <- round(nrow(to_use)*fpr)
-        idxs <- sample(1:nrow(to_use), to_sample)
-        gr <- addEdge(to_use[idxs,1], to_use[idxs,2], gr)
-        
-        # filter zero degree nodes from the graph
-        to_remove <- nodes[graph::degree(gr,nodes(gr))<1]
-        if(length(to_remove) > 0) {
-          gr <- removeNode(to_remove, gr)
+        counter <- counter + 1
+        if(counter %% 100 == 0) {
+          print(paste0(counter, "  ", n, "  ", needed_prior_edges))
         }
-        
-        # drop nodes without edges
-        # save graph
-        id <- paste0(sentinel, "_fpr", fpr, "_fnr", fnr)
-        graphs[[id]] <- list(graph.hidden=g, 
-                          graph.observed=gr,
-                          fpr=fpr, fnr=fnr,
-                          snp=sentinel, priors=priors)
+        if(counter == max) {
+          break
+        }
       }
+      print(paste0("Done.\nTried ", counter, " rewirings."))
+        
+      # filter zero degree nodes from the graphs
+      g <- remove_unconnected_nodes(g)
+      g_rewired <- remove_unconnected_nodes(g_rewired)
+      
+      # drop nodes without edges
+      # save graph
+      id <- paste0(sentinel, "_fpr", drop_prop)
+      graphs[[id]] <- list(graph.hidden=g, 
+                        graph.observed=gr,
+                        prior_rate=fpr, fnr=fnr,
+                        snp=sentinel, priors=priors)
     }
     return(graphs)
   } else {
@@ -253,6 +247,10 @@ simulate_data <- function(graphs, ggm.data, nodes, plot.dir) {
   return(d)
 }
 
+rewire_graph <- function(g, prop) {
+  
+}
+
 # input file containing ranges/data of sentinel
 ifile <- snakemake@input[[1]]
 rwdir <- snakemake@params$random_walk_results
@@ -267,7 +265,14 @@ load(ifile)
 # do once before calling the loop
 load.gtex.priors()
 
-temp <- mclapply(names(data), function(s) {
+sentinels <- names(data)
+
+temp <- mclapply(sentinels, function(s) {
+  # first snp has only 2 genotype levels, 
+  # second one has too many entities for now (takes too long)
+  if(s %in% c("rs79755767", "rs60626639")) {
+    return(NULL)
+  }
   print(paste0("Processing ", s, "..."))
   
   # we only need the plotgraph from the 
@@ -323,7 +328,7 @@ temp <- mclapply(names(data), function(s) {
   # write out the results
   save(file=paste0(odir, s, ".RData"), simulated_data, 
        ranges, nodes, ggm.data)
-}, mc.cores = threads)
+}, mc.cores=threads)
 
 sink()
 

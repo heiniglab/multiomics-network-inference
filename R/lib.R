@@ -74,12 +74,13 @@ get.chipseq.context <- function(cpgs){
 #' 
 #' @param ggm.fit The bdgraph ggm fit
 #' @param ranges The ranges of the entities used for the graph fit
+#' @param annotate Flag whether to annotate the graph entities with nodeData [T]
 #' 
 #' @value graph-nel object created from the bdgraph result
 #'
 #' @author Johann Hawe
 #'
-graph.from.fit <- function(ggm.fit, ranges){
+graph.from.fit <- function(ggm.fit, ranges, annotate=T){
   library(BDgraph)
   library(graph)
   library(igraph)
@@ -89,9 +90,10 @@ graph.from.fit <- function(ggm.fit, ranges){
   g.adj <- BDgraph::select(ggm.fit, cut = cutoff)
   g <- as_graphnel(graph.adjacency(g.adj, mode="undirected", diag=F))
   
-  # set node and edge attributes
-  g <- annotate.graph(g, ranges)
-  
+  if(annotate) {
+    # set node and edge attributes
+    g <- annotate.graph(g, ranges)
+  }
   return(g)
 }
 
@@ -913,3 +915,70 @@ listN <- function(...){
   ln
 }
 
+#' Method to quickly rewire a given graph
+#' 
+#' @param g The graphNEL object to be rewired
+#' @param prob The probability with which an edge gets rewired
+#' 
+#' @return The rewired graph object
+#' 
+rewire_graph <- function(g, prob) {
+  ig <- igraph::igraph.from.graphNEL(graphNEL = g, weight=F)
+  ig <- rewire(ig, keeping_degseq(niter=prob))
+  
+  return(igraph::igraph.to.graphNEL(ig))
+}
+
+#' Helper method calculating the percentage of edges in the given graph object
+#' which have a prior according to the given prior matrix
+#' 
+#' @param g The graph for which to check the edges
+#' @param priors The symmetric matrix of edge priors. The lowest value
+#' of this matrix will be considered as the pseudo prior. Only values 
+#' larger than the pseudo prior will be considered as 'priors'.
+#' 
+#' @return Percentage of edges in the graph which have a prior
+get_percent_prioredges <- function(g, priors) {
+  library(graph)
+  
+  # get pseudo prior value
+  pp <- min(priors)
+  
+  # get the edgematrix with nodes
+  n <- nodes(g)
+  # sanity check
+  if(!all(n %in% colnames(priors))) {
+    warning("Not all nodes are in prior matrix.")
+    return(NULL)
+  }
+  em <- t(edgeMatrix(g))
+  if(nrow(em) > 0) {
+    count <- 0
+    em <- cbind(n[em[,1]], n[em[,2]])
+    for(i in 1:nrow(em)) {
+      v <- priors[em[i,1], em[i,2]]
+      # check if value is larger than pseudo prior
+      if(v>pp) {
+        count <- count + 1
+      }
+    }
+    return(count/nrow(em))
+  } else {
+    warning("No edges in graph.")
+    return(NULL)
+  }
+}
+
+remove_unconnected_nodes <- function(g) {
+  to_remove <- nodes[graph::degree(g,nodes(g))<1]
+  if(length(to_remove) > 0) {
+    g <- removeNode(to_remove, g)
+  }
+}
+
+pseudo_jumble <- function(g, prior_graph) {
+  
+}
+compare_graph_edges <- function(g1,g2) {
+  
+}

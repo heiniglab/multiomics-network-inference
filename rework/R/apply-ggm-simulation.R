@@ -2,7 +2,8 @@
 sink(file=snakemake@log[[1]])
 
 # load needed libraries
-library(BDgraph, lib="~/epigenereg/packages/2017/R/3.4/")
+#library(BDgraph, lib="~/epigenereg/packages/2017/R/3.4/")
+library(BDgraph, lib="/home/icb/johann.hawe/R/x86_64-redhat-linux-gnu-library/3.4")
 library(GenomicRanges)
 
 source("R/lib.R")
@@ -45,7 +46,7 @@ result <- lapply(names(simulated_data), function(n) {
                                save.all=T, cores=cores)
   
   # plot the bdgraph summary files
-  pdf(paste0(plotdir, s, "-", n, "-simulation-ggmsummary.pdf"))
+  pdf(paste0(plotdir, n, "-simulation-ggmsummary.pdf"))
   temp <- summary(ggm_fit)
   plotcoda(ggm_fit)
   temp <- summary(ggm_fit_no_priors)
@@ -53,11 +54,11 @@ result <- lapply(names(simulated_data), function(n) {
   dev.off()
   
   # get the result graph
-  ggm_graph <- graph.from.fit(ggm_fit, ranges)
-  ggm_graph_no_priors <- graph.from.fit(ggm_fit_no_priors, ranges)
+  ggm_graph <- graph.from.fit(ggm_fit, ranges, annotate=F)
+  ggm_graph_no_priors <- graph.from.fit(ggm_fit_no_priors, ranges, annotate=F)
  
   # new entry in our data collection
-  sim$fits <- list(ggm_fit, ggm_fit_no_priors, 
+  sim$fits <- listN(ggm_fit, ggm_fit_no_priors, 
                    ggm_graph, ggm_graph_no_priors)
   sim
 })

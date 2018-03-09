@@ -26,9 +26,9 @@ source("R/lib.R")
 #'
 #' @param priors The (symmetric) prior matrix for the 
 #' sentinel locus
-#' @param rates Vector of 'FPR/FNR' rates. Used to simulate
-#' graphs of individual difficulty. Default is to 
-#' 
+#' @param rates Vector of randomization rates. Used to randomize
+#' prior information with individual difficulty.
+#'  
 #' @return Returns the graph-structure as a graphNEL object
 #' based on the priors given as parameters (retaining nodes 
 #' for which there was no edge)
@@ -36,137 +36,42 @@ source("R/lib.R")
 #' @author Johann Hawe
 #'
 create_prior_graphs <- function(priors,
-                                rates=seq(0.1, 0.9, by=0.1)) {
+                                rand_steps=seq(0, 1, by=0.1)) {
   
-  # assume pseudo.prior as min-value (should always be
-  # the case)
-  pseudo.prior <- min(priors)
-  
-  # the nodes we want to operate on
-  nodes <- colnames(priors)
-  sentinel <- nodes[grepl("^rs", nodes)]
-  
-  # create base graph
-  g <- graphNEL(nodes, edgemode = "undirected")
-  
-  # iterate over each combination of nodes
-  ee <- expand.grid(nodes, nodes, stringsAsFactors = F)
-  colnames(ee) <- c("n1", "n2")
-  ee <- (ee[ee$n1 != ee$n2, ])
-  # remove duplicated entries
-  een <- vector(mode="character", length=nrow(ee))
-  for(i in 1:nrow(ee)){
-    een[i] <- paste0(sort(c(ee[i,1], ee[i,2])), collapse="_")
-  }
-  # final collection of all possible edges (undirected graph)
-  ee <- ee[!duplicated(een),]
-  een <- een[!duplicated(een)]
-  rownames(ee) <- een
-  
-  ee$keep <- F
-  ee$prior <- -1
-  # iterate over each pair and determine whether to add
-  # the pair as an 'true' edge
-  set.seed(42)
-  for(i in 1:nrow(ee)) {
-    # get prior
-    p <- priors[ee[i,"n1"], ee[i,"n2"]]
-    ee[i,"prior"] <- p
-    if(p>pseudo.prior) {
-      v <- runif(1)
-      if(v<=p) {
-        ee[i,"keep"] <- T
-      }
-    }
-  }
-  
-  # create a full graph for comparison
-  keep_full <- ee$prior > pseudo.prior
-  gfull <- addEdge(ee[keep_full,1], ee[keep_full,2], g)
-  
-  # keep only relevent edges and add to graph
-  to_add <- ee[ee$keep,,drop=F]
-  if(nrow(to_add)>0) {
-    # make sure we add the SNP
-    # -> if its not in the list of edges to keep,
-    # we simply switch one random connection with it
-    # if it doesn't have a prior, though, we just ignore it
-    if(!(sentinel %in% c(to_add[,"n1"], to_add[,"n2"]))) {
-      temp <- priors[,sentinel]
-      temp <- temp[temp>pseudo.prior]
-      if(!length(temp) == 0) {
-        # select random name
-        temp2 <- sample(names(temp),1)
-        to_switch <- sample(1:nrow(to_add),1)
-        old <- to_add[to_switch,]
-        old["keep"] <- F
-        
-        to_add[to_switch,] <- c(sentinel, temp2, T, priors[sentinel,temp2])
-        rownames(to_add)[to_switch] <- paste0(sort(c(sentinel, temp2)), collapse="_")
-        ee[ee$n1 == old$n1 & ee$n2 == old$n2,] <- old
-      }
-    }
-  } else {
-    # none of the edges made it
-    # for now add at least the edges which got any prior so that we do not 
-    # get an empty graph here; add random SNP edge to have the SNP available
-    ee[ee$prior>pseudo.prior,"keep"] <- T
-    ee[which(grepl("^rs", ee$n1) | grepl("^rs", ee$n2))[1], "keep"] <- T
-    to_add <- ee[ee$keep,,drop=F]
-  }
-  
-  g <- addEdge(to_add[,1], to_add[,2], g)
-  
-  # now we add the 'false prior' edges by rewiring
-  if(!is.null(rates)) {
+  # now we create randomized prior information
+  # for certain degrees
+  if(!is.null(rand_steps)) {
     graphs <-list()
-    n <- length(rates)
+    n <- length(rand_steps)
     for(i in 1:n) {
-      # the proportion of prior edges to keep
-      prior_prop <- rates[i]
-      needed_prior_edges <- round(prior_prop * numEdges(g))
-      g_rewired <- rewire_graph(g, 1)
-      edges_in_priors <- numEdges(graph::intersection(g_rewired, gfull))
-      counter <- 1
-      # we try at most 100 rewirings, otherwise we use the one closest to our ratio
-      max <- 100000
-      g_temp <- g_rewired
-      print("Started rewiring, this might take a while.")
-      while(needed_prior_edges != edges_in_priors)
-      {
-        to_rewire <- edges_in_priors - needed_prior_edges + 1
-        g_rewired <<- rewire_graph(g_rewired, to_rewire)
-        n <- numEdges(graph::intersection(g_rewired, gfull))
-        if(abs(needed_prior_edges - n) < abs(needed_prior_edges - edges_in_priors)) {
-          g_temp <- g_rewired
-          edges_in_priors <- n
-        }
-        counter <- counter + 1
-        if(counter %% 100 == 0) {
-          print(paste0(counter, "  ", n, "  ", needed_prior_edges))
-        }
-        if(counter == max) {
-          break
-        }
-      }
-      print(paste0("Done.\nTried ", counter, " rewirings."))
-        
-      # filter zero degree nodes from the graphs
-      g <- remove_unconnected_nodes(g)
-      g_rewired <- remove_unconnected_nodes(g_rewired)
+      # sample prior graph
+      samp <- sample_prior_graph(priors)
+      sentinel <- samp$sentinel
+      g <- samp$sample_graph
+      gfull <- samp$full_graph
       
-      # drop nodes without edges
+      # the proportion of prior edges to keep
+      # 'randomization degree'
+      rd <- rand_steps[i]
+        
+      # get randomized priors
+      prand <- randomize_priors(priors, rd)
+      
+      # filter zero degree nodes from the graphs
+      #g <- remove_unconnected_nodes(g)
+      #gfull <- remove_unconnected_nodes(gfull)
+      
       # save graph
-      id <- paste0(sentinel, "_fpr", drop_prop)
-      graphs[[id]] <- list(graph.hidden=g, 
-                        graph.observed=gr,
-                        prior_rate=fpr, fnr=fnr,
-                        snp=sentinel, priors=priors)
+      id <- paste0(sentinel, "_rd", rd)
+      graphs[[id]] <- list(graph.full=gfull, 
+                        graph.observed=g,
+                        rdegree=rd,
+                        snp=sentinel, priors=prand)
     }
     return(graphs)
   } else {
-    return(list(graph.hidden=g, graph.observed=g, 
-                fpr=0, fnr=0,
+    return(list(graph.full=g, graph.observed=g, 
+                rd = 0,
                 snp=sentinel, priors=priors))
   }
 }
@@ -228,27 +133,11 @@ simulate_data <- function(graphs, ggm.data, nodes, plot.dir) {
                                                        labels=c("2","1","0"), 
                                                        include.lowest = T)))
     }
-    # # compare7plot the two allele frequencies
-    # gd2 <- table(data.sim$data[,s])
-    # gd2 <- sort(gd2/sum(gd2))
-    # 
-    # pdf(paste0(plot.dir, "/", s, "-genotype-frequencies.pdf"))
-    # barplot(gd, col=1, main=paste0(s, " genotype frequencies"))
-    # cs <- col2rgb(2)[,1]/255
-    # cs <- rgb(cs[1], cs[2], cs[3],
-    #           0.5)
-    # barplot(gd2, add = T, col=cs)
-    # legend("topleft", legend = c("original", "transformed"), fill=c(1,cs))
-    # dev.off()
     g$data.sim <- data.sim
     g
   })
   names(d) <- names(graphs)
   return(d)
-}
-
-rewire_graph <- function(g, prop) {
-  
 }
 
 # input file containing ranges/data of sentinel
@@ -275,50 +164,14 @@ temp <- mclapply(sentinels, function(s) {
   }
   print(paste0("Processing ", s, "..."))
   
-  # we only need the plotgraph from the 
-  # random walk result
-  # currently not available!
-  #env <- new.env()
-  #rwfile <- paste0(rwdir, s, ".RData")
-  #if(!file.exists(rwfile)) {
-  #  return(NULL)
-  #}
-  #load(rwfile, env)
-  #rw_graph <- with(env, plot.graph)
-  #rw_graph_nodes <- nodes(rw_graph)
-  
   ranges <- data[[s]]$lolipop$ranges
   nodes <- data[[s]]$lolipop$nodes
   ggm.data <- data[[s]]$lolipop$data
-
-  # we add some random edges based on 
-  # the nodes in our data to the ground truth
-  # first we add all remaining nodes
- # toadd <- setdiff(nodes, rw_graph_nodes)
-#  gr <- graph::addNode(toadd, rw_graph)
   
-  # now add some random edges between the newly added nodes
-  # and the nodes which were already in the graph
-  set.seed(42)
-  # the max number of edges to be randomly added to the graph
-  #r <- numEdges(rw_graph)
-  #gr <- addEdge(sample(rw_graph_nodes, r, replace = T), 
-  #              sample(toadd, r, replace = T), gr)
-  
-  # annotate our graph with the appropriate node- and edgeData
-  #gr <- annotate.graph(gr, ranges)
-  #gr <- list(graph.hidden=rw_graph, 
-  #     graph.observed=gr,
-  #     fpr=-1, fnr=-1)
-  
-  # get priros for prior based graphs
   priors <- get.link.priors(ranges, nodes)
   
   # create the hidden and observed graphs
   graphs <- create_prior_graphs(priors)
-  gn <- names(graphs)
- #graphs <- append(graphs, gr)
- #names(graphs) <- c(gn, "random_walk")
   
   # simulate data for ggm
   simulated_data <- simulate_data(graphs, ggm.data, nodes, plot.dir)

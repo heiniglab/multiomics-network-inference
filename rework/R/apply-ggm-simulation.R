@@ -7,7 +7,6 @@ library(BDgraph, lib="/home/icb/johann.hawe/R/x86_64-redhat-linux-gnu-library/3.
 library(GenomicRanges)
 
 source("R/lib.R")
-source("R/priors.R")
 source("R/bdgraph-supplement.R")
 
 ifile <- snakemake@input[[1]]

@@ -13,7 +13,7 @@ for i in /home/icb/johann.hawe/work/analysis/meQTLs/results/current/ggm/*.adjust
   ln -s $i ;
 done
 rm rs60626639*.RData
-
+rm rs79755767*.RData
 cd $WDIR
 ```
 
@@ -26,6 +26,7 @@ for i in /storage/groups/groups_epigenereg/analyses/meQTLs/results/20170517/netw
   ln -s $i ; 
 done
 rm rs60626639.RData
+rm rs79755767*.RData
 
 cd $WDIR
 ```

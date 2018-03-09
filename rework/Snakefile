@@ -94,27 +94,33 @@ rule all:
 	input: "results/current/validation.html"
 
 
-#####
+####################################################################
 # Rules for simulation study
-#####
+####################################################################
 
 SENT = glob_wildcards("data/current/sentinels/{sentinel}.dummy")
 
 rule simulate_data:
-	input: "results/current/data.processed.RData"
+	input: 
+		"results/current/data.processed.RData"
 	output: 
 		expand("results/current/simulation/data/{sentinel}.RData", zip, sentinel=SENT.sentinel),
 		odir="results/current/simulation/data/"
-	threads: 12
+	threads: 20
 	resources:
 		mem_mb=10000
 	params:
 		random_walk_results="data/current/networks/",
 		plotdir="results/current/simulation/plots/"
-	log:	"logs/simulation/simulate_data.log"
-	benchmark: "benchmarks/simulation/simulate_data.bmk"
+	log:	
+		"logs/simulation/simulate_data.log"
+	benchmark: 
+		"benchmarks/simulation/simulate_data.bmk"
 	script:
 		"R/simulate-data.R"
+
+#rule check_simulated_graphs:
+#	input: 
 
 rule apply_ggm_simulation:
 	input: "results/current/simulation/data/{sentinel}.RData",
@@ -128,25 +134,32 @@ rule apply_ggm_simulation:
 		burnin=5000
 	threads: 10
         resources:
-                mem_mb=1000
-	log: "logs/simulation/apply-ggm.{sentinel}.log"
+                mem_mb=1300
+	log: 
+		"logs/simulation/apply-ggm.{sentinel}.log"
 	benchmark: "benchmarks/simulation/apply-ggm.{sentinel}.bmk"
 	script:
 		"R/apply-ggm-simulation.R"
 
 rule validate_ggm_simulation:
-	input: "results/current/simulation/fits/{sentinel}.RData"
-	output: "results/current/simulation/validation/{sentinel}.txt"
-	log: "logs/simulation/validate-ggm.{sentinel}.log"
+	input: 
+		"results/current/simulation/fits/{sentinel}.RData"
+	output: 
+		"results/current/simulation/validation/{sentinel}.txt"
+	log: 
+		"logs/simulation/validate-ggm.{sentinel}.log"
 	script:
 		"R/validate-ggm-simulation.R"
 
 rule summarize_simulation:
-	input: expand("results/current/simulation/validation/{sentinel}.txt", zip, sentinel=SENT.sentinel)
+	input: 
+		expand("results/current/simulation/validation/{sentinel}.txt", zip, sentinel=SENT.sentinel)
 	params:
 		indir="../results/current/simulation/validation/"
-	output: "results/current/simulation/simulation.html"
-	log: "logs/simulation/summarize-simulation.log"
+	output: 
+		"results/current/simulation/simulation.html"
+	log: 
+		"logs/simulation/summarize-simulation.log"
 	script:
 		"R/summarize-simulation.Rmd"
 

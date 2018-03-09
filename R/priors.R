@@ -186,7 +186,7 @@ get.link.priors <- function(ranges, nodes) {
   
   # define weights for our priors
   # do we need those?
-  if(TRUE) {
+  if(FALSE) {
     message("Using prior weighting.")
     tf.cpg.weight <- 0.3
     cg.gene.weight <- 0.2;
@@ -596,4 +596,108 @@ create.tfbs.priors <- function() {
   
   #saveRDS(tfbs.ann, file="results/current/cpgs_with_chipseq_context_100.rds")
   
+}
+
+randomize_priors <- function(priors, percent) {
+  library(reshape2)
+ 
+  # get simple list of priors
+  p <- priors
+  p[upper.tri(p,T)] <- NA
+  p <- melt(p, na.rm=T)
+  p <- p[sample(1:nrow(p)),]
+  
+  # scale all non-pseudo priors to be within [0..1]
+  p$scaled <- NA
+  idxs <- which(p$value>min(p$value))
+  p[idxs,]$scaled <- p[idxs,"value"]/sum(p[idxs,"value"])
+  
+  # identify the edges to randomize
+  # we try length(idxs) times to get it as close as possible
+  # to our desired range
+  # define epsilon range
+  eps <- 0.01
+  lo <- percent - eps
+  up <- percent + eps
+  best <- c()
+  best_diff <- 1
+  for(i in 1:length(idxs)) {
+    rand <- cumsum_in_range(p, idxs, lo, up)
+    s <- sum(rand$scaled)
+    d <- abs(s-percent)
+    if(d < best_diff) {
+      best <- rand
+      best_diff <- d
+    }
+    if(d==0) {
+      break
+    }
+  }
+  
+  # now randomize the indices
+  idxs_noprior <- which(is.na(p$scaled))
+  idxs_noprior <- sample(idxs_noprior, nrow(best))
+  
+  # create list of switches to be performed
+  switch <- cbind(prior=best$idx, no_prior=idxs_noprior)
+  # switch in our matrix
+  pseudo <- min(priors)
+  for(i in 1:nrow(switch)) {
+    p1 <- p[switch[i, "prior"], "Var1"]
+    p2 <- p[switch[i, "prior"], "Var2"]
+    np1 <- p[switch[i, "no_prior"], "Var1"]
+    np2 <- p[switch[i, "no_prior"], "Var2"]
+    
+    # get prior value
+    v <- priors[p1,p2]
+    
+    # set pseudo prior connection to new prior value
+    priors[np1,np2] <- priors[np2,np1] <- v
+    # set prior connection to pseudo value
+    priors[p1,p2] <- priors[p2,p1] <- pseudo
+  }
+  return(priors)
+}
+
+cumsum_in_range <- function(df, idxs, lo, up, randomize=TRUE) {
+  if(randomize) {
+    idxs <- sample(idxs)
+  }
+  
+  # get the  center value for exact matching
+  percent <- (lo+up)/2
+  
+  rand <- c()
+  for(i in idxs) {
+    pi <- df[i,]
+    pi <- cbind(pi, idx=i)
+    v <- pi$scaled
+    s <- sum(c(rand$scaled,v))
+    
+    # did not reach lower bound yet
+    if(s<lo) {
+      rand <- rbind(rand,pi)
+      next
+    }
+    # above lower bound
+    if(s>=lo) {
+      # match exactly? then done
+      if(s==percent) {
+        rand <- rbind(rand,pi)
+        break
+      }
+      # below upper bound
+      if(s<=up) {
+        rand <- rbind(rand,pi)
+        # first above exact? then done
+        if(s>percent) {
+          break
+        }
+      } else {
+        # exceeded with current value, stop
+        break
+      }
+    }
+  }
+  return(rand)
 }

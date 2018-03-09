@@ -982,3 +982,96 @@ pseudo_jumble <- function(g, prior_graph) {
 compare_graph_edges <- function(g1,g2) {
   
 }
+
+#' Samples a graph from the given prior matrix
+#' Uses the colnames of the (symmetric) given prior
+#' matrix to determine graph nodes
+#' 
+#' @param priors The prior matrix
+#'
+#' @author Johann Hawe
+#' 
+sample_prior_graph <- function(priors) {
+  
+  library(reshape2)
+  
+  # assume pseudo.prior as min-value (should always be
+  # the case)
+  pseudo.prior <- min(priors)
+  
+  # the nodes we want to operate on
+  nodes <- colnames(priors)
+  
+  warning("Assuming single sentinel SNP.")
+  sentinel <- nodes[grepl("^rs", nodes)]
+  
+  # create base graph
+  g <- graphNEL(nodes, edgemode = "undirected")
+  
+  # iterate over each combination of nodes
+  temp <- priors
+  temp[upper.tri(temp, T)] <- NA
+  ee <- melt(temp, na.rm=T,stringsAsFactors=F)
+  colnames(ee) <- c("n1", "n2", "prior")
+  ee$n1 <- as.character(ee$n1)
+  ee$n2 <- as.character(ee$n2)
+  
+  # create names
+  rownames(ee) <- paste(ee$n1, ee$n2, sep="_")
+  
+  # flag for sampling
+  ee$keep <- F
+  
+  # iterate over each pair and determine whether to add
+  # the pair as an 'true' edge
+  set.seed(42)
+  for(i in 1:nrow(ee)) {
+    # get prior
+    p <- ee[i,"prior"]
+    if(p>pseudo.prior) {
+      v <- runif(1)
+      if(v<=p) {
+        ee[i,"keep"] <- T
+      }
+    }
+  }
+  
+  # create a full graph for comparison
+  keep_full <- ee$prior > pseudo.prior
+  gfull <- addEdge(ee[keep_full,1], ee[keep_full,2], g)
+  
+  # keep only relevent edges and add to graph
+  to_add <- ee[ee$keep,,drop=F]
+  if(nrow(to_add)>0) {
+    # make sure we add the SNP
+    # -> if its not in the list of edges to keep,
+    # we simply switch one random connection with it
+    # if it doesn't have a prior, though, we just ignore it
+    if(!(sentinel %in% c(to_add[,"n1"], to_add[,"n2"]))) {
+      temp <- priors[,sentinel]
+      temp <- temp[temp>pseudo.prior]
+      if(!length(temp) == 0) {
+        # select random name
+        temp2 <- sample(names(temp),1)
+        to_switch <- sample(1:nrow(to_add),1)
+        old <- to_add[to_switch,]
+        old["keep"] <- F
+        
+        to_add[to_switch,] <- c(sentinel, temp2, T, priors[sentinel,temp2])
+        rownames(to_add)[to_switch] <- paste0(sort(c(sentinel, temp2)), collapse="_")
+        ee[ee$n1 == old$n1 & ee$n2 == old$n2,] <- old
+      }
+    }
+  } else {
+    # none of the edges made it
+    # for now add at least the edges which got any prior so that we do not 
+    # get an empty graph here; add random SNP edge to have the SNP available
+    warning("Creating full graph as observed graph.")
+    ee[ee$prior>pseudo.prior,"keep"] <- T
+    ee[which(grepl("^rs", ee$n1) | grepl("^rs", ee$n2))[1], "keep"] <- T
+    to_add <- ee[ee$keep,,drop=F]
+  }
+  
+  g <- addEdge(to_add[,1], to_add[,2], g)
+  return(list(sample_graph=g, full_graph=gfull, edge_info=ee, sentinel=sentinel))
+}

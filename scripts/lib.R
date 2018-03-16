@@ -1137,3 +1137,303 @@ add.to.graphs <- function(graphs, sentinel, trans.genes, trans.cpgs, tfbs.ann) {
   
   return(out)
 }
+
+## this function is from destiny and uses the arpack function
+eig.decomp <- function(M, n.eigs, sym) {
+  n = nrow(M)
+  f <- function(x, extra=NULL) as.matrix(M %*% x)
+  wh <- if (sym) 'LA' else 'LM'
+  ## constraints: n >= ncv > nev
+  ar <- arpack(f, sym = sym, options = list(
+    which = wh, n = n, ncv = min(n, 4*n.eigs), nev = n.eigs + 1))
+  if (!sym) {
+    ar$vectors <- Re(ar$vectors)
+    ar$values  <- Re(ar$values)
+  }
+  
+  ## check for negative values and flip signs
+  neg = which(ar$values < 0)
+  for (n in neg) {
+    ar$values[n] = -ar$values[n]
+    ar$vectors[,n] = -ar$vectors[,n]
+  }
+  
+  return(ar)
+}
+
+graph2sparseMatrix <- function(g) {
+  em = edgeMatrix(g)
+  Asparse = sparseMatrix(em[1,], em[2,], x=1, dims=rep(numNodes(g), 2), dimnames=list(nodes(g), nodes(g)))
+  
+  ## make symmetric
+  Asparse = Asparse + t(Asparse)
+  Asparse[Asparse > 1] = 1
+  
+  return(Asparse)
+}
+
+
+## approximate the infinite sum
+## in the paper and notes this is matrix is called M
+## n.eigs gives the number of eigenvectors used for the approximation
+## if this is smaller than 2, the pseudo inverse will be computed
+## from and to are the nodes for which we need the transition probabilties
+## this avoids to compute the full propagation matrix which is to large
+## when from and to are NULL the full matrix will be computed
+## sum can be "none", "from", "to" or "both" and will sum up the propagation
+## matrix over one or the other or both lists
+## "none" returns a "from" by "to" matrix
+## "from" returns a vector of length nrow(Asparse)
+## "to" returns a vector of length nrow(Asparse)
+## "both" returns a nrow(Asparse) by 2 matrix with the from and to vectors
+propagation <- function(Asparse, n.eigs=20, from=NULL, to=NULL, sum="none") {
+  require(igraph)
+  require(Matrix)
+  ## transition matrix
+  ## transition = Asparse / rowSums(Asparse)
+  
+  ## symmetric transition matrix
+  D.root = Diagonal(nrow(Asparse), 1 / sqrt(Matrix::rowSums(Asparse)))
+  Psym = D.root %*% Asparse %*% D.root
+  
+  if (is.null(from)) {
+    from = 1:nrow(Asparse)
+  }
+  if (is.null(to)) {
+    to = 1:nrow(Asparse)
+  }
+  if (is.logical(from)) {
+    from = which(from)
+  }
+  if (is.logical(to)) {
+    to = which(to)
+  }
+  dnames = list(from, to)
+  ## if we have character we need to match
+  if (is.character(from)) {
+    from = match(from, rownames(Asparse))
+  }
+  if (is.character(to)) {
+    to = match(to, colnames(Asparse))
+  }
+  
+  ## setup different ways of summarizing the propagation matrix
+  if (sum == "from") {
+    transform = rowSums
+    propagation = double(0, length(to))
+    names(propagation) = dnames[[2]]
+  } else if (sum == "to") {
+    transform = colSums
+    propagation = double(0, length(from))
+    names(propagation) = dnames[[1]]
+  } else if (sum == "both") {
+    propagation = matrix(0, nrow=nrow(Asparse), ncol=2, dimnames=list(rownames(Asparse), c("from", "to")))
+  } else if (sum == "none") {
+    transform = function(x) {return(x)}
+    propagation = matrix(0, nrow=length(from), ncol=length(to), dimnames=dnames)
+  }
+  
+  if (n.eigs > 0) {
+    ## approximate using the eigen vectors
+    
+    if (n.eigs < nrow(Psym)) {
+      ## just use a subset of eigen vectors
+      eig.M <- eig.decomp(Psym, n.eigs, TRUE)
+      
+    } else {
+      ## use all eigen vectors (only for small matrices)
+      eig.M <- eigen(Psym)
+    }
+    
+    ## for both computations we discard the first eigenvector as it
+    ## represents the stationary distribution
+    if (sum %in% c("none", "from", "to")) {
+      for (i in 2:n.eigs) {
+        increment = (eig.M$values[i] / (1 - eig.M$values[i])) *
+          eig.M$vectors[from,i] %*% t(eig.M$vectors[to,i])
+        propagation = propagation + transform(increment)
+      }
+      
+    } else {
+      ## when sum is "both" we iterate over the "from" and "to" nodes and add
+      ## the from and to vectors incrementally to save memory
+      for (i in 2:n.eigs) {
+        weight = (eig.M$values[i] / (1 - eig.M$values[i]))
+        ## increment the "from" sum vector
+        for (ff in from) {
+          propagation[,1] = propagation[,1] + weight * (eig.M$vectors[ff,i] * eig.M$vectors[,i])
+        }
+        ## increment the "to" sum vector
+        for (tt in to) {
+          propagation[,2] = propagation[,2] + weight * (eig.M$vectors[tt,i] * eig.M$vectors[,i])
+        }
+      }
+    }
+  } else {
+    ## compute using the pseudo inverse
+    
+    ## the first eigenvector corresponds to stationary distribution defined
+    ## by the degrees of the nodes
+    ## Attention: this is actually the first eigenvector of the asymmetric
+    ## Psym matrix
+    d = rowSums(Asparse)
+    v = sum(d)
+    phi0 = d / v
+    
+    ## there is an equivalence of the eigenvectors of the symmetric and
+    ## asymetric matrix:
+    ## EV(sym) = D^-0.5 EV(asym)
+    phi0 =  phi0 / sqrt(d)
+    
+    ## in the dtp package there is a length normalization step that matches
+    ## the vectors exactly (normalizing to unit length vectors)
+    phi0 = phi0 / sqrt(sum(phi0^2))
+    
+    n <- nrow(Psym)
+    inv <- solve(Diagonal(n) - Psym + phi0 %*% t(phi0))
+    propagation = inv - Diagonal(n)
+    propagation = propagation[from, to]
+    if (sum %in% c("none", "from", "to")) {
+      propagation = transform(propagation)
+    } else {
+      stop("sum = 'both' not implemented yet for pseudo inverse")
+    }
+  }
+  return(propagation)
+}
+
+
+
+
+
+## alternatively we can compute expected hitting times for the random walks
+## n.eigs gives the number of eigenvectors used for the approximation
+## if this is smaller than 2, the pseudo inverse will be computed
+## from and to are the nodes for which we need the transition probabilties
+## this avoids to compute the full propagation matrix which is to large
+## when from and to are NULL the full matrix will be computed
+## sum can be "none", "from", "to" or "both" and will sum up the propagation
+## matrix over one or the other or both lists
+## "none" returns a "from" by "to" matrix
+## "from" returns a vector of length nrow(Asparse)
+## "to" returns a vector of length nrow(Asparse)
+## "both" returns a nrow(Asparse) by 2 matrix with the from and to vectors
+## the i-th component of the "from sum" represents the average hitting time
+## going from node i to any of the "to" nodes
+## the i-th component of the "to sum" represents the average hitting time
+## going from any "from" nodes to node i
+hitting.time <- function(Asparse, n.eigs=20, from=NULL, to=NULL, sum="none") {
+  
+  ## we need the number of edges and the number of nodes and the degree of nodes
+  numEdges = sum(Asparse) / 2 + sum(diag(Asparse))
+  numNodes = nrow(Asparse)
+  deg = rowSums(Asparse)
+  
+  ## symmetric transition matrix
+  D.root = Diagonal(nrow(Asparse), 1 / sqrt(rowSums(Asparse)))
+  Psym = D.root %*% Asparse %*% D.root
+  
+  if (is.null(from)) {
+    from = 1:numNodes
+  }
+  if (is.null(to)) {
+    to = 1:numNodes
+  }
+  if (is.logical(from)) {
+    from = which(from)
+  }
+  if (is.logical(to)) {
+    to = which(to)
+  }
+  dnames = list(from, to)
+  ## if we have character we need to match
+  if (is.character(from)) {
+    from = match(from, rownames(Asparse))
+  }
+  if (is.character(to)) {
+    to = match(to, colnames(Asparse))
+  }
+  
+  ## setup different ways of summarizing the hitting.time matrix
+  if (sum == "from") {
+    transform = rowMeans
+    hitting.time = double(0, length(to))
+    names(hitting.time) = dnames[[2]]
+  } else if (sum == "to") {
+    transform = colMeans
+    hitting.time = double(0, length(from))
+    names(hitting.time) = dnames[[1]]
+  } else if (sum == "both") {
+    hitting.time = matrix(0, nrow=numNodes, ncol=2, dimnames=list(rownames(Asparse), c("from", "to")))
+  } else if (sum == "none") {
+    transform = function(x) {return(x)}
+    hitting.time = matrix(0, nrow=length(from), ncol=length(to), dimnames=dnames)
+  }
+  
+  ## approximate using the eigen vectors
+  
+  if (n.eigs < nrow(Psym)) {
+    ## just use a subset of eigen vectors
+    eig.M <- eig.decomp(Psym, n.eigs, TRUE)
+    
+  } else {
+    ## use all eigen vectors (only for small matrices)
+    eig.M <- eigen(Psym)
+  }
+  
+  ## Hitting time computed according to Theorem 3.1 from
+  ## Lovász, L. (1993). Random walks on graphs. Combinatorics.
+  
+  compute.hitting.time <- function(from.nodes, to.nodes) {
+    sapply(to.nodes, function(tt)
+      sapply(from.nodes, function (ff) {
+        ht = 2 * numEdges * sum(sapply(2:n.eigs, function(i) {
+          v = eig.M$vectors[,i]
+          return(1 / (1 - eig.M$values[i]) *
+                   (v[tt]^2 / deg[tt] - v[ff] *
+                      v[tt] / sqrt(deg[ff] * deg[tt])))
+        }))
+      }))
+  }
+  
+  if (sum %in% c("none", "from", "to")) {
+    for (i in 2:n.eigs) {
+      increment = compute.hitting.time(from, to)
+      hitting.time = hitting.time + transform(increment)
+    }
+    
+  } else {
+    ## increment the "from" sum vector
+    for (tt in to) {
+      hitting.time[,1] = hitting.time[,1] + compute.hitting.time(1:numNodes, tt)
+    }
+    hitting.time[,1] = hitting.time[,1] / length(to)
+    
+    ## increment the "to" sum vector
+    for (ff in from) {
+      hitting.time[,2] = hitting.time[,2] + compute.hitting.time(ff, 1:numNodes)
+    }
+    hitting.time[,2] = hitting.time[,2] / length(from)
+  }
+  
+  return(hitting.time)
+}
+
+
+## find the shortest path with minimal node weight
+min.node.weight.path <- function(g, weights, from, to) {
+  ## the problem can be transformed into a directed graph problem where all
+  ## incoming edges are assigned the node weight
+  
+  require(graph)
+  require(RBGL)
+  
+  h = graphNEL(nodes(g), edgemode="directed")
+  em = edgeMatrix(g)
+  h = addEdge(nodes(g)[em[1,]], nodes(g)[em[2,]], h, weights[em[2,]])
+  h = addEdge(nodes(g)[em[2,]], nodes(g)[em[1,]], h, weights[em[1,]])
+  
+  return(sp.between(h, from, to))
+}
+
+

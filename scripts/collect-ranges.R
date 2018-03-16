@@ -204,7 +204,7 @@ collect.ranges <- function(id, cosmo, trans_meQTL, fcpgcontext, sentinel_only=T)
                                          snp_genes=snp_genes_in_string,
                                          string_db)
     
-    cat("Shortest paths genes: ", paste0(syms.sp, sep=";"))
+    cat("Shortest paths genes: ", paste0(syms_sp, sep=";"))
     
     if(length(syms_sp) < 1){
       warning("No shortest path genes.")

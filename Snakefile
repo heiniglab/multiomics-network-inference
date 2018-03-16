@@ -4,7 +4,8 @@ SENT_COHO = glob_wildcards("data/current/cohorts/{sentinel}.{cohort}.adjusted.da
 localrules: 
 	all, preprocess, summarize_validation, 
 	all_sim, validate_ggm_simulation, create_priors,
-	summarize_simulation, render_validation, simulate_data
+	summarize_simulation, render_validation, simulate_data,
+	create_stringdb, create_cosmo_pairs
 
 
 #####
@@ -32,42 +33,107 @@ rule create_priors:
 	script:
 		"R/create-priors.R"
 		
+rule create_stringdb:
+	input:
+		string="data/current/string/human_gene_hgnc_symbol.links.detailed.v9.0.txt",
+		gtex="data/current/gtex/GTEx_Analysis_v6_RNA-seq_RNA-SeQCv1.1.8_gene_median_rpkm.gct"
+	output:
+		"results/current/string.v9.expr.rds"
+	script:
+		"scripts/create-stringdb.R"
+
+rule create_cosmo_splits:
+	input: 
+		cosmo="data/current/meQTLs/cosmopairs_combined_151216.RData"
+	output:
+		trans="results/current/trans-cosmopairs_combined_151216.rds",
+		cis="results/current/cis-cosmopairs_combined_151216.rds",
+		longrange="results/current/longrange-cosmopairs_combined_151216.rds"
+	script:
+		"scripts/create-cosmo-splits.R"
 
 #####
 # Rules for application of GGM on real data
 #####
 
-rule preprocess:
-	output:
-		"results/current/data.processed.RData"
-	log:
-		"logs/preprocess.log"
+rule collect_ranges:
+	input: 
+		string="results/current/string.v9.expr.rds",
+		meqtl="data/current/meQTLs/transpairs_r02_110117_converted_1MB.txt",
+		tcosmo="results/current/trans-cosmopairs_combined_151216.rds"
+	output: "results/current/ranges/{sentinel}.rds"
+	log: 
+		"logs/collect-ranges/{sentinel}.log"
+	benchmark: 
+		"benchmarks/collect-ranges/{sentinel}.log"
+	params:
+		sentinel="{sentinel}",
+		window=1e6
+	conda:
+		"envs/bioR.yaml"
+#		"envs/illuminaHumanv3.db.recipe"
 	script:
-		"R/preprocess.R"
+		"scripts/collect-ranges.R"
+
+rule collect_data:
+	input: 
+		"results/current/ranges/{sentinel}.rds"
+	output:
+		"results/current/cohort-data/{cohort}/{sentinel}.rds"
+	log:
+		""
+	benchmark:
+		""
+	resources:
+		mem_mb=2000
+	script:
+		"scripts/collect-data.R &> {log}"
+
+rule collect_priors:
+	input:
+		gg_priors="results/current/gtex.gg.cors.rds", 
+		eqtl_priors="results/current/gtex.eqtl.priors.rds",
+		ranges="results/current/ranges/{sentinel}.rds"
+	output: 
+		"results/current/priors/{sentinel}.rds"
+	log:
+		""
+	benchmark:
+		""
+	resources:
+		mem_mb=5000
+	script:
+		"scripts/collect-priors.R"
 
 rule apply_ggm:
-	input: "results/current/data.processed.RData", 
-		"results/current/gtex.gg.cors.rds", 
-		"results/current/gtex.eqtl.priors.rds"
-	output: "results/current/fits/{sentinel}.RData"
+	input: "results/current/cohort-data/{cohort}/{sentinel}.rds", 
+		"results/current/priors/{sentinel}.rds",
+		"results/current/ranges/{sentinel}.rds"
+	output: 
+		"results/current/fits/{sentinel}-{cohort}.rds"
 	threads: 10
 	params:
-		plotdir="results/current/plots/",
+		plotdir="results/current/plots/{sentinel}-{cohort}/",
 		nriter=20000,
 		burnin=5000
 	resources:
 		mem_mb=1000
 	benchmark:
-		"benchmarks/apply-ggm/{sentinel}.bmk"
+		"benchmarks/apply-ggm/{sentinel}-{cohort}.bmk"
 	log:
 		"logs/apply-ggm/{sentinel}.log"
 	script:
 		"R/apply-ggm.R"
 
+COHORTS = [{"lolipop", "kora"}]
+
 rule validate_ggm:
-	input: rules.preprocess.output, "results/current/fits/{sentinel}.RData"
-	output: "results/current/validation/{sentinel}.txt"
-	log: "logs/validate-ggm/{sentinel}.log"
+	input: 
+		expand("results/current/fits/{{sentinel}}-{cohort}.rds", cohort=COHORTS)
+	output: 
+		"results/current/validation/{sentinel}.txt"
+	log: 
+		"logs/validate-ggm/{sentinel}.log"
 	threads: 1
 	benchmark:
 		"benchmarks/validate-ggm/{sentinel}.bmk"

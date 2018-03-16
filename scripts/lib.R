@@ -1,3 +1,44 @@
+#' Gets trans-associated CpGs for a sentinel SNP
+#'
+#' Get all trans cpgs for an individual sentinel SNP using a "cosmo"
+#' object.
+#'
+#' @param sentinel id of the sentinel to analyze
+#' @param trans.meQTL the pruned table of trans-associations
+#' @param cosmo the cosmo object containing the individual associations
+#' @param cpgs the probe ranges of the cpgs to check
+#' @param cosmo.idxs flag whether to return the indices in the cosmo object rather than the ones
+#' for the cpg list probe ranges.
+#'
+#' @author Matthias Heinig
+#' 
+get.trans.cpgs <- function(sentinel, trans.meQTL, cosmo, cpgs=NULL, cosmo.idxs=F) {
+  
+  pairs = which(trans.meQTL[,"sentinel.snp"] == sentinel)
+  
+  trans.snp.ranges = GRanges(seqnames=paste("chr", trans.meQTL[,"chr.snp"], sep=""), 
+                             ranges=IRanges(trans.meQTL[,"interval.start.snp"], 
+                                            trans.meQTL[,"interval.end.snp"]))
+  trans.cpg.ranges = GRanges(seqnames=paste("chr", trans.meQTL[,"chr.cpg"], sep=""), 
+                             ranges=IRanges(trans.meQTL[,"interval.start.cpg"], 
+                                            trans.meQTL[,"interval.end.cpg"]))
+  
+  pair.snps = GRanges(seqnames=paste("chr", cosmo[,"snp.chr"], sep=""), 
+                      ranges=IRanges(cosmo[,"snp.pos"], width=1))
+  pair.cpgs = GRanges(seqnames=paste("chr", cosmo[,"cpg.chr"], sep=""), 
+                      ranges=IRanges(cosmo[,"cpg.pos"], width=2))
+  
+  pairs = pair.snps %over% trans.snp.ranges[pairs] & 
+    pair.cpgs %over% trans.cpg.ranges[pairs]
+  
+  if(is.null(cpgs) | cosmo.idxs) {
+    return(pairs)
+  } else {
+    is.meQTL = cpgs %over% pair.cpgs[pairs]
+    return(is.meQTL)
+  }
+}
+
 #' Get human gene annotation with symbols.
 #'
 #' This will get the gene annotation annotated with respective gene SYMBOL from UCSC for the hg19 build
@@ -340,57 +381,6 @@ filter.edge.matrix <- function(g, em){
 #'
 #' @return nothing
 #'
-load.string.db <- function(reload=F) {
-  library(data.table)
-  library(igraph)
-  library(graph)
-  
-  cat("Loading string db\n")
- 
-  fcache <- "results/current/string.v9.expr.RData"
-  if(reload || !file.exists(fcache)){
-  # load db anew
-  string.all <- fread(paste0("data/current/string/human_gene_hgnc_symbol.links.detailed.v9.0.txt"),
-                        data.table=F, header=T, stringsAsFactors=F)
-  string.inter <- string.all[string.all$experimental>=1 | string.all$database>=1,]
-  rm(string.all)
-
-  string.nodes <- unique(c(string.inter[,1], string.inter[,2]))
-  string.db <- graphNEL(nodes=string.nodes)
-  string.db <- addEdge(string.inter[,1], 
-                       string.inter[,2], 
-                       string.db)
-
-  expr = read.csv("data/current/gtex/GTEx_Analysis_v6_RNA-seq_RNA-SeQCv1.1.8_gene_median_rpkm.gct", 
-                        sep="\t", 
-                        skip=2, 
-                        stringsAsFactors=F)
-
-  expressed = expr[expr[,"Whole.Blood"] > 0.1, "Name"]
-  expressed = sapply(strsplit(expressed, "." ,fixed=T) ,"[", 1)
-  library(Homo.sapiens)
-  expressed.symbols = select(Homo.sapiens, keys=expressed, keytype="ENSEMBL", columns="SYMBOL")
-  expressed.symbols = unique(expressed.symbols[,"SYMBOL"])
-
-  string.nodes = intersect(nodes(string.db), expressed.symbols)
-  string.db = subGraph(string.nodes, string.db)
-
-  # get largest connected component
-  ig = graph_from_graphnel(string.db)
-  cl = clusters(ig)
-  keep = nodes(string.db)[cl$membership == which.max(cl$csize)]
-  string.db = subGraph(keep, string.db)
-
-  save(file=fcache, string.db)
-  } else {
-    load(fcache)
-  }
-  # set to global environment
-  assign("STRING.DB", string.db, envir=.GlobalEnv);
-
-  cat("Done.\n");
-}
-
 #' Gets ranges in one object close by a set of other ranges
 #'
 #' Gets the first ranges in subject, which are up-/down-stream and overlapping
@@ -576,60 +566,58 @@ simple.heatmap <- function(x, cors=F, cannot=NA, cluster=F) {
 }
 
 
-#' For a list of symbols, gets all annotated array ids from the illuminaHumanV3.db
+#' For a list of symbols, gets all annotated array ids from the 
+#' illuminaHumanV3.db
 #'
 #' @param symbols List of symbols for which to get ids
 #' @param mapping Flag whether to return a mapping ID->SYMBOL (default: F)
-#' @param as.list Flag whether to return result as list or vector in case mapping=F. (default:F)
+#' @param as.list Flag whether to return result as list or vector in 
+#' case mapping=F. (default:F)
 #'
 #' @author Johann Hawe
 #'
-probes.from.symbols <- function(symbols, mapping=F, as.list=F, cache.global=F) {
+probes.from.symbols <- function(symbols, mapping=F, as.list=F) {
   require(illuminaHumanv3.db)
-  if(cache.global & exists("CACHE.ANNOT")){
-    annot <- CACHE.ANNOT;
-  }
-  if(!exists("annot")) {
-    annot <- as.list(illuminaHumanv3ALIAS2PROBE)
-    annot <- annot[!is.na(annot)]
-  }
-  if(cache.global & !exists("CACHE.ANNOT")) {
-    assign("CACHE.ANNOT", annot, .GlobalEnv)
-  }
+ 
+  annot <- as.list(illuminaHumanv3ALIAS2PROBE)
+  annot <- annot[!is.na(annot)]
   annot <- annot[which(names(annot) %in% symbols)];
+  
   if(length(annot) > 0){
     if(mapping) {
-      probes <- unlist(annot);
-      uprobes <- unique(probes);
+      probes <- unlist(annot)
+      uprobes <- unique(probes)
       if(length(uprobes) != length(probes)){
         dprobes <- unname(probes[duplicated(probes)])
         warning(paste0("Caution: Some probes had more than one gene annotated,
                        using only one symbol for those probes:\n",
-                       dprobes));
+                       dprobes))
       }
       map <- matrix(nrow=length(unlist(annot)))
       rownames(map) <- unlist(annot)
       temp <- lapply(symbols, function(s) {
-        ids <- annot[[s]];
+        ids <- annot[[s]]
         if(!is.null(ids)) {
-          map[ids,1] <<- s;
+          map[ids,1] <<- s
         }
-      });
+      })
       map <- map[!is.na(map[,1]),,drop=F]
       colnames(map) <- "symbol"
-      dropped <- length(symbols) - nrow(map);
+      dropped <- length(symbols) - nrow(map)
       if(dropped>0) {
-        cat("Dropped",dropped,"symbols since they had no probe.id available.\n");
+        cat("Dropped",dropped,"symbols since they had no probe.id available.\n")
       }
-      return(map);
+      return(map)
     }
     if(as.list) {
-      return(annot[symbols])
+      tmp <- annot[symbols]
+      names(tmp) <- symbols
+      return(tmp)
     } else {
       return(unlist(annot[symbols]))
     }
   } else {
-	return(NULL);
+	return(NULL)
   }
 }
 

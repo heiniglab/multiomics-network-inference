@@ -1,11 +1,12 @@
 SENT_COHO = glob_wildcards("data/current/cohorts/{sentinel}.{cohort}.adjusted.data.RData")
+LISTS = glob_wildcards("data/current/sentinels/{sentinel}.dummy")
 
 
 localrules: 
 	all, preprocess, summarize_validation, 
 	all_sim, validate_ggm_simulation, create_priors,
 	summarize_simulation, render_validation, simulate_data,
-	create_stringdb, create_cosmo_pairs
+	create_stringdb, create_cosmo_pairs, all_ranges
 
 
 #####
@@ -66,15 +67,20 @@ rule collect_ranges:
 	log: 
 		"logs/collect-ranges/{sentinel}.log"
 	benchmark: 
-		"benchmarks/collect-ranges/{sentinel}.log"
+		"benchmarks/collect-ranges/{sentinel}.bmk"
+	threads: 1
+	resources:
+		mem_mb=2300
 	params:
 		sentinel="{sentinel}",
 		window=1e6
-	conda:
-		"envs/bioR.yaml"
-#		"envs/illuminaHumanv3.db.recipe"
 	script:
-		"scripts/collect-ranges.R"
+		"scripts/collect-ranges.R &> {log}"
+
+
+rule all_ranges:
+	input:
+		expand("results/current/ranges/{sentinel}.rds", zip, sentinel=LISTS.sentinel)
 
 rule collect_data:
 	input: 

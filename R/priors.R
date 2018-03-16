@@ -616,45 +616,52 @@ randomize_priors <- function(priors, percent) {
   # we try length(idxs) times to get it as close as possible
   # to our desired range
   # define epsilon range
-  eps <- 0.01
-  lo <- percent - eps
-  up <- percent + eps
-  best <- c()
-  best_diff <- 1
-  for(i in 1:length(idxs)) {
-    rand <- cumsum_in_range(p, idxs, lo, up)
-    s <- sum(rand$scaled)
-    d <- abs(s-percent)
-    if(d < best_diff) {
-      best <- rand
-      best_diff <- d
+  if(percent > 0) {
+    eps <- 0.01
+    lo <- percent - eps
+    up <- percent + eps
+    best <- c()
+    best_diff <- 1
+    for(i in 1:length(idxs)*2) {
+      rand <- cumsum_in_range(p, idxs, lo, up)
+      if(!is.null(rand)) {
+        s <- sum(rand$scaled)
+        d <- abs(s-percent)
+        if(d < best_diff) {
+          best <- rand
+          best_diff <- d
+        }
+        if(d==0) {
+          break
+        }
+      }
     }
-    if(d==0) {
-      break
+    if(is.null(best)) {
+      warning("No prior-switchings selected, returning default priors.")
+      return(priors)
     }
-  }
-  
-  # now randomize the indices
-  idxs_noprior <- which(is.na(p$scaled))
-  idxs_noprior <- sample(idxs_noprior, nrow(best))
-  
-  # create list of switches to be performed
-  switch <- cbind(prior=best$idx, no_prior=idxs_noprior)
-  # switch in our matrix
-  pseudo <- min(priors)
-  for(i in 1:nrow(switch)) {
-    p1 <- p[switch[i, "prior"], "Var1"]
-    p2 <- p[switch[i, "prior"], "Var2"]
-    np1 <- p[switch[i, "no_prior"], "Var1"]
-    np2 <- p[switch[i, "no_prior"], "Var2"]
+    # now randomize the indices
+    idxs_noprior <- which(is.na(p$scaled))
+    idxs_noprior <- sample(idxs_noprior, nrow(best))
     
-    # get prior value
-    v <- priors[p1,p2]
-    
-    # set pseudo prior connection to new prior value
-    priors[np1,np2] <- priors[np2,np1] <- v
-    # set prior connection to pseudo value
-    priors[p1,p2] <- priors[p2,p1] <- pseudo
+    # create list of switches to be performed
+    switch <- cbind(prior=best$idx, no_prior=idxs_noprior)
+    # switch in our matrix
+    pseudo <- min(priors)
+    for(i in 1:nrow(switch)) {
+      p1 <- p[switch[i, "prior"], "Var1"]
+      p2 <- p[switch[i, "prior"], "Var2"]
+      np1 <- p[switch[i, "no_prior"], "Var1"]
+      np2 <- p[switch[i, "no_prior"], "Var2"]
+      
+      # get prior value
+      v <- priors[p1,p2]
+      
+      # set pseudo prior connection to new prior value
+      priors[np1,np2] <- priors[np2,np1] <- v
+      # set prior connection to pseudo value
+      priors[p1,p2] <- priors[p2,p1] <- pseudo
+    }
   }
   return(priors)
 }
@@ -667,6 +674,9 @@ cumsum_in_range <- function(df, idxs, lo, up, randomize=TRUE) {
   # get the  center value for exact matching
   percent <- (lo+up)/2
   
+  if(percent == 0) {
+    return(NULL)
+  }
   rand <- c()
   for(i in idxs) {
     pi <- df[i,]

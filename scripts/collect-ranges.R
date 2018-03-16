@@ -88,7 +88,7 @@ get.string.shortest.paths <- function(cis, trans, snp_genes, string_db) {
 #' 
 #' @date 02/07/2017
 #'
-collect.ranges <- function(id, cosmo, trans_meQTL, sentinel_only=T) {
+collect.ranges <- function(id, cosmo, trans_meQTL, fcpgcontext, sentinel_only=T) {
   
   pairs = which(trans_meQTL[,"sentinel.snp"] == id)
   
@@ -175,14 +175,14 @@ collect.ranges <- function(id, cosmo, trans_meQTL, sentinel_only=T) {
   cat("Collecting shortest paths.\n")
   
   cpgs <- names(croi)
-  snp_genes <- unique(genes.sroi$SYMBOL)
+  snp_genes <- unique(genes_sroi$SYMBOL)
   
   # modify string.db to contain our CpGs  
   
   # load the cpg-tf context
-  tfbs_ann <- get.chipseq.context(names(croi))
+  tfbs_ann <- get.chipseq.context(names(croi), fcpgcontext)
   cpgs_with_tfbs <- cpgs[cpgs %in% rownames(tfbs_ann[rowSums(tfbs_ann)>0,])]
-  snp_genes_in_string <- snp_genes[snp.genes %in% nodes(string_db)]
+  snp_genes_in_string <- snp_genes[snp_genes %in% nodes(string_db)]
   
   string_db <- add.to.graphs(list(string_db), id, snp_genes, 
                              cpgs_with_tfbs, tfbs_ann)[[1]]
@@ -195,7 +195,7 @@ collect.ranges <- function(id, cosmo, trans_meQTL, sentinel_only=T) {
   } else {
     # the nodes we want to keep
     nodeset = c(nodes(string_db), setdiff(tfs, "KAP1"), 
-                snp.genes.in.string, cpgs.with.tfbs)
+                snp_genes_in_string, cpgs_with_tfbs)
     string_db = subGraph(intersect(nodes(string_db), nodeset), string_db)
     
     syms_sp <- get.string.shortest.paths(cis = cpgs_with_tfbs, 
@@ -239,6 +239,7 @@ collect.ranges <- function(id, cosmo, trans_meQTL, sentinel_only=T) {
 fcosmo <- snakemake@input[["tcosmo"]]
 fmeqtl <- snakemake@input[["meqtl"]]
 fstring <- snakemake@input[["string"]]
+fcpgcontext <- snakemake@input[["cpgcontext"]]
 ofile <- snakemake@output[[1]]
 
 # get params
@@ -257,6 +258,6 @@ trans_meQTL = read.csv(fmeqtl,
 cosmo <- readRDS(fcosmo)
 
 # collect all associated ranges
-ranges <- collect.ranges(sentinel, cosmo, trans_meQTL)
+ranges <- collect.ranges(sentinel, cosmo, trans_meQTL, fcpgcontext)
 saveRDS(file=ofile, ranges)
 

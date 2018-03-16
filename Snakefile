@@ -58,6 +58,7 @@ rule create_cosmo_splits:
 
 rule collect_ranges:
 	input: 
+		cpgcontext="data/current/cpgs_with_chipseq_context_100.RData",
 		string="results/current/string.v9.expr.rds",
 		meqtl="data/current/meQTLs/transpairs_r02_110117_converted_1MB.txt",
 		tcosmo="results/current/trans-cosmopairs_combined_151216.rds"

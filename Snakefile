@@ -1,5 +1,6 @@
 SENT_COHO = glob_wildcards("data/current/cohorts/{sentinel}.{cohort}.adjusted.data.RData")
 LISTS = glob_wildcards("data/current/sentinels/{sentinel}.dummy")
+COHORTS = [{"lolipop", "kora"}]
 
 
 localrules: 
@@ -53,6 +54,38 @@ rule create_cosmo_splits:
 	script:
 		"scripts/create-cosmo-splits.R"
 
+rule preprocess_kora_individuals:
+	input:
+		"data/current/kora/individuals.csv"
+	output:
+		"results/current/kora_individuals.csv"
+	shell:
+		"""
+		awk 'BEGIN {{ FS = ";" }} ; {{ if ($1 != "" && $5 != "" && $6 != "" ) print }}' {input} | sed s/zz_nr_//g > {output}
+		"""
+
+rule prepare_kora_data:
+	input:
+		genotypes="data/current/kora/snp_dosages/MAF001/full_sorted.bgz",
+		expression="data/current/kora/expression/kora_f4_normalized.Rdata",
+		expression_cov="data/current/kora/expression/technical_covariables_kora_f4.Rdata",
+		methylation="data/current/kora/methylation/KF4_beta_qn_bmiq.RData",
+		methylation_cov="data/current/kora/methylation/control_probe_pcs_n1727.RData",
+		individuals="results/current/kora_individuals.csv",
+		impute_indiv="data/current/kora/imputation_individuals",
+		trans_meqtl="data/current/meQTLs/transpairs_r02_110117_converted_1MB.txt",
+		houseman="data/current/kora/methylation/Houseman/KF4_QN_estimated_cell_distribution_meanimpute473_lessThanOneTRUE.csv"
+	output:
+		"results/current/ggmdata_kora.RData"
+	resources:
+		mem_mb=15000
+	log:
+		"logs/prepare-kora-data.log"
+	benchmark:
+		"benchmarks/prepare-kora-data.bmk"
+	script:
+		"scripts/prepare-kora-data.R"
+
 #####
 # Rules for application of GGM on real data
 #####
@@ -75,7 +108,7 @@ rule collect_ranges:
 		sentinel="{sentinel}",
 		window=1e6
 	script:
-		"scripts/collect-ranges.R &> {log}"
+		"scripts/collect-ranges.R"
 
 
 rule all_ranges:
@@ -84,17 +117,24 @@ rule all_ranges:
 
 rule collect_data:
 	input: 
-		"results/current/ranges/{sentinel}.rds"
+		ranges="results/current/ranges/{sentinel}.rds",
+		kora="results/current/ggmdata_kora.RData",
+		lolipop="data/current/meQTLs/ggmdata_201017.RData"
 	output:
 		"results/current/cohort-data/{cohort}/{sentinel}.rds"
 	log:
-		""
+		"logs/collect-data/{cohort}/{sentinel}.log"
 	benchmark:
-		""
+		"benchmarks/collect-data/{cohort}/{sentinel}.log"
 	resources:
 		mem_mb=2000
+	threads: 6
 	script:
-		"scripts/collect-data.R &> {log}"
+		"scripts/collect-data.R"
+
+rule all_data:
+	input:
+		expand("results/current/cohort-data/{cohort}/{sentinel}.rds", zip, sentinel=LISTS.sentinel, cohort=COHORTS)
 
 rule collect_priors:
 	input:
@@ -131,8 +171,6 @@ rule apply_ggm:
 		"logs/apply-ggm/{sentinel}.log"
 	script:
 		"R/apply-ggm.R"
-
-COHORTS = [{"lolipop", "kora"}]
 
 rule validate_ggm:
 	input: 

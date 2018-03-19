@@ -62,5 +62,5 @@ For now we just call snakemake with a specific target:
 ```{bash}
 nohup nice snakemake -u cluster.config --jobs=100 --local-cores=10 \
            --cluster "qsub -pe smp {threads} -hard -l job_mem={resources.mem_mb}M \
-           -q {cluster.q} -cwd -V -o {cluster.o} -e {cluster.e} -N {cluster.N}" all_sim &
+           -q {cluster.q} -cwd -V -o {log} -e {log} -N {cluster.N}" all_sim &
 ```

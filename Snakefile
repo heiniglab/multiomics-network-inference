@@ -1,13 +1,12 @@
-SENT_COHO = glob_wildcards("data/current/cohorts/{sentinel}.{cohort}.adjusted.data.RData")
 LISTS = glob_wildcards("data/current/sentinels/{sentinel}.dummy")
-COHORTS = [{"lolipop", "kora"}]
+COHORTS = ["lolipop", "kora"]
 
 
 localrules: 
 	all, preprocess, summarize_validation, 
 	all_sim, validate_ggm_simulation, create_priors,
 	summarize_simulation, render_validation, simulate_data,
-	create_stringdb, create_cosmo_pairs, all_ranges
+	create_stringdb, create_cosmo_pairs, all_ranges, all_data
 
 
 #####
@@ -54,6 +53,20 @@ rule create_cosmo_splits:
 	script:
 		"scripts/create-cosmo-splits.R"
 
+rule get_snp_locations:
+	input: 
+		"data/current/kora/KORAF4-cis-eqtls_schramm_journal.pone.0093844.s005.csv",
+		"data/current/gtex/GTEx_Analysis_v6_OMNI_genot_1KG_imputed_var_chr1to22_info4_maf01_CR95_CHR_POSb37_ID_REF_ALT.txt"
+	output:
+		"results/current/cis-eqtl-snp-locations.txt"
+	shell:
+		"""
+		cut -f 1 -d ";" data/current/kora/KORAF4-cis-eqtls_schramm_journal.pone.0093844.s005.csv  | sort | uniq > results/current/cis-eqtl-snps.txt
+	        cut -f 1,2,7 data/current/gtex/GTEx_Analysis_v6_OMNI_genot_1KG_imputed_var_chr1to22_info4_maf01_CR95_CHR_POSb37_ID_REF_ALT.txt > results/current/gtex-snp-locations.txt
+	        fgrep -w -f results/current/cis-eqtl-snps.txt results/current/gtex-snp-locations.txt > results/current/cis-eqtl-snp-locations.txt
+		rm results/current/cis-eqtl-snps.txt results/current/gtex-snp-locations.txt
+		"""
+
 rule preprocess_kora_individuals:
 	input:
 		"data/current/kora/individuals.csv"
@@ -74,18 +87,34 @@ rule prepare_kora_data:
 		individuals="results/current/kora_individuals.csv",
 		impute_indiv="data/current/kora/imputation_individuals",
 		trans_meqtl="data/current/meQTLs/transpairs_r02_110117_converted_1MB.txt",
-		houseman="data/current/kora/methylation/Houseman/KF4_QN_estimated_cell_distribution_meanimpute473_lessThanOneTRUE.csv"
+		houseman="data/current/kora/methylation/Houseman/KF4_QN_estimated_cell_distribution_meanimpute473_lessThanOneTRUE.csv",
+		ceqtl_locations="results/current/cis-eqtl-snp-locations.txt",
+		ccosmo="results/current/cis-cosmopairs_combined_151216.rds"
 	output:
 		"results/current/ggmdata_kora.RData"
 	resources:
-		mem_mb=15000
+		mem_mb=23000
 	log:
 		"logs/prepare-kora-data.log"
+	threads: 6
 	benchmark:
 		"benchmarks/prepare-kora-data.bmk"
 	script:
 		"scripts/prepare-kora-data.R"
 
+rule prepare_lolipop_data:
+	input: 
+		lolipop="data/current/meQTLs/ggmdata_201017.RData"
+	output: "results/current/ggmdata_lolipop.RData"
+	resources:
+		mem_mb=2000
+	log:
+		"logs/prepare-lolipop-data.log"
+	benchmark:
+		"benchmarks/prepare-lolipop-data.bmk"
+	script:
+		"scripts/prepare-lolipop-data.R"
+		
 #####
 # Rules for application of GGM on real data
 #####
@@ -119,22 +148,27 @@ rule collect_data:
 	input: 
 		ranges="results/current/ranges/{sentinel}.rds",
 		kora="results/current/ggmdata_kora.RData",
-		lolipop="data/current/meQTLs/ggmdata_201017.RData"
+		lolipop="results/current/ggmdata_lolipop.RData",
+		ceqtl="data/current/kora/KORAF4-cis-eqtls_schramm_journal.pone.0093844.s005.csv",
+		ccosmo="results/current/cis-cosmopairs_combined_151216.rds"
 	output:
 		"results/current/cohort-data/{cohort}/{sentinel}.rds"
+	threads: 1
+	params:
+		cohort="{cohort}",
+		sentinel="{sentinel}"
 	log:
 		"logs/collect-data/{cohort}/{sentinel}.log"
 	benchmark:
 		"benchmarks/collect-data/{cohort}/{sentinel}.log"
 	resources:
-		mem_mb=2000
-	threads: 6
+		mem_mb=20000
 	script:
 		"scripts/collect-data.R"
 
 rule all_data:
 	input:
-		expand("results/current/cohort-data/{cohort}/{sentinel}.rds", zip, sentinel=LISTS.sentinel, cohort=COHORTS)
+		expand("results/current/cohort-data/{cohort}/{sentinel}.rds", sentinel=LISTS.sentinel, cohort=COHORTS)
 
 rule collect_priors:
 	input:
@@ -144,9 +178,9 @@ rule collect_priors:
 	output: 
 		"results/current/priors/{sentinel}.rds"
 	log:
-		""
+		"logs/collect-priors/{sentinel}.log"
 	benchmark:
-		""
+		"benchmarks/collect-priors/{sentinel}.bmk"
 	resources:
 		mem_mb=5000
 	script:
@@ -188,7 +222,7 @@ rule validate_ggm:
 		"R/validate-ggm.R"
 
 rule summarize_validation:
-	input: expand("results/current/validation/{sentinel}.txt", zip, sentinel=SENT_COHO.sentinel)
+	input: expand("results/current/validation/{sentinel}.txt", zip, sentinel=LISTS.sentinel)
 	output: "results/current/validation/validation.all.txt"
 	shell:
 		"cat {input} | sort -r | uniq > {output}"

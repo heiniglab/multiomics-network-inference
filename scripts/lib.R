@@ -577,11 +577,14 @@ simple.heatmap <- function(x, cors=F, cannot=NA, cluster=F) {
 #'
 #' @author Johann Hawe
 #'
-probes.from.symbols <- function(symbols, mapping=F, as.list=F) {
-  require(illuminaHumanv3.db)
- 
-  annot <- as.list(illuminaHumanv3ALIAS2PROBE)
-  annot <- annot[!is.na(annot)]
+probes.from.symbols <- function(symbols, mapping=F, as.list=F, annot=NULL) {
+  
+  if(is.null(annot)) {
+    library(illuminaHumanv3.db)
+    annot <- as.list(illuminaHumanv3ALIAS2PROBE)
+    annot <- annot[!is.na(annot)]
+  } 
+  
   annot <- annot[which(names(annot) %in% symbols)];
   
   if(length(annot) > 0){
@@ -1436,4 +1439,27 @@ min.node.weight.path <- function(g, weights, from, to) {
   return(sp.between(h, from, to))
 }
 
-
+#' Get gene symbols for the given (array) probe ids
+#' 
+#' @param ids List of probe ids for which to get the symbols
+#' @param mapping Whether to return a mapping (probe->symbol); default: F
+#' 
+#' @author Johann Hawe
+#' 
+#' @return If mapping=F: All symbols referenced by the given probe ids. Otherwise
+#' a mapping of all probeids to the corresponding symbols (a data.frame)
+#'
+symbols.from.probeids <- function(ids, mapping=F){
+  library(illuminaHumanv3.db)
+  annot <- illuminaHumanv3SYMBOLREANNOTATED
+  avail <- mappedkeys(annot)
+  ids.avail <- ids[which(ids %in% avail)]
+  
+  symbols <- unlist(as.list(annot[ids.avail]))
+  
+  if(mapping) {
+    return(data.frame(id=ids.avail,symbol=symbols))
+  } else {
+    return(symbols)
+  }
+}

@@ -4,6 +4,7 @@
 #' @author Johann Hawe
 #'
 library(GenomicRanges)
+library(parallel)
 
 #' Method to get the genotypes for a certain set of SNPs
 #' 
@@ -12,25 +13,41 @@ library(GenomicRanges)
 #' 
 #' @return Matrix of genotypes with SNPs in the columns and subjects in the rows
 #' 
-get_genotypes <- function(snp_ranges, dosage_file, individuals){
+get_genotypes <- function(snp_ranges, dosage_file, 
+                          individuals, individuals_to_keep,
+                          threads){
   
   if(is.null(snp_ranges) | is.na(snp_ranges)) {
     return(NULL)
   }
   
-  geno <- scan_snps(snp_ranges, dosage_file, individuals)
-  if(nrow(geno$snps) != length(snp_ranges)){
+  # split into junks
+  snp_ranges <- split(snp_ranges, ceiling(seq_along(snp_ranges)/50000))
+  
+  temp <- mclapply(snp_ranges, function(r) {
+    geno <- scan_snps(r, dosage_file, individuals)
+    if(!is.null(geno)) {
+      geno <- geno[, individuals_to_keep,drop=F]
+    }
+    geno
+  }, mc.cores=threads)
+  geno <- do.call(rbind, temp)
+  
+  if(nrow(geno) != length(snp_ranges)){
     warning("Some SNPs were NA in genotype data.")
   }
-  geno <- t(geno$snps)
+
+  geno <- t(geno)
+  
   # get rid of non-changing snps
   if(any(apply(geno,2,var)!=0)) {
     warning("Removing non-varying SNPs.")
     geno <- geno[,apply(geno,2,var)!=0, drop=F]  
   }
+  # refactor column names (get rid of beginning "1.")
+  colnames(geno) <- gsub("^1\\.", "", colnames(geno))
   return(geno)
 }
-
 
 #' Scans genotype files for SNPs within the provided genomic ranges
 #'
@@ -90,13 +107,13 @@ scan_snps <- function(ranges, dosage_file, individuals) {
     colnames(data)<- c("chr", "name", "pos", "orig", "alt", individuals)
     rownames(data) <- data$name
     
-    return(list(snpInfo=data[,c(1,3,4,5)], snps=data[,6:ncol(data)]))
+    return(data[,6:ncol(data)])
   }
 }
 
 # start processing -------------------------------------------------------------
 
-# get input files
+# get input files --------------------------------------------------------------
 fdosage <- snakemake@input[["genotypes"]]
 findividual_mapping <- snakemake@input[["individuals"]]
 fexpression <- snakemake@input[["expression"]]
@@ -105,6 +122,9 @@ fmethylation <- snakemake@input[["methylation"]]
 fmethylationn_cov <- snakemake@input[["methylation_cov"]]
 ftrans_meqtl <- snakemake@input[["trans_meqtl"]]
 fhouseman <- snakemake@input[["houseman"]]
+fccosmo <- snakemake@input[["ccosmo"]]
+fceqtl <- snakemake@input[["ceqtl_locations"]]
+threads <- snakemake@threads
 
 # load the imputation individuals (individuals with genotypes)
 imputation_individuals <- read.table(snakemake@input[["impute_indiv"]], 
@@ -115,6 +135,19 @@ trans_meqtl <- read.table(ftrans_meqtl, sep="\t", header=T)
 ranges <- unique(with(trans_meqtl, 
                       GRanges(paste0("chr", chr.snp), 
                               IRanges(pos.snp, width=1))))
+cosmo <- readRDS(fccosmo)
+ranges <- unique(c(ranges, with(cosmo,
+                                GRanges(paste0("chr", snp.chr),
+                                        IRanges(snp.pos, width=1)))))
+eqtl <- read.table(fceqtl, header=F, sep="\t")
+ranges <- unique(c(ranges, with(eqtl,
+                                GRanges(paste0("chr", V1),
+                                        IRanges(V2, width=1)))))
+rm(cosmo, eqtl)
+gc()
+
+# in addition we add the ciseqtl and cismeqtl snps we need for adjusting
+# our data
 print(paste0("Got ", length(ranges), " SNPs to process."))
 print("Loading KORA data.")
 
@@ -129,15 +162,17 @@ id_map$methylierung_f4 <- as.character(id_map$methylierung_f4)
 id_map <- na.omit(id_map)
 
 print("Preparing KORA raw data.")
-load(fexpression)
+
+# load covariates to get ids of samples with exprssion/methylation data
 load(fexpression_cov)
-load(fmethylation)
+expr_sids <-as.character(covars.f4$ZZ.NR)
 load(fmethylationn_cov)
-  
+meth_sids <- rownames(pcs)
+
 # gets as 687 individuals, having all data available (some ids of the id 
 # map are not contained within the data frame...)
-toUse <- which(id_map$genexp_s4f4ogtt %in% colnames(f4.norm) & 
-                 id_map$methylierung_f4 %in% colnames(beta) & 
+toUse <- which(id_map$genexp_s4f4ogtt %in% expr_sids & 
+                 id_map$methylierung_f4 %in% meth_sids & 
                  id_map$axiom_s4f4 %in% imputation_individuals)
 
 id_map <- id_map[toUse,]
@@ -147,23 +182,23 @@ id_map$utalteru <- NULL
 
 print(paste0("Using ", nrow(id_map), " samples."))
 
+# load genotypes ---------------------------------------------------------------
+geno <- get_genotypes(ranges, fdosage, 
+                      imputation_individuals, id_map$axiom_s4f4,
+                      threads)
+print(paste0("Genotype dimensions: ", paste(dim(geno), collapse=",")))
+gc()
+
+# load and process rest of the data --------------------------------------------
+load(fexpression)
+load(fmethylation)
+
 # sort our input data s.t. each row corresponds to the same individual 
 # using the created ID mapping table
 meth <- t(beta[,id_map$methylierung_f4])
 # get rid of zero-variance probes
 meth <- meth[,apply(meth,2,var, na.rm=T)!=0, drop=F]
 print(paste0("Meth dimensions: ", paste(dim(meth), collapse=",")))
-
-# use only those individuals for which we have all data available
-expr <- t(f4.norm[,id_map$genexp_s4f4ogtt])
-# remove zeor-variance probes...
-expr <- expr[,apply(expr,2,var)!=0, drop=F]
-print(paste0("Expr dimensions: ", paste(dim(expr), collapse=",")))
-
-geno <- get_genotypes(ranges, fdosage, imputation_individuals)
-geno <- geno[id_map$axiom_s4f4,,drop=F]
-print(paste0("Genotype dimensions: ", paste(dim(geno), collapse=",")))
-
 # get the methylation PCA results
 pcs <- pcs[id_map$methylierung_f4,]
 colnames(pcs) <- paste(colnames(pcs), "cp", sep="_")
@@ -171,17 +206,23 @@ meth.pcs <- pcs
 print(paste0("Meth cov dimensions: ", paste(dim(meth.pcs), collapse=",")))
 rm(pcs)
 
-# load technical covariates for expression data
-rownames(covars.f4) <- covars.f4[,1]
-covars.f4 <- covars.f4[id_map$genexp_s4f4ogtt,c(2:6)]
-covars.f4$sex <- as.factor(covars.f4$sex)
-print(paste0("Expression cov dimensions: ", paste(dim(covars.f4), collapse=",")))
-
 # load houseman blood count data for methylation
 houseman <- read.table(fhouseman, 
                        sep=";", header=T,row.names=1)
 houseman <- houseman[id_map$methylierung_f4,]
 print(paste0("Houseman dimensions: ", paste(dim(houseman), collapse=",")))
+
+# use only those individuals for which we have all data available
+expr <- t(f4.norm[,id_map$genexp_s4f4ogtt])
+# remove zeor-variance probes...
+expr <- expr[,apply(expr,2,var)!=0, drop=F]
+print(paste0("Expr dimensions: ", paste(dim(expr), collapse=",")))
+
+# load technical covariates for expression data
+rownames(covars.f4) <- covars.f4[,1]
+covars.f4 <- covars.f4[id_map$genexp_s4f4ogtt,c(2:6)]
+covars.f4$sex <- as.factor(covars.f4$sex)
+print(paste0("Expression cov dimensions: ", paste(dim(covars.f4), collapse=",")))
 
 # create initial data frame with covariates
 covars <- cbind(as.data.frame(covars.f4), houseman, meth.pcs)

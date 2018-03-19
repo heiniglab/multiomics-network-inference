@@ -219,7 +219,7 @@ collect.ranges <- function(id, cosmo, trans_meQTL, fcpgcontext, sentinel_only=T)
   # construct our result list
   result <-  list(cpgs=croi,sentinel_range=sentinel_range,
                   sentinel_ext_range=sentinel_extrange, 
-                  snp_genes=genes_sroi, cpg.genes=genes_croi)
+                  snp_genes=genes_sroi, cpg_genes=genes_croi)
   
   if(!sentinel_only) {
     result$snp_ranges <- snp_ranges

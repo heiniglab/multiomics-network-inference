@@ -983,7 +983,7 @@ compare_graph_edges <- function(g1,g2) {
 #'
 #' @author Johann Hawe
 #' 
-sample_prior_graph <- function(priors) {
+sample_prior_graph <- function(priors, sentinel) {
   
   library(reshape2)
   
@@ -993,9 +993,6 @@ sample_prior_graph <- function(priors) {
   
   # the nodes we want to operate on
   nodes <- colnames(priors)
-  
-  warning("Assuming single sentinel SNP.")
-  sentinel <- nodes[grepl("^rs", nodes)]
   
   # create base graph
   g <- graphNEL(nodes, edgemode = "undirected")

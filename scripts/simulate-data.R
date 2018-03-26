@@ -4,22 +4,17 @@
 #' @author Johann Hawe
 #' 
 
-sink(file = snakemake@log[[1]])
-
 #define colors
 tropical <- c("darkorange", "dodgerblue", "hotpink", "limegreen", "yellow")
 palette(tropical)
 
 # load needed packages
 library(graph)
-#library(BDgraph, lib="/storage/groups/groups_epigenereg/packages/2017/R/3.4/")
-# cant use central storage for now... remove asap
-library(BDgraph)
+library(BDgraph, lib="/storage/groups/groups_epigenereg/packages/2017/R/3.4/")
 
-library(parallel)
 # source needed scripts
-source("R/priors.R")
-source("R/lib.R")
+source("scripts/priors.R")
+source("scripts/lib.R")
 
 #' Creates a graph based on the available priors
 #' for a sentinel locus
@@ -35,7 +30,7 @@ source("R/lib.R")
 #' 
 #' @author Johann Hawe
 #'
-create_prior_graphs <- function(priors,
+create_prior_graphs <- function(priors, sentinel,
                                 rand_steps=seq(0, 1, by=0.1)) {
   
   # now we create randomized prior information
@@ -45,8 +40,7 @@ create_prior_graphs <- function(priors,
     n <- length(rand_steps)
     for(i in 1:n) {
       # sample prior graph
-      samp <- sample_prior_graph(priors)
-      sentinel <- samp$sentinel
+      samp <- sample_prior_graph(priors, sentinel)
       g <- samp$sample_graph
       gfull <- samp$full_graph
       
@@ -83,18 +77,17 @@ create_prior_graphs <- function(priors,
 #' @param graphs List of graph objects
 #' @param ggm.data A data matrix containing data for all entities
 #' in the graphs from a specific cohrt (lolipop/kora)
-#' @param plot.dir Where to save plots to
 #' 
 #' @return A list of data simulation objects, one for each of the
 #' graphs in the input list
 #' 
 #' @author Johann Hawe
 #'
-simulate_data <- function(graphs, ggm.data, nodes, plot.dir) {
+simulate_data <- function(graphs, sentinel, data, nodes) {
   
   d <- lapply(graphs, function(g) {
     gr <- g$graph.observed
-    s <- g$snp
+    s <- sentinel
     
     # create adjacency matrix from our graph
     g_adj <- igraph::as_adj(igraph::igraph.from.graphNEL(gr), sparse = F)
@@ -104,7 +97,7 @@ simulate_data <- function(graphs, ggm.data, nodes, plot.dir) {
       snp_available <- F
     }
     # now we can simulate the data for the entities
-    N <- nrow(ggm.data)
+    N <- nrow(data)
     if(length(nodes) != ncol(g_adj)) {
       warning("Number of nodes of collected ggm data and simulated graph differ.")
     }
@@ -119,7 +112,7 @@ simulate_data <- function(graphs, ggm.data, nodes, plot.dir) {
       # split the 'gaussian' snp data into 3 groups (0,1,2)
       # for this we utilize allele frequencies of the original
       # genotype data
-      gd <- table(round(as.numeric(ggm.data[,s])))
+      gd <- table(round(as.numeric(data[,s])))
       gd <- sort(gd/sum(gd))
       # define needed intervals
       gdi <- c(gd[1], gd[1]+gd[2], 1)
@@ -141,47 +134,25 @@ simulate_data <- function(graphs, ggm.data, nodes, plot.dir) {
 }
 
 # input file containing ranges/data of sentinel
-ifile <- snakemake@input[[1]]
-rwdir <- snakemake@params$random_walk_results
-plot.dir <- snakemake@params$plotdir
-dir.create(plot.dir)
-odir <- snakemake@output[["odir"]]
-dir.create(odir)
+fdata <- snakemake@input[["data"]]
+franges <- snakemake@input[["ranges"]]
+fpriors <- snakemake@input[["priors"]]
+fout <- snakemake@output[[1]]
+sentinel <- snakemake@params$sentinel
 threads <- snakemake@threads
 
-# load data and utilize lolipop cohort
-load(ifile)
-# do once before calling the loop
-load.gtex.priors()
+# load data
+data <- readRDS(fdata)
+ranges <- readRDS(franges)
+priors <- readRDS(fpriors)
 
-sentinels <- names(data)
+# create the hidden and observed graphs
+graphs <- create_prior_graphs(priors, sentinel)
+nodes <- colnames(data)
 
-temp <- mclapply(sentinels, function(s) {
-  # first snp has only 2 genotype levels, 
-  # second one has too many entities for now (takes too long)
-  if(s %in% c("rs79755767", "rs60626639")) {
-    return(NULL)
-  }
-  print(paste0("Processing ", s, "..."))
-  
-  ranges <- data[[s]]$lolipop$ranges
-  nodes <- data[[s]]$lolipop$nodes
-  ggm.data <- data[[s]]$lolipop$data
-  
-  priors <- get.link.priors(ranges, nodes)
-  
-  # create the hidden and observed graphs
-  graphs <- create_prior_graphs(priors)
-  
-  # simulate data for ggm
-  simulated_data <- simulate_data(graphs, ggm.data, nodes, plot.dir)
-  
-  print(paste0("Saving results to ", odir))
-  
-  # write out the results
-  save(file=paste0(odir, s, ".RData"), simulated_data, 
-       ranges, nodes, ggm.data)
-}, mc.cores=threads)
+# simulate data for ggm
+simulated_data <- simulate_data(graphs, sentinel, data, nodes)
 
-sink()
-
+# write out the results
+save(file=fout, simulated_data, 
+     ranges, nodes, data)

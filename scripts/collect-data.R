@@ -424,7 +424,6 @@ data <- cbind.data.frame(covars,
                          geno[,colnames(geno) %in% snp_ids, drop=F], 
                          geno_ids=rownames(geno),
                          stringsAsFactors=F)
-print(colnames(data))
 # remove not needed remaining data frames
 rm(expr, meth, covars)
 gc()

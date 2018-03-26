@@ -5,15 +5,18 @@ COHORTS = ["lolipop", "kora"]
 localrules: 
 	all, preprocess, summarize_validation, 
 	all_sim, validate_ggm_simulation, create_priors,
-	summarize_simulation, render_validation, simulate_data,
+	summarize_simulation, render_validation,
 	create_stringdb, create_cosmo_pairs, all_ranges, all_data
 
+###############################################################################
+####### General rules used in both simulation and cohort studies ##############
+###############################################################################
 
-#####
-# Rule used in both 'subworkflows'
+#------------------------------------------------------------------------------
+# Create the GTeX based prior information
 # The 45gb mem requirement is not a joke, unfortunately.
 # we should try and reduce this somehow...
-#####
+#------------------------------------------------------------------------------
 rule create_priors:
 	input:	
 		eqtl="data/current/gtex/Whole_Blood_Analysis.v6p.all_snpgene_pairs.txt.gz",
@@ -25,6 +28,8 @@ rule create_priors:
 		gene=protected("results/current/gtex.gg.cors.rds"),
 		eqtl=protected("results/current/gtex.eqtl.priors.rds")
 	threads: 1
+	params:
+		plot_dir = "results/current/plots/"
 	log:
 		"logs/create-priors.log"
 	benchmark:
@@ -33,7 +38,10 @@ rule create_priors:
 		mem_mb=45000
 	script:
 		"R/create-priors.R"
-		
+
+#------------------------------------------------------------------------------
+# Preprocess stringdb PPI network
+#------------------------------------------------------------------------------
 rule create_stringdb:
 	input:
 		string="data/current/string/human_gene_hgnc_symbol.links.detailed.v9.0.txt",
@@ -43,6 +51,9 @@ rule create_stringdb:
 	script:
 		"scripts/create-stringdb.R"
 
+#------------------------------------------------------------------------------
+# Preprocess stringdb PPI network
+#------------------------------------------------------------------------------
 rule create_cosmo_splits:
 	input: 
 		cosmo="data/current/meQTLs/cosmopairs_combined_151216.RData"
@@ -53,6 +64,9 @@ rule create_cosmo_splits:
 	script:
 		"scripts/create-cosmo-splits.R"
 
+#------------------------------------------------------------------------------
+# Creates a list of cis-eqtl snp locations for the gtex and kora eqtls
+#------------------------------------------------------------------------------
 rule get_snp_locations:
 	input: 
 		"data/current/kora/KORAF4-cis-eqtls_schramm_journal.pone.0093844.s005.csv",
@@ -67,6 +81,9 @@ rule get_snp_locations:
 		rm results/current/cis-eqtl-snps.txt results/current/gtex-snp-locations.txt
 		"""
 
+#------------------------------------------------------------------------------
+# Preprocess the sample-mapping sheet for kora
+#------------------------------------------------------------------------------
 rule preprocess_kora_individuals:
 	input:
 		"data/current/kora/individuals.csv"
@@ -77,6 +94,9 @@ rule preprocess_kora_individuals:
 		awk 'BEGIN {{ FS = ";" }} ; {{ if ($1 != "" && $5 != "" && $6 != "" ) print }}' {input} | sed s/zz_nr_//g > {output}
 		"""
 
+#------------------------------------------------------------------------------
+# Gather kora data in single file for more convenient postprocessing
+#------------------------------------------------------------------------------
 rule prepare_kora_data:
 	input:
 		genotypes="data/current/kora/snp_dosages/MAF001/full_sorted.bgz",
@@ -102,6 +122,9 @@ rule prepare_kora_data:
 	script:
 		"scripts/prepare-kora-data.R"
 
+#------------------------------------------------------------------------------
+# Prepare lolipop data for more convenient postprocessing
+#------------------------------------------------------------------------------
 rule prepare_lolipop_data:
 	input: 
 		lolipop="data/current/meQTLs/ggmdata_201017.RData"
@@ -115,10 +138,13 @@ rule prepare_lolipop_data:
 	script:
 		"scripts/prepare-lolipop-data.R"
 		
-#####
-# Rules for application of GGM on real data
-#####
+###############################################################################
+###################### Rules for cohort GGM study #############################
+###############################################################################
 
+#------------------------------------------------------------------------------
+# Collect range information per sentinel snp (snp genes, cpg genes, etc)
+#------------------------------------------------------------------------------
 rule collect_ranges:
 	input: 
 		cpgcontext="data/current/cpgs_with_chipseq_context_100.RData",
@@ -139,11 +165,16 @@ rule collect_ranges:
 	script:
 		"scripts/collect-ranges.R"
 
-
+#------------------------------------------------------------------------------
+# Pseudo rule to collect ranges for all sentinels
+#------------------------------------------------------------------------------
 rule all_ranges:
 	input:
 		expand("results/current/ranges/{sentinel}.rds", zip, sentinel=LISTS.sentinel)
 
+#------------------------------------------------------------------------------
+# Collect cohort data for a single sentinel locus
+#------------------------------------------------------------------------------
 rule collect_data:
 	input: 
 		ranges="results/current/ranges/{sentinel}.rds",
@@ -166,46 +197,56 @@ rule collect_data:
 	script:
 		"scripts/collect-data.R"
 
-rule all_data:
-	input:
-		expand("results/current/cohort-data/{cohort}/{sentinel}.rds", sentinel=LISTS.sentinel, cohort=COHORTS)
-
+#------------------------------------------------------------------------------
+# Collect prior information for a sentinel locus
+#------------------------------------------------------------------------------
 rule collect_priors:
 	input:
 		gg_priors="results/current/gtex.gg.cors.rds", 
 		eqtl_priors="results/current/gtex.eqtl.priors.rds",
-		ranges="results/current/ranges/{sentinel}.rds"
+		ranges="results/current/ranges/{sentinel}.rds",
+		string="results/current/string.v9.expr.rds"
 	output: 
 		"results/current/priors/{sentinel}.rds"
 	log:
 		"logs/collect-priors/{sentinel}.log"
+	threads: 1
+	params:
+		sentinel="{sentinel}",
+		plot_file="results/current/priors/{sentinel}.pdf"
 	benchmark:
 		"benchmarks/collect-priors/{sentinel}.bmk"
 	resources:
-		mem_mb=5000
+		mem_mb=9000
 	script:
 		"scripts/collect-priors.R"
 
+#------------------------------------------------------------------------------
+# Apply ggm on collected data and priors for a sentinel
+#------------------------------------------------------------------------------
 rule apply_ggm:
-	input: "results/current/cohort-data/{cohort}/{sentinel}.rds", 
-		"results/current/priors/{sentinel}.rds",
-		"results/current/ranges/{sentinel}.rds"
+	input: data="results/current/cohort-data/{cohort}/{sentinel}.rds", 
+		priors="results/current/priors/{sentinel}.rds",
+		ranges="results/current/ranges/{sentinel}.rds"
 	output: 
-		"results/current/fits/{sentinel}-{cohort}.rds"
+		"results/current/fits/{cohort}/{sentinel}.rds"
 	threads: 10
 	params:
-		plotdir="results/current/plots/{sentinel}-{cohort}/",
 		nriter=20000,
-		burnin=5000
+		burnin=5000,
+		plot_file="results/current/fits/{cohort}/{sentinel}.pdf"
 	resources:
 		mem_mb=1000
 	benchmark:
 		"benchmarks/apply-ggm/{sentinel}-{cohort}.bmk"
 	log:
-		"logs/apply-ggm/{sentinel}.log"
+		"logs/apply-ggm/{sentinel}-{cohort}.log"
 	script:
-		"R/apply-ggm.R"
+		"scripts/apply-ggm.R"
 
+#------------------------------------------------------------------------------
+# Validate calculated ggms
+#------------------------------------------------------------------------------
 rule validate_ggm:
 	input: 
 		expand("results/current/fits/{{sentinel}}-{cohort}.rds", cohort=COHORTS)
@@ -221,12 +262,18 @@ rule validate_ggm:
 	script:
 		"R/validate-ggm.R"
 
+#------------------------------------------------------------------------------
+# Collect validation information in single file
+#------------------------------------------------------------------------------
 rule summarize_validation:
 	input: expand("results/current/validation/{sentinel}.txt", zip, sentinel=LISTS.sentinel)
 	output: "results/current/validation/validation.all.txt"
 	shell:
 		"cat {input} | sort -r | uniq > {output}"
 
+#------------------------------------------------------------------------------
+# Create summary report
+#------------------------------------------------------------------------------
 rule render_validation:
 	input: "results/current/validation/validation.all.txt"
 	output: "results/current/validation.html"
@@ -235,70 +282,88 @@ rule render_validation:
 	script:
 		"R/render-validation.Rmd"
 
+#------------------------------------------------------------------------------
+# Target rule for complete cohort study
+#------------------------------------------------------------------------------
 rule all:
 	input: "results/current/validation.html"
 
 
-####################################################################
-# Rules for simulation study
-####################################################################
+###############################################################################
+###################### Rules for simulation study #############################
+###############################################################################
+RUNS = list(range(1,101))
 
-SENT = glob_wildcards("data/current/sentinels/{sentinel}.dummy")
-
+#------------------------------------------------------------------------------
+# Simulate ground truth and data for simulation study
+#------------------------------------------------------------------------------
 rule simulate_data:
 	input: 
-		"results/current/data.processed.RData"
+		data="results/current/cohort-data/kora/{sentinel}.rds",
+		ranges="results/current/ranges/{sentinel}.rds",
+		priors="results/current/priors/{sentinel}.rds"
 	output: 
-		expand("results/current/simulation/data/{sentinel}.RData", zip, sentinel=SENT.sentinel),
-		odir="results/current/simulation/data/"
-	threads: 10
+#		expand("results/current/simulation/data/{{sentinel}}-{run}.RData", run=RUNS)
+		"results/current/simulation/data/{sentinel}-{run}.RData"
+	threads: 1
 	resources:
-		mem_mb=10000
+		mem_mb=800
 	params:
-		random_walk_results="data/current/networks/",
-		plotdir="results/current/simulation/plots/"
+		sentinel="{sentinel}"
 	log:	
-		"logs/simulation/simulate_data.log"
+		"logs/simulation/simulate-data/{sentinel}-{run}.log"
 	benchmark: 
-		"benchmarks/simulation/simulate_data.bmk"
+		"benchmarks/simulation/simulate-data/{sentinel}-{run}.bmk"
 	script:
-		"R/simulate-data.R"
+		"scripts/simulate-data.R"
 
-#rule check_simulated_graphs:
-#	input: 
-
+#------------------------------------------------------------------------------
+# Apply ggm on simulated data
+#------------------------------------------------------------------------------
 rule apply_ggm_simulation:
-	input: "results/current/simulation/data/{sentinel}.RData",
-		"results/current/gtex.gg.cors.rds",
-                "results/current/gtex.eqtl.priors.rds"
+	input: 
+		"results/current/simulation/data/{sentinel}-{run}.RData",
 	output: 
-		"results/current/simulation/fits/{sentinel}.RData"
+		"results/current/simulation/fits/{sentinel}-{run}.RData",
+		"results/current/simulation/fits/{sentinel}-{run}-summary.pdf"
 	params:
-		plotdir="results/current/simulation/plots/",
 		nriter=20000,
 		burnin=5000
 	threads: 10
         resources:
-                mem_mb=1300
+                mem_mb=1500
 	log: 
-		"logs/simulation/apply-ggm.{sentinel}.log"
-	benchmark: "benchmarks/simulation/apply-ggm.{sentinel}.bmk"
+		"logs/simulation/apply-ggm/{sentinel}.log"
+	benchmark: 
+		"benchmarks/simulation/apply-ggm/{sentinel}.bmk"
 	script:
-		"R/apply-ggm-simulation.R"
+		"scripts/apply-ggm-simulation.R"
 
+#------------------------------------------------------------------------------
+# Validate a simulation run
+#------------------------------------------------------------------------------
 rule validate_ggm_simulation:
 	input: 
-		"results/current/simulation/fits/{sentinel}.RData"
+		"results/current/simulation/fits/{sentinel}-{run}.RData"
 	output: 
-		"results/current/simulation/validation/{sentinel}.txt"
+		"results/current/simulation/validation/{sentinel}-{run}.txt"
 	log: 
-		"logs/simulation/validate-ggm.{sentinel}.log"
+		"logs/simulation/validate-ggm/{sentinel}.log"
 	script:
-		"R/validate-ggm-simulation.R"
+		"scripts/validate-ggm-simulation.R"
 
+#------------------------------------------------------------------------------
+# Target rule to validate all simulation runs
+#------------------------------------------------------------------------------
+rule validate_all:
+	input: expand("results/current/simulation/validation/{sentinel}-{run}.txt", sentinel=LISTS.sentinel, run=RUNS)
+
+#------------------------------------------------------------------------------
+# Create simulation report
+#------------------------------------------------------------------------------
 rule summarize_simulation:
 	input: 
-		expand("results/current/simulation/validation/{sentinel}.txt", zip, sentinel=SENT.sentinel)
+		expand("results/current/simulation/validation/{sentinel}.txt", zip, sentinel=LISTS.sentinel)
 	params:
 		indir="../results/current/simulation/validation/"
 	output: 
@@ -306,7 +371,10 @@ rule summarize_simulation:
 	log: 
 		"logs/simulation/summarize-simulation.log"
 	script:
-		"R/summarize-simulation.Rmd"
+		"scripts/summarize-simulation.Rmd"
 
+#------------------------------------------------------------------------------
+# Target rule for complete simulation study
+#------------------------------------------------------------------------------
 rule all_sim:
 	input: "results/current/simulation/simulation.html"

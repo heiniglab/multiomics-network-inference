@@ -93,7 +93,7 @@ simulate_data <- function(graphs, sentinel, data, nodes) {
     g_adj <- igraph::as_adj(igraph::igraph.from.graphNEL(gr), sparse = F)
     snp_available <- T
     if(!s %in% colnames(g_adj)) {
-      warning("Sentinel not in graph! This should only be the case iff the sentinel has no prior associated.")
+      warning("Sentinel not in graph.")
       snp_available <- F
     }
     # now we can simulate the data for the entities
@@ -146,13 +146,20 @@ data <- readRDS(fdata)
 ranges <- readRDS(franges)
 priors <- readRDS(fpriors)
 
-# create the hidden and observed graphs
-graphs <- create_prior_graphs(priors, sentinel)
-nodes <- colnames(data)
+# do the simulation 100 times
+simulations <- mclapply(1:100, function(x) {
+  print(paste0("Number of runs performed:", x))
+  set.seed(x)
+  # create the hidden and observed graphs
+  graphs <- create_prior_graphs(priors, sentinel)
+  nodes <- colnames(data)
+  
+  # simulate data for ggm
+  simulated_data <- simulate_data(graphs, sentinel, data, nodes)
+  
+  simulated_data
+}, mc.cores = threads)
 
-# simulate data for ggm
-simulated_data <- simulate_data(graphs, sentinel, data, nodes)
-
+names(simulations) <- paste0("run_", 1:100)
 # write out the results
-save(file=fout, simulated_data, 
-     ranges, nodes, data)
+save(file=fout, simulations, ranges, nodes, data)

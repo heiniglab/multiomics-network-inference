@@ -1013,7 +1013,6 @@ sample_prior_graph <- function(priors, sentinel) {
   
   # iterate over each pair and determine whether to add
   # the pair as an 'true' edge
-  set.seed(42)
   for(i in 1:nrow(ee)) {
     # get prior
     p <- ee[i,"prior"]
@@ -1095,7 +1094,8 @@ add.to.graphs <- function(graphs, sentinel, trans.genes, trans.cpgs, tfbs.ann) {
   for (i in 1:2) {
     tf.edges[,i] = as.character(tf.edges[,i])
   }
-  tf = as.character(sapply(strsplit(tf.edges[,"condition"], ".", fixed=T), "[", 1))
+  tf = as.character(sapply(strsplit(tf.edges[,"condition"], ".", fixed=T), 
+                           "[", 1))
   tf.edges = data.frame(tf.edges, tf, stringsAsFactors=F)
   tf.edges = tf.edges[!duplicated(paste(tf.edges[,"tf"], tf.edges[,"cpg"])),]
   
@@ -1108,7 +1108,8 @@ add.to.graphs <- function(graphs, sentinel, trans.genes, trans.cpgs, tfbs.ann) {
     ## filter for TFs that are in the graph already
     use.tf.edges = tf.edges[tf.edges[,"tf"] %in% nodes(locus.graph),]
     
-    new.nodes = unique(c(use.tf.edges[,"tf"], trans.cpgs, sentinel, trans.genes))
+    new.nodes = unique(c(use.tf.edges[,"tf"], trans.cpgs, 
+                         sentinel, trans.genes))
     new.nodes = setdiff(new.nodes, nodes(locus.graph))
     
     locus.graph = addNode(new.nodes, locus.graph)
@@ -1127,10 +1128,12 @@ add.to.graphs <- function(graphs, sentinel, trans.genes, trans.cpgs, tfbs.ann) {
     nodeData(locus.graph, trans.genes, "trans.gene") = TRUE
     
     ## add edges for the tfbs
-    locus.graph = addEdge(use.tf.edges[,"tf"], use.tf.edges[,"cpg"], locus.graph)
+    locus.graph = addEdge(use.tf.edges[,"tf"], 
+                          use.tf.edges[,"cpg"], locus.graph)
     
     ## add edges for the connection of the locus and its genes
-    locus.graph = addEdge(rep(sentinel, length(trans.genes)), trans.genes, locus.graph)
+    locus.graph = addEdge(rep(sentinel, length(trans.genes)), 
+                          trans.genes, locus.graph)
     
     out[[graph.idx]] = locus.graph
   }
@@ -1163,7 +1166,8 @@ eig.decomp <- function(M, n.eigs, sym) {
 
 graph2sparseMatrix <- function(g) {
   em = edgeMatrix(g)
-  Asparse = sparseMatrix(em[1,], em[2,], x=1, dims=rep(numNodes(g), 2), dimnames=list(nodes(g), nodes(g)))
+  Asparse = sparseMatrix(em[1,], em[2,], x=1, dims=rep(numNodes(g), 2), 
+                         dimnames=list(nodes(g), nodes(g)))
   
   ## make symmetric
   Asparse = Asparse + t(Asparse)
@@ -1227,7 +1231,8 @@ propagation <- function(Asparse, n.eigs=20, from=NULL, to=NULL, sum="none") {
     propagation = double(0, length(from))
     names(propagation) = dnames[[1]]
   } else if (sum == "both") {
-    propagation = matrix(0, nrow=nrow(Asparse), ncol=2, dimnames=list(rownames(Asparse), c("from", "to")))
+    propagation = matrix(0, nrow=nrow(Asparse), ncol=2, 
+                         dimnames=list(rownames(Asparse), c("from", "to")))
   } else if (sum == "none") {
     transform = function(x) {return(x)}
     propagation = matrix(0, nrow=length(from), ncol=length(to), dimnames=dnames)

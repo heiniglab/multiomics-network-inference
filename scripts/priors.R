@@ -537,7 +537,7 @@ randomize_priors <- function(priors, percent) {
     best <- c()
     best_diff <- 1
     for(i in 1:length(idxs)*2) {
-      rand <- cumsum_in_range(p, idxs, lo, up)
+      rand <- cumsum_in_range(p, sample(idxs), lo, up)
       if(!is.null(rand)) {
         s <- sum(rand$scaled)
         d <- abs(s-percent)
@@ -580,11 +580,8 @@ randomize_priors <- function(priors, percent) {
   return(priors)
 }
 
-cumsum_in_range <- function(df, idxs, lo, up, randomize=TRUE) {
-  if(randomize) {
-    idxs <- sample(idxs)
-  }
-  
+cumsum_in_range <- function(df, idxs, lo, up, col_name="scaled") {
+
   # get the  center value for exact matching
   percent <- (lo+up)/2
   
@@ -593,10 +590,10 @@ cumsum_in_range <- function(df, idxs, lo, up, randomize=TRUE) {
   }
   rand <- c()
   for(i in idxs) {
-    pi <- df[i,]
+    pi <- df[i,,drop=F]
     pi <- cbind(pi, idx=i)
-    v <- pi$scaled
-    s <- sum(c(rand$scaled,v))
+    v <- pi[,col_name]
+    s <- sum(c(rand[,col_name],v))
     
     # did not reach lower bound yet
     if(s<lo) {

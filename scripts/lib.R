@@ -910,16 +910,171 @@ listN <- function(...){
 #' Method to quickly rewire a given graph
 #' 
 #' @param g The graphNEL object to be rewired
-#' @param prob The probability with which an edge gets rewired
-#' 
+#' @param p The probability with which an edge gets rewired
+#' @param ei Dataframe of class edge_info
 #' @return The rewired graph object
 #' 
-rewire_graph <- function(g, prob) {
-  ig <- igraph::igraph.from.graphNEL(graphNEL = g, weight=F)
-  ig <- rewire(ig, keeping_degseq(niter=prob))
+rewire_graph <- function(g, p, ei) {
+  if(!"edge_info" %in% class(ei)){
+    stop("Given data.frame is not an edge info object")
+  }
+  # do nothing...
+  if(p == 0) {
+    return(g)
+  }
+  # get node degrees
+  degs <- cbind.data.frame(sort(degree(g), decreasing = T))
+  colnames(degs) <- c("degree")
+  degs$node <- rownames(degs)
   
-  return(igraph::igraph.to.graphNEL(ig))
+  # number of edges to rewire
+  N <- floor(p * numEdges(g))
+  
+  # select nodes to switch such that sum of node degree == N
+  idxs <- which(degs$degree > 0)
+  lo <- N-1
+  up <- N+1
+  best <- c()
+  best_diff <- 0.5
+  for(i in 1:length(idxs)*2) {
+    nodes_to_switch <- degreesum_in_range(degs, sample(idxs), 
+                                       lo, up, 
+                                       g)
+    if(!is.null(nodes_to_switch)) {
+      s <- sum(nodes_to_switch$degree)
+      d <- abs(s-N)
+      if(d < best_diff) {
+        best <- nodes_to_switch
+        best_diff <- d
+      }
+      if(d==0) {
+        break
+      }
+    }
+  }
+  if(is.null(best)) {
+    warning("No prior-switchings selected, returning default priors.")
+    return(g)
+  }
+  
+  Ns <- nrow(best)
+  print(paste0("Switching ", Ns, " nodes with total degree ", sum(best$degree)))
+  
+  # get the 0-degree nodes which do not have any prior associated
+  ei_priors <- ei[ei$keep_full,,drop=F]
+  nodes <- nodes(g)
+  nodes_no_priors <- nodes[!(nodes %in% ei_priors$n1) &
+                             !(nodes %in% ei_priors$n2)]
+  nodes_to_use <- degs[degs$degree == 0 & 
+                         degs$node %in% nodes_no_priors,"node"]
+  if(length(nodes_to_use) > 0) {
+    # switch nodes  
+    if(Ns <= length(nodes_to_use)) {
+      to_switch <- cbind(n_prior=sample(best$node), 
+                         n_noprior=sample(nodes_to_use, 
+                                          size = Ns, 
+                                          replace = F))
+    } else {
+      # TODO
+      stop("Not implemented yet: More prior nodes than non-prior nodes")
+      # in case of remaining nodes, now do some rewiring
+      #ig <- igraph::igraph.from.graphNEL(graphNEL = g, weight=F)
+      #ig <- rewire(ig, keeping_degseq(niter=prob))
+    }
+  } else {
+    stop("Not implemented yet: There where no nodes without priors")
+  }
+  
+  # get the full edge matrix and switch nodes
+  em <- t(edgeMatrix(g))
+  em <- cbind.data.frame(n1=nodes[em[,1]], 
+                         n2=nodes[em[,2]],
+                         stringsAsFactors=F)
+  TEMP <- "TEMP_NODE"
+  for(i in 1:nrow(to_switch)) {
+    n1 <- to_switch[i,"n_prior"]
+    n2 <- to_switch[i,"n_noprior"]
+    # temp set all em-nodes to TEMP if they correspond to n1 var
+    em[em$n1 == n1,"n1"] <- TEMP
+    em[em$n2 == n1,"n2"] <- TEMP
+    # set n2 nodes in em to the new node n1
+    em[em$n1 == n2,"n1"] <- n1
+    em[em$n2 == n2,"n2"] <- n1
+    # reset the temp nodes to be n2
+    em[em$n1 == TEMP,"n1"] <- n2
+    em[em$n2 == TEMP,"n2"] <- n2
+  }
+  
+  gnew <- graphNEL(nodes)
+  gnew <- addEdge(em[,1], em[,2], gnew)
+  return(listN(gnew, to_switch))
+  #return(igraph::igraph.to.graphNEL(ig))
 }
+
+#' Gets a set of nodes from a dataframe with annotated degree,
+#' where the sum of all degrees is within a certain window.
+#' 
+#' @param df The dataframe containing the nodes and their degrees (degree column)
+#' @param idxs Indicies of the nodes in the df to be used
+#' @param lo Lower bound for the sum
+#' @param up Upper bound for the sum
+#' @param g The graph from which the nodes originate. If given, it is ensured
+#' that nodes in the final collection of nodes are not neighbours within the graph
+#' 
+#' @return Set of nodes for which the sum of degrees is between lo and up
+#' 
+#' @author Johann Hawe
+#' 
+degreesum_in_range <- function(df, idxs, lo, up, g) {
+  
+  # get the  center value for exact matching
+  percent <- (lo+up)/2
+  
+  if(percent == 0) {
+    return(NULL)
+  }
+  rand <- c()
+  for(i in idxs) {
+    pi <- df[i,,drop=F]
+    pi <- cbind(pi, idx=i)
+    v <- pi[,"degree"]
+    s <- sum(c(rand[,"degree"],v))
+    
+    # neighbour already in collection? skip
+    if(!is.null(nrow(rand))) {
+        nn <- rand[,"node"]
+        if(pi[,"node"] %in% graph::adj(g, nn)[[1]]) {
+          next
+        }
+    }
+    # did not reach lower bound yet
+    if(s<lo) {
+      rand <- rbind(rand,pi)
+      next
+    }
+    # above lower bound
+    if(s>=lo) {
+      # match exactly? then done
+      if(s==percent) {
+        rand <- rbind(rand,pi)
+        break
+      }
+      # below upper bound
+      if(s<=up) {
+        rand <- rbind(rand,pi)
+        # first above exact? then done
+        if(s>percent) {
+          break
+        }
+      } else {
+        # exceeded with current value, stop
+        break
+      }
+    }
+  }
+  return(rand)
+}
+
 
 #' Helper method calculating the percentage of edges in the given graph object
 #' which have a prior according to the given prior matrix
@@ -946,7 +1101,9 @@ get_percent_prioredges <- function(g, priors) {
   em <- t(edgeMatrix(g))
   if(nrow(em) > 0) {
     count <- 0
-    em <- cbind(n[em[,1]], n[em[,2]])
+    em <- cbind.data.frame(n[em[,1]], 
+                n[em[,2]],
+                stringsAsFactors=F)
     for(i in 1:nrow(em)) {
       v <- priors[em[i,1], em[i,2]]
       # check if value is larger than pseudo prior
@@ -966,13 +1123,6 @@ remove_unconnected_nodes <- function(g) {
   if(length(to_remove) > 0) {
     g <- removeNode(to_remove, g)
   }
-}
-
-pseudo_jumble <- function(g, prior_graph) {
-  
-}
-compare_graph_edges <- function(g1,g2) {
-  
 }
 
 #' Samples a graph from the given prior matrix
@@ -1025,8 +1175,8 @@ sample_prior_graph <- function(priors, sentinel) {
   }
   
   # create a full graph for comparison
-  keep_full <- ee$prior > pseudo.prior
-  gfull <- addEdge(ee[keep_full,1], ee[keep_full,2], g)
+  ee$keep_full <- ee$prior > pseudo.prior
+  gfull <- addEdge(ee[ee$keep_full,1], ee[ee$keep_full,2], g)
   
   # keep only relevent edges and add to graph
   to_add <- ee[ee$keep,,drop=F]
@@ -1045,8 +1195,9 @@ sample_prior_graph <- function(priors, sentinel) {
         old <- to_add[to_switch,]
         old["keep"] <- F
         
-        to_add[to_switch,] <- c(sentinel, temp2, T, priors[sentinel,temp2])
-        rownames(to_add)[to_switch] <- paste0(sort(c(sentinel, temp2)), collapse="_")
+        to_add[to_switch,] <- c(sentinel, temp2, priors[sentinel,temp2], T, T)
+        rownames(to_add)[to_switch] <- paste0(sort(c(sentinel, temp2)), 
+                                              collapse="_")
         ee[ee$n1 == old$n1 & ee$n2 == old$n2,] <- old
       }
     }
@@ -1061,6 +1212,7 @@ sample_prior_graph <- function(priors, sentinel) {
   }
   
   g <- addEdge(to_add[,1], to_add[,2], g)
+  class(ee) <- c(class(ee), "edge_info")
   return(list(sample_graph=g, full_graph=gfull, edge_info=ee, sentinel=sentinel))
 }
 

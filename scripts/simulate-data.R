@@ -43,11 +43,18 @@ create_prior_graphs <- function(priors, sentinel,
       samp <- sample_prior_graph(priors, sentinel)
       g <- samp$sample_graph
       gfull <- samp$full_graph
-      
-      # the proportion of prior edges to keep
+      ei <- samp$edge_info
+
+      # the proportion of prior edges to randomize
       # 'randomization degree'
       rd <- rand_steps[i]
-        
+      
+      # randomize graph
+      #temp <- lapply(rand_steps, function(rd) {
+      #  grand <- rewire_graph(g, rd, ei)
+      #  print(get_percent_prioredges(grand$gnew, priors))
+      #})
+      
       # get randomized priors
       prand <- randomize_priors(priors, rd)
       
@@ -62,6 +69,29 @@ create_prior_graphs <- function(priors, sentinel,
                         rdegree=rd,
                         snp=sentinel, priors=prand)
     }
+    # create random binomial pseudo prior for the full graph
+    # get a full graph as basis
+    gfull <- graphs[[1]]$graph.full
+    rd <- "rbinom"
+    # fit the binomial on all graph-|E|and get the p
+    all_sizes <- unlist(lapply(graphs, function(gr) {
+      numEdges(gr$graph.observed)
+    }))
+    
+    n <- numNodes(gfull)
+    E <- (n*(n-1))/2
+    prob <- fitdistrplus::fitdist(all_sizes, "binom", 
+                          fix.arg = list(size=E), 
+                          start = list(prob=0.3))$estimate
+    prbinom <- matrix(prob, ncol=ncol(priors), nrow=nrow(priors))
+    colnames(prbinom) <- colnames(priors)
+    rownames(prbinom) <- rownames(priors)
+    
+    id <- paste0(sentinel, "_rbinom")
+    graphs[[id]] <- list(graph.full=gfull, 
+                         graph.observed=gfull,
+                         rdegree=rd,
+                         snp=sentinel, priors=prbinom)
     return(graphs)
   } else {
     return(list(graph.full=g, graph.observed=g, 
@@ -140,15 +170,14 @@ fpriors <- snakemake@input[["priors"]]
 fout <- snakemake@output[[1]]
 sentinel <- snakemake@params$sentinel
 threads <- snakemake@threads
+runs <- 1:as.numeric(snakemake@params$runs)
 
 # load data
 data <- readRDS(fdata)
 ranges <- readRDS(franges)
 priors <- readRDS(fpriors)
 
-# do the simulation 100 times
-simulations <- mclapply(1:100, function(x) {
-  print(paste0("Number of runs performed:", x))
+simulations <- mclapply(runs, function(x) {
   set.seed(x)
   # create the hidden and observed graphs
   graphs <- create_prior_graphs(priors, sentinel)
@@ -160,6 +189,6 @@ simulations <- mclapply(1:100, function(x) {
   simulated_data
 }, mc.cores = threads)
 
-names(simulations) <- paste0("run_", 1:100)
+names(simulations) <- paste0("run_", runs)
 # write out the results
 save(file=fout, simulations, ranges, nodes, data)

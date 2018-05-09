@@ -26,6 +26,7 @@ result <- lapply(names(simulations), function(n) {
   simulated_data <- simulations[[n]]
   
   temp <- lapply(names(simulated_data), function(n1) {
+
     sim <- simulated_data[[n1]]
     # sentinel name to generate plot filename
     s <- sim$snp
@@ -36,11 +37,12 @@ result <- lapply(names(simulations), function(n) {
     # Start from observed/hidden graph state?
     gstart <- get.g.start.from.priors(priors)
     
+    print("Fitting model using priors.")
     ggm_fit <- bdgraph(d, method = "gcgm",
                        iter = nriter, burnin = burnin, 
                        g.prior = priors, g.start = gstart, 
                        save.all=T, cores=cores)
-    
+    print("Fitting model without priors")
     ggm_fit_no_priors <- bdgraph(d, method = "gcgm",
                                  iter = nriter, burnin = burnin, 
                                  g.start = gstart, 

@@ -299,21 +299,22 @@ RUNS = list(range(1,101))
 #------------------------------------------------------------------------------
 rule simulate_data:
 	input: 
-		data="results/current/cohort-data/kora/{sentinel}.rds",
+		data="results/current/cohort-data/lolipop/{sentinel}.rds",
 		ranges="results/current/ranges/{sentinel}.rds",
 		priors="results/current/priors/{sentinel}.rds"
 	output: 
 #		expand("results/current/simulation/data/{{sentinel}}-{run}.RData", run=RUNS)
-		"results/current/simulation/data/{sentinel}-{run}.RData"
+		"results/current/simulation/data/{sentinel}.RData"
 	threads: 1
 	resources:
 		mem_mb=800
 	params:
-		sentinel="{sentinel}"
+		sentinel="{sentinel}",
+		runs=1
 	log:	
-		"logs/simulation/simulate-data/{sentinel}-{run}.log"
+		"logs/simulation/simulate-data/{sentinel}.log"
 	benchmark: 
-		"benchmarks/simulation/simulate-data/{sentinel}-{run}.bmk"
+		"benchmarks/simulation/simulate-data/{sentinel}.bmk"
 	script:
 		"scripts/simulate-data.R"
 
@@ -322,14 +323,14 @@ rule simulate_data:
 #------------------------------------------------------------------------------
 rule apply_ggm_simulation:
 	input: 
-		"results/current/simulation/data/{sentinel}-{run}.RData",
+		"results/current/simulation/data/{sentinel}.RData",
 	output: 
-		"results/current/simulation/fits/{sentinel}-{run}.RData",
-		"results/current/simulation/fits/{sentinel}-{run}-summary.pdf"
+		"results/current/simulation/fits/{sentinel}.RData",
+		"results/current/simulation/fits/{sentinel}-summary.pdf"
 	params:
 		nriter=20000,
 		burnin=5000
-	threads: 10
+	threads: 20
         resources:
                 mem_mb=1500
 	log: 
@@ -339,24 +340,37 @@ rule apply_ggm_simulation:
 	script:
 		"scripts/apply-ggm-simulation.R"
 
+SIMSNPS = glob_wildcards("results/current/simulation/data/{sentinel}.RData")
+
+rule ags_subset:
+	input:
+		expand("results/current/simulation/fits/{sentinel}.RData", sentinel=SIMSNPS.sentinel)
+	
 #------------------------------------------------------------------------------
 # Validate a simulation run
 #------------------------------------------------------------------------------
 rule validate_ggm_simulation:
 	input: 
-		"results/current/simulation/fits/{sentinel}-{run}.RData"
+		"results/current/simulation/fits/{sentinel}.RData"
 	output: 
-		"results/current/simulation/validation/{sentinel}-{run}.txt"
+		"results/current/simulation/validation/{sentinel}.txt"
 	log: 
 		"logs/simulation/validate-ggm/{sentinel}.log"
 	script:
 		"scripts/validate-ggm-simulation.R"
 
+
+FITSNPS = glob_wildcards("results/current/simulation/fits/{sentinel}.RData")
+rule vgs_subset:
+	input:
+		expand("results/current/simulation/validation/{sentinel}.txt", sentinel=FITSNPS.sentinel)
+
+
 #------------------------------------------------------------------------------
 # Target rule to validate all simulation runs
 #------------------------------------------------------------------------------
 rule validate_all:
-	input: expand("results/current/simulation/validation/{sentinel}-{run}.txt", sentinel=LISTS.sentinel, run=RUNS)
+	input: expand("results/current/simulation/validation/{sentinel}.txt", sentinel=LISTS.sentinel)
 
 #------------------------------------------------------------------------------
 # Create simulation report

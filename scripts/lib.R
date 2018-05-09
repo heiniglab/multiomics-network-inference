@@ -54,9 +54,13 @@ get.gene.annotation <- function(drop.nas=TRUE) {
   txdb = TxDb.Hsapiens.UCSC.hg19.knownGene
   ucsc2symbol = AnnotationDbi::select(Homo.sapiens, keys=keys(Homo.sapiens, keytype="GENEID"), 
                                       keytype="GENEID", columns="SYMBOL")
+  ucsc2ens = AnnotationDbi::select(Homo.sapiens, keys=keys(Homo.sapiens, keytype="GENEID"), 
+                                      keytype="GENEID", columns="ENSEMBL")
   GENE.ANNOTATION = genes(txdb)
   GENE.ANNOTATION$SYMBOL <- ucsc2symbol[match(values(GENE.ANNOTATION)[,"gene_id"], 
                                               ucsc2symbol[,"GENEID"]),"SYMBOL"]
+  GENE.ANNOTATION$ENSEMBL <- ucsc2ens[match(values(GENE.ANNOTATION)[,"gene_id"], 
+                                              ucsc2symbol[,"GENEID"]),"ENSEMBL"]
   if(drop.nas){
     GENE.ANNOTATION <- GENE.ANNOTATION[!is.na(GENE.ANNOTATION$SYMBOL)]
   }
@@ -920,95 +924,96 @@ rewire_graph <- function(g, p, ei) {
   }
   # do nothing...
   if(p == 0) {
-    return(g)
+    return(list(gnew=g, to_switch=NULL))
   }
+  
   # get node degrees
-  degs <- cbind.data.frame(sort(degree(g), decreasing = T))
+  degs <- cbind.data.frame(sort(graph::degree(g), decreasing = T))
   colnames(degs) <- c("degree")
   degs$node <- rownames(degs)
   
   # number of edges to rewire
   N <- floor(p * numEdges(g))
   
-  # select nodes to switch such that sum of node degree == N
-  idxs <- which(degs$degree > 0)
-  lo <- N-1
-  up <- N+1
-  best <- c()
-  best_diff <- 0.5
-  for(i in 1:length(idxs)*2) {
-    nodes_to_switch <- degreesum_in_range(degs, sample(idxs), 
-                                       lo, up, 
-                                       g)
-    if(!is.null(nodes_to_switch)) {
-      s <- sum(nodes_to_switch$degree)
-      d <- abs(s-N)
-      if(d < best_diff) {
-        best <- nodes_to_switch
-        best_diff <- d
-      }
-      if(d==0) {
-        break
-      }
-    }
-  }
-  if(is.null(best)) {
-    warning("No prior-switchings selected, returning default priors.")
-    return(g)
-  }
-  
-  Ns <- nrow(best)
-  print(paste0("Switching ", Ns, " nodes with total degree ", sum(best$degree)))
-  
   # get the 0-degree nodes which do not have any prior associated
   ei_priors <- ei[ei$keep_full,,drop=F]
   nodes <- nodes(g)
   nodes_no_priors <- nodes[!(nodes %in% ei_priors$n1) &
                              !(nodes %in% ei_priors$n2)]
-  nodes_to_use <- degs[degs$degree == 0 & 
-                         degs$node %in% nodes_no_priors,"node"]
-  if(length(nodes_to_use) > 0) {
-    # switch nodes  
-    if(Ns <= length(nodes_to_use)) {
-      to_switch <- cbind(n_prior=sample(best$node), 
-                         n_noprior=sample(nodes_to_use, 
-                                          size = Ns, 
-                                          replace = F))
-    } else {
-      # TODO
-      stop("Not implemented yet: More prior nodes than non-prior nodes")
-      # in case of remaining nodes, now do some rewiring
-      #ig <- igraph::igraph.from.graphNEL(graphNEL = g, weight=F)
-      #ig <- rewire(ig, keeping_degseq(niter=prob))
+  
+  # select nodes to switch such that sum of node degree == N
+  idxs <- which(degs$degree > 0)
+  # keep within this number of nodes if possible
+  Nmax <- length(nodes_no_priors)
+  lo <- N-1
+  up <- N+1
+  best <- NULL
+  best_diff <- 0.5
+  
+  while(best_diff>0) {
+    res <- degreesum_in_range(degs, sample(idxs), 
+                                       lo, up, 
+                                       g)
+    if(!is.null(res) & !is.null(res$nodes)) {
+      s <- sum(res$nodes$degree)
+      a <- res$adjustment
+      # get 'best' result -> closest to desired number of change
+      d <- abs(s-a-N)
+      n <- nrow(res$nodes)
+      if(d < best_diff & n <= Nmax) {
+        best <- res$nodes
+        best_diff <- d
+      }
     }
+  }
+  Ns <- nrow(best)
+ 
+  if(length(nodes_no_priors) > 0) {
+    # define switchings
+    Nnp <- length(nodes_no_priors)
+    
+    to_switch <- cbind.data.frame(n_prior=best$node, 
+                                  n_prior_degree=best$degree,
+                                  n_noprior=sample(nodes_no_priors, 
+                                                   size = Ns, 
+                                                   replace = Ns>Nnp),
+                                  stringsAsFactors=F)
+    
+    gnew <- switch_nodes(g, to_switch)
+   
   } else {
     stop("Not implemented yet: There where no nodes without priors")
   }
   
+  return(listN(gnew, to_switch))
+}
+
+#' Creates a graph with switched nodes as compared to a base graph
+#' 
+#' @param g_old
+#' @param to_switch
+#'
+#' @author Johann Hawe
+#' 
+switch_nodes <- function(g_old, to_switch) {
   # get the full edge matrix and switch nodes
-  em <- t(edgeMatrix(g))
-  em <- cbind.data.frame(n1=nodes[em[,1]], 
-                         n2=nodes[em[,2]],
+  n <- nodes(g_old)
+  em <- t(edgeMatrix(g_old))
+  em <- cbind.data.frame(n1=n[em[,1]], 
+                         n2=n[em[,2]],
                          stringsAsFactors=F)
-  TEMP <- "TEMP_NODE"
+  
   for(i in 1:nrow(to_switch)) {
-    n1 <- to_switch[i,"n_prior"]
-    n2 <- to_switch[i,"n_noprior"]
-    # temp set all em-nodes to TEMP if they correspond to n1 var
-    em[em$n1 == n1,"n1"] <- TEMP
-    em[em$n2 == n1,"n2"] <- TEMP
-    # set n2 nodes in em to the new node n1
-    em[em$n1 == n2,"n1"] <- n1
-    em[em$n2 == n2,"n2"] <- n1
-    # reset the temp nodes to be n2
-    em[em$n1 == TEMP,"n1"] <- n2
-    em[em$n2 == TEMP,"n2"] <- n2
+    prior_node <- to_switch[i,"n_prior"]
+    noprior_node <- to_switch[i,"n_noprior"]
+    # replace all prior node occurrences with the nonprior node
+    em[em$n1 == prior_node,"n1"] <- noprior_node
+    em[em$n2 == prior_node,"n2"] <- noprior_node
   }
   
-  gnew <- graphNEL(nodes)
-  gnew <- addEdge(em[,1], em[,2], gnew)
-  return(listN(gnew, to_switch))
-  #return(igraph::igraph.to.graphNEL(ig))
+  g_new <- graphNEL(n)
+  g_new <- addEdge(em[,1], em[,2], g_new)
+  return(g_new)
 }
 
 #' Gets a set of nodes from a dataframe with annotated degree,
@@ -1028,53 +1033,78 @@ rewire_graph <- function(g, p, ei) {
 degreesum_in_range <- function(df, idxs, lo, up, g) {
   
   # get the  center value for exact matching
-  percent <- (lo+up)/2
+  total <- (lo+up)/2
   
-  if(percent == 0) {
+  # check special cases
+  if(total == 0) {
     return(NULL)
+  } else if(total == 100) {
+    return(df[idxs,,drop=F])
   }
+  
   rand <- c()
+  # counter for total running sum of degrees we added
+  running_sum <- 0
+  # counter of substracted information, i.e. whenever we find a new node has
+  # neighbours within our collection, we reduce the total amount of degrees found
+  # by the respective number of neighbours. We need this information for 
+  # the evaluation of the found set of nodes
+  total_subst <- 0
+  
   for(i in idxs) {
     pi <- df[i,,drop=F]
     pi <- cbind(pi, idx=i)
     v <- pi[,"degree"]
-    s <- sum(c(rand[,"degree"],v))
-    
-    # neighbour already in collection? skip
+    s <- running_sum + v
+    subst <- 0
+    # neighbour already in collection? handle that
+    # adjust total sum of degrees we switch when using this one
     if(!is.null(nrow(rand))) {
         nn <- rand[,"node"]
-        if(pi[,"node"] %in% graph::adj(g, nn)[[1]]) {
-          next
-        }
+        # get all neighbours of current node to check how many are already in our
+        # collection
+        cn <- pi[,"node"]
+        neigh <- unlist(graph::adj(g, cn))
+        subst <- sum(nn %in% neigh)
+        s <- s - subst
     }
     # did not reach lower bound yet
     if(s<lo) {
+      running_sum <- s
+      total_subst <- total_subst + subst
       rand <- rbind(rand,pi)
       next
     }
     # above lower bound
     if(s>=lo) {
       # match exactly? then done
-      if(s==percent) {
+      if(s==total) {
+        running_sum <- s
+        total_subst <- total_subst + subst
         rand <- rbind(rand,pi)
         break
       }
       # below upper bound
       if(s<=up) {
         rand <- rbind(rand,pi)
+        running_sum <- s
         # first above exact? then done
-        if(s>percent) {
+        if(s>total) {
+          running_sum <- s
+          total_subst <- total_subst + subst
           break
         }
       } else {
         # exceeded with current value, stop
+        running_sum <- s
+        total_subst <- total_subst + subst
         break
       }
     }
   }
-  return(rand)
+  
+  return(list(nodes=rand, adjustment=total_subst))
 }
-
 
 #' Helper method calculating the percentage of edges in the given graph object
 #' which have a prior according to the given prior matrix
@@ -1092,7 +1122,8 @@ get_percent_prioredges <- function(g, priors) {
   pp <- min(priors)
   
   # get the edgematrix with nodes
-  n <- nodes(g)
+  n <- graph::nodes(g)
+  
   # sanity check
   if(!all(n %in% colnames(priors))) {
     warning("Not all nodes are in prior matrix.")
@@ -1213,7 +1244,8 @@ sample_prior_graph <- function(priors, sentinel) {
   
   g <- addEdge(to_add[,1], to_add[,2], g)
   class(ee) <- c(class(ee), "edge_info")
-  return(list(sample_graph=g, full_graph=gfull, edge_info=ee, sentinel=sentinel))
+  return(list(sample_graph=g, full_graph=gfull, 
+              edge_info=ee, sentinel=sentinel))
 }
 
 #' Augment grahs

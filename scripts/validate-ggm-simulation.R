@@ -9,10 +9,10 @@
 sink(file=snakemake@log[[1]])
 
 # load needed libraries
-library(BDgraph, lib="/home/icb/johann.hawe/R/x86_64-redhat-linux-gnu-library/3.4")
+library(BDgraph, lib="/storage/groups/groups_epigenereg/packages/2017/R/3.4")
 library(GenomicRanges)
 
-source("R/lib.R")
+source("scripts/lib.R")
 
 ifile <- snakemake@input[[1]]
 ofile <- snakemake@output[[1]]
@@ -25,10 +25,11 @@ load(ifile)
 # the result table
 tab <- c()
 
+result <- result
+
 # check each individual simulated result
 temp <- lapply(names(result), function(n) {
-  
-  # get necessary valiation data
+  # get validation data
   r <- result[[n]]
   d <- r$data.sim
   ggm_fit <- r$fits$ggm_fit
@@ -40,8 +41,7 @@ temp <- lapply(names(result), function(n) {
   perf <- as.data.frame(perf)
   rownames(perf) <- paste(n, comparisons, sep="_")
   # remember for easy plotting
-  perf$fpr <- r$fpr
-  perf$fnr <- r$fnr
+  perf$rdegree <- r$rdegree
   perf$snp <- r$snp
   perf$comparison <- comparisons
   tab <<- rbind(tab, perf)

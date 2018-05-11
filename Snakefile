@@ -292,7 +292,6 @@ rule all:
 ###############################################################################
 ###################### Rules for simulation study #############################
 ###############################################################################
-RUNS = list(range(1,101))
 
 #------------------------------------------------------------------------------
 # Simulate ground truth and data for simulation study
@@ -303,14 +302,13 @@ rule simulate_data:
 		ranges="results/current/ranges/{sentinel}.rds",
 		priors="results/current/priors/{sentinel}.rds"
 	output: 
-#		expand("results/current/simulation/data/{{sentinel}}-{run}.RData", run=RUNS)
 		"results/current/simulation/data/{sentinel}.RData"
-	threads: 1
+	threads: 10
 	resources:
-		mem_mb=800
+		mem_mb=1200
 	params:
 		sentinel="{sentinel}",
-		runs=1
+		runs=100
 	log:	
 		"logs/simulation/simulate-data/{sentinel}.log"
 	benchmark: 
@@ -330,9 +328,9 @@ rule apply_ggm_simulation:
 	params:
 		nriter=20000,
 		burnin=5000
-	threads: 20
+	threads: 16
         resources:
-                mem_mb=1500
+                mem_mb=3000
 	log: 
 		"logs/simulation/apply-ggm/{sentinel}.log"
 	benchmark: 
@@ -340,12 +338,6 @@ rule apply_ggm_simulation:
 	script:
 		"scripts/apply-ggm-simulation.R"
 
-SIMSNPS = glob_wildcards("results/current/simulation/data/{sentinel}.RData")
-
-rule ags_subset:
-	input:
-		expand("results/current/simulation/fits/{sentinel}.RData", sentinel=SIMSNPS.sentinel)
-	
 #------------------------------------------------------------------------------
 # Validate a simulation run
 #------------------------------------------------------------------------------
@@ -358,12 +350,6 @@ rule validate_ggm_simulation:
 		"logs/simulation/validate-ggm/{sentinel}.log"
 	script:
 		"scripts/validate-ggm-simulation.R"
-
-
-FITSNPS = glob_wildcards("results/current/simulation/fits/{sentinel}.RData")
-rule vgs_subset:
-	input:
-		expand("results/current/simulation/validation/{sentinel}.txt", sentinel=FITSNPS.sentinel)
 
 
 #------------------------------------------------------------------------------

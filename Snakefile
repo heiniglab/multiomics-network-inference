@@ -296,6 +296,7 @@ rule all:
 #------------------------------------------------------------------------------
 # Simulate ground truth and data for simulation study
 #------------------------------------------------------------------------------
+RUNS = 100
 rule simulate_data:
 	input: 
 		data="results/current/cohort-data/lolipop/{sentinel}.rds",
@@ -308,7 +309,7 @@ rule simulate_data:
 		mem_mb=1200
 	params:
 		sentinel="{sentinel}",
-		runs=100
+		runs=RUNS
 	log:	
 		"logs/simulation/simulate-data/{sentinel}.log"
 	benchmark: 
@@ -319,22 +320,24 @@ rule simulate_data:
 #------------------------------------------------------------------------------
 # Apply ggm on simulated data
 #------------------------------------------------------------------------------
+ITERATIONS = range(1,RUNS+1)
+
 rule apply_ggm_simulation:
 	input: 
 		"results/current/simulation/data/{sentinel}.RData",
 	output: 
-		"results/current/simulation/fits/{sentinel}.RData",
-		"results/current/simulation/fits/{sentinel}-summary.pdf"
+		"results/current/simulation/fits/{sentinel}-iter{iteration}.RData"
 	params:
 		nriter=20000,
-		burnin=5000
+		burnin=5000,
+		iteration="{iteration}"
 	threads: 16
         resources:
                 mem_mb=3000
 	log: 
-		"logs/simulation/apply-ggm/{sentinel}.log"
+		"logs/simulation/apply-ggm/{sentinel}-iter{iteration}.log"
 	benchmark: 
-		"benchmarks/simulation/apply-ggm/{sentinel}.bmk"
+		"benchmarks/simulation/apply-ggm/{sentinel}-iter{iteration}.bmk"
 	script:
 		"scripts/apply-ggm-simulation.R"
 
@@ -343,11 +346,11 @@ rule apply_ggm_simulation:
 #------------------------------------------------------------------------------
 rule validate_ggm_simulation:
 	input: 
-		"results/current/simulation/fits/{sentinel}.RData"
+		"results/current/simulation/fits/{sentinel}-iter{iteration}.RData"
 	output: 
-		"results/current/simulation/validation/{sentinel}.txt"
+		"results/current/simulation/validation/{sentinel}-iter{iteration}.txt"
 	log: 
-		"logs/simulation/validate-ggm/{sentinel}.log"
+		"logs/simulation/validate-ggm/{sentinel}-iter{iteration}.log"
 	script:
 		"scripts/validate-ggm-simulation.R"
 
@@ -356,14 +359,14 @@ rule validate_ggm_simulation:
 # Target rule to validate all simulation runs
 #------------------------------------------------------------------------------
 rule validate_all:
-	input: expand("results/current/simulation/validation/{sentinel}.txt", sentinel=LISTS.sentinel)
+	input: expand("results/current/simulation/validation/{sentinel}-iter{iter}.txt", sentinel=LISTS.sentinel, iter=ITERATIONS)
 
 #------------------------------------------------------------------------------
 # Create simulation report
 #------------------------------------------------------------------------------
 rule summarize_simulation:
 	input: 
-		expand("results/current/simulation/validation/{sentinel}.txt", zip, sentinel=LISTS.sentinel)
+		expand("results/current/simulation/validation/{sentinel}-iter{iter}.txt", zip, sentinel=LISTS.sentinel, iter=ITERATIONS)
 	params:
 		indir="../results/current/simulation/validation/"
 	output: 

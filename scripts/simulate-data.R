@@ -51,30 +51,30 @@ create_prior_graphs <- function(priors, sentinel,
       
       # sample prior graph
       samp <- sample_prior_graph(priors, sentinel)
-      g <- samp$sample_graph
+      gsamp <- samp$sample_graph
       gfull <- samp$full_graph
       ei <- samp$edge_info
 
       # randomize graph
       rd <- rand_steps[i]
-
-      grand <- rewire_graph(g, rd, ei)
-      pe <- get_percent_prioredges(grand$gnew, priors) * 100
+      
+      grand <- rewire_graph(gsamp, rd, ei)
+      pe <- get_percent_prioredges(grand$gnew, ei) * 100
       div <- abs((100-pe)-rd*100)
       
       # report for debug
-      print(paste0("Desired/observed randomization: ", rd*100, "/", 100-pe))
+      #print(paste0("Desired/observed randomization: ", rd*100, "/", 100-pe))
 
       # check for more than 2 percent divergence in randomization
       if(div >= 2) warning(paste0("Large divergence in randomization: ", div))
       
       # save graph
       id <- paste0(sentinel, "_rd", rd)
-      graphs[[id]] <- list(graph.full=gfull, 
-                        graph.observed=grand$gnew,
-                        rdegree=rd,
-                        snp=sentinel,
-                        priors=priors)
+      graphs[[id]] <- list(graph.full=gfull,
+                           graph.sampled=gsamp,
+                           graph.observed=grand$gnew,
+                           rdegree=rd,
+                           snp=sentinel)
     }
     
     # --------------------------------------------------------------------------
@@ -87,7 +87,7 @@ create_prior_graphs <- function(priors, sentinel,
     rd <- "rbinom"
     # fit the binomial on all graph-|E|and get the p
     all_sizes <- unlist(lapply(graphs, function(gr) {
-      numEdges(gr$graph.observed)
+      numEdges(gr$graph.sampled)
     }))
     
     n <- ncol(priors)
@@ -188,6 +188,8 @@ franges <- snakemake@input[["ranges"]]
 fpriors <- snakemake@input[["priors"]]
 #sentinel <- "rs9859077"
 #sentinel <- "rs7500738"
+#sentinel <- "rs9674439"
+#sentinel <- "rs77767885"
 #fdata <- paste0("results/current/cohort-data/lolipop/", sentinel, ".rds")
 #franges <- paste0("results/current/ranges/", sentinel, ".rds")
 #fpriors <- paste0("results/current/priors/", sentinel, ".rds")
@@ -200,19 +202,20 @@ runs <- 1:as.numeric(snakemake@params$runs)
 # ------------------------------------------------------------------------------
 # load data
 # ------------------------------------------------------------------------------
+print("Loading data.")
 data <- readRDS(fdata)
+nodes <- colnames(data)
 ranges <- readRDS(franges)
 priors <- readRDS(fpriors)
+# restrict to priors for which we also have data available
+priors <- priors[rownames(priors) %in% nodes, colnames(priors) %in% nodes]
 
 # ------------------------------------------------------------------------------
 # Run simulations
 # ------------------------------------------------------------------------------
+print(paste0("Running ", length(runs), " iterations."))
 simulations <- mclapply(runs, function(x) {
   set.seed(x)
-  
-  nodes <- colnames(data)
-  # restrict to priors for which we also have data available
-  priors <- priors[rownames(priors) %in% nodes, colnames(priors) %in% nodes]
   
   # create the hidden and observed graphs
   graphs <- create_prior_graphs(priors, sentinel)
@@ -228,4 +231,6 @@ names(simulations) <- paste0("run_", runs)
 # ------------------------------------------------------------------------------
 # write out the results
 # ------------------------------------------------------------------------------
-save(file=fout, simulations, ranges, nodes, data)
+print("Saving results.")
+save(file=fout, simulations, priors, ranges, nodes, data, 
+     runs, fdata, franges, fpriors)

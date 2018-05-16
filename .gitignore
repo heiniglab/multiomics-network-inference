@@ -5,3 +5,4 @@
 rework/results/current/*
 rework/logs/
 .snakemake*
+logs/

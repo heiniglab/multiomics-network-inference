@@ -257,7 +257,7 @@ rule apply_ggm:
 #------------------------------------------------------------------------------
 rule validate_ggm:
 	input: 
-		expand("results/current/fits/{{sentinel}}-{cohort}.rds", cohort=COHORTS)
+		expand("results/current/fits/{cohort}/{{sentinel}}.rds", cohort=COHORTS)
 	output: 
 		"results/current/validation/{sentinel}.txt"
 	log: 

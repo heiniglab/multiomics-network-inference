@@ -54,13 +54,18 @@ get.gene.annotation <- function(drop.nas=TRUE) {
   txdb = TxDb.Hsapiens.UCSC.hg19.knownGene
   ucsc2symbol = AnnotationDbi::select(Homo.sapiens, keys=keys(Homo.sapiens, keytype="GENEID"), 
                                       keytype="GENEID", columns="SYMBOL")
-  ucsc2ens = AnnotationDbi::select(Homo.sapiens, keys=keys(Homo.sapiens, keytype="GENEID"), 
-                                      keytype="GENEID", columns="ENSEMBL")
+  ucsc2alias = AnnotationDbi::select(Homo.sapiens, keys=keys(Homo.sapiens, keytype="GENEID"), 
+                                      keytype="GENEID", columns="ALIAS")
+  
+  #ucsc2ens = AnnotationDbi::select(Homo.sapiens, keys=keys(Homo.sapiens, keytype="GENEID"), 
+  #                                    keytype="GENEID", columns="ENSEMBL")
   GENE.ANNOTATION = genes(txdb)
   GENE.ANNOTATION$SYMBOL <- ucsc2symbol[match(values(GENE.ANNOTATION)[,"gene_id"], 
                                               ucsc2symbol[,"GENEID"]),"SYMBOL"]
-  GENE.ANNOTATION$ENSEMBL <- ucsc2ens[match(values(GENE.ANNOTATION)[,"gene_id"], 
-                                              ucsc2symbol[,"GENEID"]),"ENSEMBL"]
+  GENE.ANNOTATION$ALIAS <- ucsc2alias[match(values(GENE.ANNOTATION)[,"gene_id"], 
+                                              ucsc2alias[,"GENEID"]),"ALIAS"]
+  #GENE.ANNOTATION$ENSEMBL <- ucsc2ens[match(values(GENE.ANNOTATION)[,"gene_id"], 
+  #                                            ucsc2symbol[,"GENEID"]),"ENSEMBL"]
   if(drop.nas){
     GENE.ANNOTATION <- GENE.ANNOTATION[!is.na(GENE.ANNOTATION$SYMBOL)]
   }
@@ -126,7 +131,12 @@ get.chipseq.context <- function(cpgs, fcontext){
 #'
 #' @author Johann Hawe
 #'
-graph.from.fit <- function(ggm.fit, ranges, annotate=T){
+graph_from_fit <- function(ggm.fit, ranges, fcontext=NULL, annotate=T){
+  
+  if(annotate & is.null(fcontext)) {
+    stop("Chip-seq context file must not be null for annotating graphs!")
+  }
+  
   library(BDgraph)
   library(graph)
   library(igraph)
@@ -138,7 +148,7 @@ graph.from.fit <- function(ggm.fit, ranges, annotate=T){
   
   if(annotate) {
     # set node and edge attributes
-    g <- annotate.graph(g, ranges)
+    g <- annotate.graph(g, ranges, fcontext)
   }
   return(g)
 }
@@ -155,7 +165,7 @@ graph.from.fit <- function(ggm.fit, ranges, annotate=T){
 #' 
 #' @author Johann Hawe
 #' 
-annotate.graph <- function(g, ranges){
+annotate.graph <- function(g, ranges, fcontext){
   # work on all graph nodes
   gn <- nodes(g)
   
@@ -184,7 +194,7 @@ annotate.graph <- function(g, ranges){
   # we will also set tf2cpg priors at this point, so get all TFs
   tfs <- ranges$tfs$SYMBOL
   # also get the chipseq context for our cpgs
-  context <- get.chipseq.context(names(ranges$cpgs))
+  context <- get.chipseq.context(names(ranges$cpgs), fcontext)
   
   em <- matrix(ncol=2,nrow=0)
   # for all cpgs
@@ -200,11 +210,12 @@ annotate.graph <- function(g, ranges){
   if(nrow(em) > 0){
     edgeData(g,em[,1], em[,2],"isChipSeq") <- T
   }
+  
   # ppi edgedata
-  load.string.db()
+  
   # get subset of edges which are in our current graph
-  STRING.SUB <- subGraph(intersect(nodes(STRING.DB), gn), STRING.DB)
-  edges <- t(edgeMatrix(STRING.SUB))
+  STRING_SUB <- subGraph(intersect(nodes(STRING_DB), gn), STRING_DB)
+  edges <- t(edgeMatrix(STRING_SUB))
   edges <- cbind(gn[edges[,1]], gn[edges[,2]])
   edges <- filter.edge.matrix(g,edges)
   if(nrow(edges) > 0){
@@ -741,11 +752,9 @@ get.g.start <- function(nodes, ranges){
   rownames(out) <- colnames(out) <- nodes
   
   # add STRING connections
-  load.string.db()
- 
-  STRING.SUB <- subGraph(intersect(nodes(STRING.DB), genes), STRING.DB)
-  sn <- nodes(STRING.SUB)
-  em <- t(edgeMatrix(STRING.SUB))
+  STRING_SUB <- subGraph(intersect(nodes(STRING_DB), genes), STRING_DB)
+  sn <- nodes(STRING_SUB)
+  em <- t(edgeMatrix(STRING_SUB))
   em <- cbind(sn[em[,1]],sn[em[,2]])
   
   out[em[,1],em[,2]] <- 1

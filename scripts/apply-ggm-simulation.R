@@ -75,8 +75,8 @@ result <- lapply(names(simulated_data), function(n) {
   # Extract graphs and create result lists
   # --------------------------------------------------------------------------
   # get the result graph
-  ggm_graph <- graph.from.fit(ggm_fit, ranges, annotate=F)
-  ggm_graph_no_priors <- graph.from.fit(ggm_fit_no_priors, ranges, annotate=F)
+  ggm_graph <- graph_from_fit(ggm_fit, ranges, annotate=F)
+  ggm_graph_no_priors <- graph_from_fit(ggm_fit_no_priors, ranges, annotate=F)
    
   # new entry in our data collection
   sim$fits <- listN(ggm_fit, ggm_fit_no_priors, 

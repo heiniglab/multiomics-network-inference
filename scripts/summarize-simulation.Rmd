@@ -51,10 +51,10 @@ get_table <- function(files) {
 }
 
 tab <- get_table(files)
-
+head(tab)
 # temporary part for the additional validation files
-files <- list.files("../results/current/simulation/validation/", "*.txt", full.names = T)
-tab <- rbind(tab, get_table(files))
+#files <- list.files("../results/current/simulation/validation/", "*.txt", full.names = T)
+#tab <- rbind(tab, get_table(files))
 
 ```
 
@@ -73,11 +73,11 @@ theme_update(axis.text.x = element_blank())
 N <- length(unique(tab$snp))
 
 #pdf("../results/current/simulation/simulation_validation.pdf", width=9, height=9)
-ggplot(tab, aes(y=specificity,x=comparison,fill=comparison)) + gb + gp + fw + ggtitle("Specificity", subtitle = paste0("(N = ", N, ")"))
-ggplot(tab, aes(y=sensitivity,x=comparison,fill=comparison)) + gb + gp + fw +ggtitle("Sensitivity", subtitle = paste0("(N = ", N, ")"))
-ggplot(tab, aes(y=F1.score,x=comparison,fill=comparison)) + gb + gp + fw + 
+ggplot(tab, aes(y=specificity,x=comparison,fill=comparison)) + gb +  fg + ggtitle("Specificity", subtitle = paste0("(N = ", N, ")"))
+ggplot(tab, aes(y=sensitivity,x=comparison,fill=comparison)) + gb +  fg + ggtitle("Sensitivity", subtitle = paste0("(N = ", N, ")"))
+ggplot(tab, aes(y=F1.score,x=comparison,fill=comparison)) + gb +  fg + 
   ggtitle("F1.score", subtitle = paste0("(N = ", N, ")"))
-ggplot(tab, aes(y=MCC,x=comparison,fill=comparison)) + gb + gp + fg +
+ggplot(tab, aes(y=MCC,x=comparison,fill=comparison)) + gb +  fg +
   ggtitle("MCC", subtitle = paste0("(N = ", N, ")"))
 #dev.off()
 

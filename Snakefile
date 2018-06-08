@@ -160,8 +160,7 @@ rule collect_ranges:
 	resources:
 		mem_mb=2300
 	params:
-		sentinel="{sentinel}",
-		window=1e6
+		sentinel="{sentinel}"
 	script:
 		"scripts/collect-ranges.R"
 
@@ -207,7 +206,8 @@ rule collect_priors:
 		ranges="results/current/ranges/{sentinel}.rds",
 		string="results/current/string.v9.expr.rds"
 	output: 
-		"results/current/priors/{sentinel}.rds"
+		"results/current/priors/{sentinel}.rds",
+		"results/current/priors/{sentinel}.pdf"
 	log:
 		"logs/collect-priors/{sentinel}.log"
 	threads: 1
@@ -221,20 +221,28 @@ rule collect_priors:
 	script:
 		"scripts/collect-priors.R"
 
+rule all_priors:
+	input: 
+		expand("results/current/priors/{sentinel}.pdf", sentinel=LISTS.sentinel)
+
 #------------------------------------------------------------------------------
 # Apply ggm on collected data and priors for a sentinel
 #------------------------------------------------------------------------------
 rule apply_ggm:
-	input: data="results/current/cohort-data/{cohort}/{sentinel}.rds", 
+	input: 
+		data="results/current/cohort-data/{cohort}/{sentinel}.rds", 
 		priors="results/current/priors/{sentinel}.rds",
-		ranges="results/current/ranges/{sentinel}.rds"
+		ranges="results/current/ranges/{sentinel}.rds",
+		cpg_context="data/current/cpgs_with_chipseq_context_100.RData",
+		string="results/current/string.v9.expr.rds"
 	output: 
-		"results/current/fits/{cohort}/{sentinel}.rds"
-	threads: 10
+		fit="results/current/fits/{cohort}/{sentinel}.rds",
+		summary_file="results/current/fits/{cohort}/{sentinel}.pdf",
+		gstart_file="results/current/fits/{cohort}/{sentinel}-gstart.pdf"
+	threads: 16
 	params:
 		nriter=20000,
-		burnin=5000,
-		plot_file="results/current/fits/{cohort}/{sentinel}.pdf"
+		burnin=5000
 	resources:
 		mem_mb=1000
 	benchmark:
@@ -333,7 +341,7 @@ rule apply_ggm_simulation:
 		iteration="{iteration}"
 	threads: 16
         resources:
-                mem_mb=3000
+                mem_mb=5000
 	log: 
 		"logs/simulation/apply-ggm/{sentinel}-iter{iteration}.log"
 	benchmark: 
@@ -349,6 +357,8 @@ rule validate_ggm_simulation:
 		"results/current/simulation/fits/{sentinel}-iter{iteration}.RData"
 	output: 
 		"results/current/simulation/validation/{sentinel}-iter{iteration}.txt"
+	params:
+		iteration="{iteration}"
 	log: 
 		"logs/simulation/validate-ggm/{sentinel}-iter{iteration}.log"
 	script:
@@ -358,6 +368,10 @@ rule validate_ggm_simulation:
 #------------------------------------------------------------------------------
 # Target rule to validate all simulation runs
 #------------------------------------------------------------------------------
+TEMP = glob_wildcards("results/current/simulation/fits/{sentinel}-iter{iteration}.RData")
+rule validate_subset:
+        input: expand("results/current/simulation/validation/{sentinel}-iter{iter}.txt", zip, sentinel=TEMP.sentinel, iter=TEMP.iteration)
+
 rule validate_all:
 	input: expand("results/current/simulation/validation/{sentinel}-iter{iter}.txt", sentinel=LISTS.sentinel, iter=ITERATIONS)
 
@@ -366,7 +380,7 @@ rule validate_all:
 #------------------------------------------------------------------------------
 rule summarize_simulation:
 	input: 
-		expand("results/current/simulation/validation/{sentinel}-iter{iter}.txt", zip, sentinel=LISTS.sentinel, iter=ITERATIONS)
+		expand("results/current/simulation/validation/{sentinel}-iter{iter}.txt", sentinel=TEMP.sentinel, iter=TEMP.iteration)
 	params:
 		indir="../results/current/simulation/validation/"
 	output: 

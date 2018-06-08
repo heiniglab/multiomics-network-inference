@@ -21,6 +21,8 @@ source("scripts/lib.R")
 # ------------------------------------------------------------------------------
 ifile <- snakemake@input[[1]]
 ofile <- snakemake@output[[1]]
+# iteration/run to be annotated in result table
+iteration <- snakemake@params$iteration
 
 print(paste0("Processing file: ", ifile, "."))
 
@@ -57,6 +59,8 @@ temp <- lapply(names(result), function(n) {
   perf$rdegree <- r$rdegree
   perf$snp <- r$snp
   perf$comparison <- comparisons
+  perf$iteration <- iteration
+  
   # ----------------------------------------------------------------------------
   # Add to result table
   # ----------------------------------------------------------------------------

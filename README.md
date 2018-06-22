@@ -34,14 +34,15 @@ cd $WDIR
 Note that we actually removed the data for the following sentinel, since at the moment it is too unconvenient to 
 wait for the results of this snp in the pipeline (>900 nodes):
 rs60626639
+rs79755767
 
 ###
 # pipeline
 ###
 
-The pipeline is described as a snakemake pipeline.
+The pipeline is implemented as a snakemake pipeline.
 However, the already existing scripts merely have been altered such that they allow execution
-using snakemake and likely more improvements could/should be done.
+using snakemake and more improvements should be done.
 
 Modifications too the pipeline can be done in
 

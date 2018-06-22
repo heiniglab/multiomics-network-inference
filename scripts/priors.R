@@ -12,7 +12,7 @@
 #' 
 #' @return A square matrix of link-priors
 #'------------------------------------------------------------------------------
-get.link.priors <- function(ranges, nodes, string_db) {
+get_link_priors <- function(ranges, nodes, string_db, fcpgcontext) {
   
   # assume single SNP
   message("WARNING: Assuming single SNP in given data.")
@@ -46,37 +46,35 @@ get.link.priors <- function(ranges, nodes, string_db) {
   colnames(priors) <- rownames(priors) <- nodes
   
   # load annotation needed for cpg2gene priors
-  # TODO add those states for cpg priors once we got our storage back
-  #epigen.states <- read.table("data/current/epigenetic_state_annotation_weighted_all_sentinels.txt", 
-  #                      header = T, sep="\t", row.names = 1)
+  epigen.states <- read.table("data/current/epigenetic_state_annotation_weighted_all_sentinels.txt",
+                              header = T, sep="\t", row.names = 1)
   
-  # TODO for new structure of ranges!
   ## SET CPG-CPGGENE PRIOR
-  # for(i in names(cpg.dists)){
-  #   gene.ranges <- cpg.dists[[i]];
-  #   temp <- lapply(gene.ranges, function(r) {
-  #     s <- r$SYMBOL;
-  #     if(s %in% colnames(priors)) {
-  #       # set the basic prior based on distance (the larger the distance, the lower the prior should be)
-  #       # but scale it to be between 0 and 1
-  #       dist <- r$distance
-  #       if(!is.na(dist)){
-  #         # if the cpg is in range of the tss (within 200bp), 
-  #         # set a specific prior for active TSS... 
-  #         p <- pseudo.prior
-  #         if(dist <= 200){
-  #           # set the cpg.state prior
-  #           p <- p + sum(epigen.states[i, c("Active.TSS", 
-  #                                       "Flanking.Active.TSS", 
-  #                                       "Bivalent.Poised.TSS",
-  #                                       "Flanking.Bivalent.TSS.Enh")]) 
-  #         }
-  #         priors[i,s] <<- p
-  #         priors[s,i] <<- p
-  #       }
-  #     }
-  #   })
-  # }
+  for(n in names(ranges$cpg_genes)){
+    cg <- ranges$cpg_genes[n]
+    cpg <- strsplit(n, "\\.")[[1]][1]
+    symbol <- cg$SYMBOL
+    d <- cg$distance
+    if(symbol %in% colnames(priors)) {
+      # set the basic prior based on distance 
+      # (the larger the distance, the lower the prior should be)
+      # but scale it to be between 0 and 1
+      if(!is.na(d)){
+        # if the cpg is in range of the tss (within 200bp), 
+        # set a specific prior for active TSS... 
+        p <- pseudo_prior
+        if(d <= 200){
+          # set the cpg.state prior
+          p <- p + sum(epigen.states[i, c("Active.TSS", 
+                                          "Flanking.Active.TSS", 
+                                          "Bivalent.Poised.TSS",
+                                          "Flanking.Bivalent.TSS.Enh")]) 
+        }
+        priors[i,s] <<- p
+        priors[s,i] <<- p
+      }
+    }
+  }
   
   ## SET SNP PRIOR (if available)
   # iterate over each of the snp genes and set prior according to
@@ -151,25 +149,25 @@ get.link.priors <- function(ranges, nodes, string_db) {
   
   ## SET TF-CPG PRIOR
   # we will also set tf2cpg priors at this point, so get all TFs
-  # tfs <- ranges$tfs$SYMBOL
-  # # also get the chipseq context for our cpgs
-  # context <- get.chipseq.context(names(ranges$cpgs))
-  # 
-  # # for all cpgs
-  # for(c in rownames(context)){
-  #   for(tf in tfs) {
-  #     # might be that the TF was measured in more than one cell line
-  #     if(any(context[c,grepl(tf, colnames(context))])) {
-  #       if(c %in% colnames(priors) &
-  #          tf %in% colnames(priors)){
-  #           priors[c,tf] <- 0.7
-  #           priors[tf,c] <- 0.7
-  #       } else {
-  #         message("WARNING: TF-CpG link not available:",c,"-", tf, "\n")
-  #       }
-  #     }
-  #   }
-  # }
+  tfs <- ranges$tfs$SYMBOL
+  # also get the chipseq context for our cpgs
+  context <- get.chipseq.context(names(ranges$cpgs), fcpgcontext)
+   
+  # for all cpgs
+  for(c in rownames(context)){
+    for(tf in tfs) {
+      # might be that the TF was measured in more than one cell line
+      if(any(context[c,grepl(tf, colnames(context))])) {
+        if(c %in% colnames(priors) &
+                tf %in% colnames(priors)){
+          priors[c,tf] <- 0.8
+          priors[tf,c] <- 0.8
+         } else {
+          message("WARNING: TF-CpG link not available:",c,"-", tf, "\n")
+         }
+       }
+     }
+  }
 
 
   # sanity check, matrix should not contain 0s or 1s or values smaller than our

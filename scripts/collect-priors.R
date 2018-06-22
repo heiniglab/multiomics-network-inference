@@ -16,6 +16,7 @@ source("scripts/priors.R")
 
 feqtl <- snakemake@input[["gg_priors"]]
 fsnpinfo <- snakemake@input[["eqtl_priors"]]
+fcpgcontext <- snakemake@input[["cpg_context"]]
 fexpr <- snakemake@input[["ranges"]]
 fstring <- snakemake@input[["string"]]
 franges <- snakemake@input[["ranges"]]
@@ -41,7 +42,7 @@ if(!is.null(ranges$spath)){
 nodes <- unique(nodes)
 
 # simply delegate
-pr <- get.link.priors(ranges, nodes, string_db)
+pr <- get_link_priors(ranges, nodes, string_db, fcpgcontext)
 
 saveRDS(pr, file=ofile)
 

@@ -65,13 +65,12 @@ get_link_priors <- function(ranges, nodes, string_db, fcpgcontext) {
         p <- pseudo_prior
         if(d <= 200){
           # set the cpg.state prior
-          p <- p + sum(epigen.states[i, c("Active.TSS", 
+          p <- p + sum(epigen.states[cpg, c("Active.TSS", 
                                           "Flanking.Active.TSS", 
                                           "Bivalent.Poised.TSS",
                                           "Flanking.Bivalent.TSS.Enh")]) 
         }
-        priors[i,s] <<- p
-        priors[s,i] <<- p
+        priors[cpg,symbol] <- priors[symbol,cpg] <- p
       }
     }
   }

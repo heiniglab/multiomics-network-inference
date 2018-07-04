@@ -55,6 +55,11 @@ get_string_shortest_paths <- function(cis, trans, snp_genes, string_db) {
     return(NULL)
   }
   
+  res <- unique(unlist(lapply(sp.between(g, cis, trans), "[[", "path_detail")))
+  res <- setdiff(res, c(cis, trans))
+  
+  return(res)
+  
   # ----------------------------------------------------------------------------
   # calculate weights for nodes
   print("Starting propagation.")
@@ -303,6 +308,6 @@ cosmo <- readRDS(fcosmo)
 print("Collecting ranges.")
 
 # collect all associated ranges
-ranges <- collect.ranges(sentinel, cosmo, trans_meQTL, fcpgcontext)
+ranges <- collect_ranges(sentinel, cosmo, trans_meQTL, fcpgcontext)
 
 saveRDS(file=ofile, ranges)

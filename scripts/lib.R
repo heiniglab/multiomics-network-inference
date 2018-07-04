@@ -131,7 +131,11 @@ get.chipseq.context <- function(cpgs, fcontext){
 #'
 #' @author Johann Hawe
 #'
-graph_from_fit <- function(ggm.fit, ranges, fcontext=NULL, annotate=T){
+graph_from_fit <- function(ggm.fit, 
+                           ranges, 
+                           string_db=NULL, 
+                           fcontext=NULL, 
+                           annotate=T){
   
   if(annotate & is.null(fcontext)) {
     stop("Chip-seq context file must not be null for annotating graphs!")
@@ -142,13 +146,13 @@ graph_from_fit <- function(ggm.fit, ranges, fcontext=NULL, annotate=T){
   library(igraph)
   
   # get the graph instance from the ggm fit
-  cutoff <- 0.9
+  cutoff <- 0.99
   g.adj <- BDgraph::select(ggm.fit, cut = cutoff)
   g <- as_graphnel(graph.adjacency(g.adj, mode="undirected", diag=F))
   
   if(annotate) {
     # set node and edge attributes
-    g <- annotate.graph(g, ranges, fcontext)
+    g <- annotate.graph(g, ranges, string_db, fcontext)
   }
   return(g)
 }
@@ -165,7 +169,7 @@ graph_from_fit <- function(ggm.fit, ranges, fcontext=NULL, annotate=T){
 #' 
 #' @author Johann Hawe
 #' 
-annotate.graph <- function(g, ranges, fcontext){
+annotate.graph <- function(g, ranges, string_db, fcontext){
   # work on all graph nodes
   gn <- nodes(g)
   
@@ -214,10 +218,10 @@ annotate.graph <- function(g, ranges, fcontext){
   # ppi edgedata
   
   # get subset of edges which are in our current graph
-  STRING_SUB <- subGraph(intersect(nodes(STRING_DB), gn), STRING_DB)
-  edges <- t(edgeMatrix(STRING_SUB))
+  ss <- subGraph(intersect(nodes(string_db), gn), STRING_DB)
+  edges <- t(edgeMatrix(ss))
   edges <- cbind(gn[edges[,1]], gn[edges[,2]])
-  edges <- filter.edge.matrix(g,edges)
+  edges <- filter.edge.matrix(g, edges)
   if(nrow(edges) > 0){
     edgeData(g,edges[,1], edges[,2],"isPPI") <- T
   }

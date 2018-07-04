@@ -66,9 +66,9 @@ pairs <- lapply(colnames(expr), function(tf) {
   bound_cpgs <- names(rs[rs>0])
   
   assoc <- unlist(mclapply(bound_cpgs, function(c) {
-                         cor(expr[,tf], 
+                         cor.test(expr[,tf], 
                              meth[,c], 
-                             method="spearman")
+                             method="pearson")$p.value
     }, mc.cores=threads))
   
   cbind.data.frame(TF=rep(tf, length(assoc)), 
@@ -78,8 +78,11 @@ pairs <- lapply(colnames(expr), function(tf) {
 })
 
 tab <- do.call(rbind, pairs)
-colnames(tab) <- c("TF", "CpG", "rho")
+colnames(tab) <- c("TF", "CpG", "pval")
+tab$qval <- qvalue(tab$pval)$lfdr
+tab$prior <- 1-tab$qval
 head(tab)
-write.table(file="results/current/tf-cpg-prior.txt", sep="\t", col.names=T,
+write.table(file="results/current/tf-cpg-prior.txt", sep="\t", col.names=NA,
+            row.names=T,
             quote=F, tab)
 

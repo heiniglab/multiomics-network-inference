@@ -4,11 +4,12 @@
 # Prepare libraries and source scripts
 # ------------------------------------------------------------------------------
 # first load the custom BDgraph library plus others
-library(BDgraph, lib.loc = "/home/icb/johann.hawe/R/x86_64-redhat-linux-gnu-library/3.4")
+library(BDgraph, lib.loc = "/home/icb/johann.hawe/R/x86_64-redhat-linux-gnu-library/_3.4")
 library(pheatmap)
 library(GenomicRanges)
 library(igraph)
 library(graph)
+library(GeneNet)
 source("scripts/lib.R")
 
 # ------------------------------------------------------------------------------
@@ -43,6 +44,11 @@ STRING_DB <- readRDS(fstring)
 gstart <- get_gstart_from_priors(priors)
 
 # ------------------------------------------------------------------------------
+# for catching the genenet summary plots, we open the pdf connection here
+# ------------------------------------------------------------------------------
+pdf(fsummary_plot)  
+
+# ------------------------------------------------------------------------------
 # create the fits, learn our models
 # ------------------------------------------------------------------------------
 ggm_fit <- bdgraph(data, 
@@ -60,10 +66,27 @@ ggm_fit_no_priors <- bdgraph(data,
                              save.all=T, 
                              g.start = gstart,
                              cores=cores)
-      
+
+# estimate using genenet, remove NAs beforehand
+gn_data <- data[,apply(data, 2, function(x) !anyNA(x))]
+
+pcors <- ggm.estimate.pcor(gn_data)
+ggm_fit_genenet <- network.test.edges(pcors)
+network_genenet <- extract.network(ggm_fit_genenet, 
+                                   cutoff.ggm=0.8)
+
 # get the graphs from the ggm fits
-graph <- graph_from_fit(ggm_fit, ranges, fcontext=fcontext)
-graph_no_priors <- graph_from_fit(ggm_fit_no_priors, ranges, fcontext=fcontext)
+graph <- graph_from_fit(ggm_fit, ranges, 
+                        string_db=STRING_DB, fcontext=fcontext)
+graph_no_priors <- graph_from_fit(ggm_fit_no_priors, ranges, 
+                                  string_db=STRING_DB, fcontext=fcontext)
+
+# create the genenet graph
+n <- colnames(gn_data)
+gn <- with(network_genenet, graphNEL(unique(c(n[node1], n[node2])), 
+                                     edgemode = "undirected"))
+graph_genenet <- with(network_genenet, addEdge(n[node1], n[node2], gn))
+graph_genenet <- annotate.graph(graph_genenet, ranges, STRING_DB, fcontext)
 
 # ------------------------------------------------------------------------------
 # All done, finalize everything
@@ -74,9 +97,8 @@ print("Prior-graph:")
 print(graph)
 print("No-Prior-graph:")
 print(graph_no_priors)
-
-# create summary plots
-pdf(fsummary_plot)  
+print("GeneNet-graph:")
+print(graph_genenet)
 
 # plot convergence info
 ggm_summary <- summary(ggm_fit)
@@ -90,12 +112,16 @@ pheatmap(gstart, cex=0.7, main="start graph",
          filename=fgstart_plot,
          cex=0.7)
 
+# ------------------------------------------------------------------------------
+# close the pdf connection from above (opened before fitting the graphs)
+# ------------------------------------------------------------------------------
 dev.off()
 
 # ------------------------------------------------------------------------------
 # Save results
 # ------------------------------------------------------------------------------
-result <- listN(ggm_fit, ggm_fit_no_priors, graph, graph_no_priors, 
+result <- listN(ggm_fit, ggm_fit_no_priors, ggm_fit_genenet, 
+                graph, graph_no_priors, graph_genenet,
                 gstart, ggm_summary, ggm_summary_no_priors)
 
 saveRDS(file=fout, result)

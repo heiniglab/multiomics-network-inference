@@ -94,7 +94,9 @@ print(paste0("Loaded ", nrow(teqtl), " trans-eQTL"))
 eqtms <- fread(fbonder_eqtm, data.table=F)
 
 # add a header line
-cols <- c("sentinel","cohort","graph_type", "snp_genes", "snp_genes_selected", "snp_genes.list", 
+cols <- c("sentinel","cohort","graph_type", "number_nodes", "number_edges", 
+          "graph_density", "cluster", "cluster_sizes", 
+          "snp_cluster", "snp_genes", "snp_genes_selected", "snp_genes.list", 
           "snp_genes_selected.list", "cpg_genes", "cpg_genes_selected", "tfs", "tfs_selected",
           "spath", "spath_selected",
           "mediation_significant", "mediation_selected_significant",
@@ -145,9 +147,10 @@ temp <- lapply(cohorts, function(cohort){
   # genes. Those entities can either have been selected via ggm graph or not.
   graph <- fits[[cohort]]$graph
   graph_no_priors <- fits[[cohort]]$graph_no_priors
-
-  # we apply over both graphs...
-  gs <- listN(graph,graph_no_priors)
+  graph_genenet <- fits[[cohort]]$graph_genenet
+  
+  # we apply over all graphs...
+  gs <- listN(graph, graph_no_priors, graph_genenet)
   
   # dnodes -> full set of possible nodes
   if("lolipop" %in% cohort){
@@ -161,18 +164,51 @@ temp <- lapply(cohorts, function(cohort){
   
   # ----------------------------------------------------------------------------
   # we have now all we need, now get specific for the 
-  # individual graphs (fittet with and w/o priors)
+  # individual graphs (fittet with and w/o priors, genenet...)
   # ----------------------------------------------------------------------------
   rows <- lapply(names(gs), function(gn) {
 
     print(paste0("Validating ", gn, " graph fit. ----------------------------"))
     
+    # --------------------------------------------------------------------------
     # remember whether currently we are looking at the
     # graph with or without priros by using the name
+    # --------------------------------------------------------------------------
     row <- c(row, gn)
 
     # get the graph
     g <- gs[[gn]]
+    
+    # get basic stats (number nodes, number edges, graph density)
+    nn <- numNodes(g)
+    ne <- numEdges(g)
+    gd <- (ne * 2) / (nn * (nn-1))
+    
+    # --------------------------------------------------------------------------
+    # add basic stats to row
+    # --------------------------------------------------------------------------
+    row <- c(row, nn, ne, gd)
+    
+    # check clusters and get the cluster with the SNP
+    ig = graph_from_graphnel(g)
+    cl = clusters(ig)
+    ncluster <- cl$no
+    scluster <- paste(sort(cl$csize, decreasing = T), 
+                      collapse=",")
+    
+    # remember snp membership
+    snp_cluster <- NA
+    if(sentinel %in% names(cl$membership)) {
+      snp_cluster <- cl$membership[sentinel]
+      snp_cluster_size <- cl$csize[snp_cluster]
+      
+      snp_cluster <- paste0(snp_cluster, "-", snp_cluster_size)
+    } 
+    # --------------------------------------------------------------------------
+    # add cluster information to row
+    # --------------------------------------------------------------------------
+    row <- c(row, ncluster, scluster, snp_cluster)
+    
     # the nodes retained in the fitted graph model
     gnodes <- nodes(g)
     
@@ -199,20 +235,15 @@ temp <- lapply(cohorts, function(cohort){
     spath <- ranges$spath$SYMBOL
     spath_selected <- spath[spath %in% gnodes]
     
+    # --------------------------------------------------------------------------
     # write to stats file
+    # --------------------------------------------------------------------------
     row <- c(row,
              length(sgenes), length(sgenes_selected),
              paste(sgenes, collapse=";"), paste(sgenes_selected, collapse=";"),
              length(cgenes), length(cgenes_selected),
              length(tfs), length(tfs_selected), 
              length(spath), length(spath_selected))
-    
-    # write to user
-    print(paste0("Summary on number of genes, total vs selected via ggm:"))
-    print(paste0("sgenes  ", length(sgenes),"  ", length(sgenes_selected)))
-    print(paste0("cgenes  ", length(cgenes),"  ", length(cgenes_selected)))
-    print(paste0("tfs  ", length(tfs),"  ", length(tfs_selected)))
-    print(paste0("spath  ", length(spath),"  ", length(spath_selected)))
     
     # Above the number of snp genes (sgenes), cpg genes (cgenes), transcription
     # factors (tfs) as well as the genes on the shortest paths between tfs and sgenes (spath)
@@ -235,12 +266,16 @@ temp <- lapply(cohorts, function(cohort){
     # concept.
     # 
     
+    # --------------------------------------------------------------------------
     # (1) Perform mediation analysis
     # mediation over all snp genes
+    # --------------------------------------------------------------------------
     med <- mediation(data, snp, sgenes, cpgs)
     row <- c(row, mediation.summary(med, sgenes, sgenes_selected))
     
+    # --------------------------------------------------------------------------
     # (2) check cis-eQTL in independent study
+    # --------------------------------------------------------------------------
     
     # filter ceqtl to be only related to our sentinel SNP
     # TODO use proxy/high ld snps to increase ceqtl number?
@@ -260,7 +295,9 @@ temp <- lapply(cohorts, function(cohort){
       rownames(cont) <- c("ceqtl", "no ceqtl")
       colnames(cont) <- c("not selected", "selected")
       cont
-      
+      # ------------------------------------------------------------------------
+      # add cis eqtl summary to stats
+      # ------------------------------------------------------------------------
       row <- c(row,
                fisher.test(cont)$p.value)
     }
@@ -272,7 +309,9 @@ temp <- lapply(cohorts, function(cohort){
     # (3) SNPs in TFBS
     ## not yet needed
     
+    # --------------------------------------------------------------------------
     ## CpG-gene and TF-CpG validation
+    # --------------------------------------------------------------------------
     # The next step is validating the cpg-gene and cpg-tf links. For this we use 3 approaches:
     # 1. check trans-eQTL in independent dataset. Here we found the paper of [Joehanes et al. 2017
     # in Genome Biology](https://genomebiology.biomedcentral.com/articles/10.1186/s13059-016-1142-6)
@@ -326,8 +365,10 @@ temp <- lapply(cohorts, function(cohort){
     expr.data <- list(geuvadis=geusub, geo=geosub, cohort=data[,!grepl("^cg|^rs",colnames(data)),drop=F])
     row <- c(row, validate.gene2gene(expr.data, g, all_genes))
     
+    # --------------------------------------------------------------------------
     ## GO enrichment
     # do one for all gene nodes in the graph
+    # --------------------------------------------------------------------------
     row <- c(row, validate.geneenrichment(gnodes))
     # finish the current sentinel
     # all went well
@@ -338,7 +379,7 @@ temp <- lapply(cohorts, function(cohort){
 })
 
 # report results
-if(nrow(tab) == 4){
+if(nrow(tab) == 6){
   # write output file
   write.table(file=fout, tab, col.names=T, 
               row.names=F, quote=F, sep="\t")

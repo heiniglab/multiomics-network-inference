@@ -180,10 +180,10 @@ annotate.graph <- function(g, ranges, string_db, fcontext){
   nodeData(g, gn, "snp") <- grepl("^rs", gn)
   
   nodeDataDefaults(g,"snp.gene") <- F
-  nodeData(g, gn, "snp.gene") <- gn %in% ranges$snp.genes$SYMBOL
+  nodeData(g, gn, "snp.gene") <- gn %in% ranges$snp_genes$SYMBOL
   
   nodeDataDefaults(g,"cpg.gene") <- F
-  nodeData(g, gn, "cpg.gene") <- gn %in% ranges$cpg.genes$SYMBOL
+  nodeData(g, gn, "cpg.gene") <- gn %in% ranges$cpg_genes$SYMBOL
   
   nodeDataDefaults(g, "tf") <- F
   nodeData(g, gn, "tf") <- gn %in% ranges$tfs$SYMBOL
@@ -767,7 +767,7 @@ get.g.start <- function(nodes, ranges){
   # create edge matrix for all cpg.gene-cpg edges to be added
   # to g.start
   em <- matrix(ncol=2,nrow=0)
-  cpg.genes <- ranges$cpg.genes
+  cpg.genes <- ranges$cpg_genes
   cpg.genes <- cpg.genes[cpg.genes$SYMBOL %in% nodes]
   cpgs <- (ranges$cpgs)
   cpgs <- cpgs[names(cpgs) %in% nodes]

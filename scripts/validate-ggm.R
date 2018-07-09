@@ -11,6 +11,7 @@
 # ------------------------------------------------------------------------------
 # Load libraries and source scripts
 # ------------------------------------------------------------------------------
+library(igraph)
 library(graph)
 library(data.table)
 library(GenomicRanges)
@@ -190,7 +191,7 @@ temp <- lapply(cohorts, function(cohort){
     row <- c(row, nn, ne, gd)
     
     # check clusters and get the cluster with the SNP
-    ig = graph_from_graphnel(g)
+    ig = igraph::graph_from_graphnel(g)
     cl = clusters(ig)
     ncluster <- cl$no
     scluster <- paste(sort(cl$csize, decreasing = T), 
@@ -222,13 +223,18 @@ temp <- lapply(cohorts, function(cohort){
     cpgs_selected <- cpgs[cpgs %in% gnodes]
     all_genes <- colnames(data)[!grepl("^rs|^cg", colnames(data))]
     sgenes <- intersect(dnodes, ranges$snp_genes$SYMBOL)
-    sgenes_selected <- sgenes[sgenes %in% unlist(adj(g,snp))]
+    if(!is.na(snp_cluster)){
+      sgenes_selected <- sgenes[sgenes %in% unlist(adj(g,snp))]
+    } else {
+      sgenes_selected <- c()
+    }
+    
     cgenes <- intersect(dnodes, ranges$cpg_genes$SYMBOL)
-    cgenes_selected <- cgenes[cgenes %in% unlist(adj(g,cpgs))]
+    cgenes_selected <- cgenes[cgenes %in% unlist(adj(g,cpgs_selected))]
     
     # TODO also check TF to cpg-gene association..
     tfs <- intersect(dnodes, ranges$tfs$SYMBOL)
-    tfs_selected <- tfs[tfs %in% unlist(adj(g,cpgs))]
+    tfs_selected <- tfs[tfs %in% unlist(adj(g,cpgs_selected))]
     tfs_selected
     
     # the shortest path genes

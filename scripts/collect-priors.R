@@ -3,6 +3,9 @@
 #' @author Johann Hawe
 #' 
 
+# ------------------------------------------------------------------------------
+# Load libraries and source additional scripts
+# ------------------------------------------------------------------------------
 library(qvalue)
 library(data.table)
 library(graph)
@@ -14,6 +17,9 @@ library(pheatmap)
 source("scripts/lib.R")
 source("scripts/priors.R")
 
+# ------------------------------------------------------------------------------
+# get snakemake params
+# ------------------------------------------------------------------------------
 feqtl <- snakemake@input[["gg_priors"]]
 fsnpinfo <- snakemake@input[["eqtl_priors"]]
 fcpgcontext <- snakemake@input[["cpg_context"]]
@@ -24,6 +30,9 @@ sentinel <- snakemake@params$sentinel
 ofile <- snakemake@output[[1]]
 fplot <- snakemake@params$plot_file
 
+# ------------------------------------------------------------------------------
+# load data
+# ------------------------------------------------------------------------------
 print("Loading string db.")
 string_db <- readRDS(fstring)
 
@@ -41,10 +50,12 @@ if(!is.null(ranges$spath)){
 }
 nodes <- unique(nodes)
 
-# simply delegate
+# ------------------------------------------------------------------------------
+# get link priors, simply delegate
+# ------------------------------------------------------------------------------
 pr <- get_link_priors(ranges, nodes, string_db, fcpgcontext)
 
+print("Saving data.")
 saveRDS(pr, file=ofile)
-
 # create a heatmap to be able to look at the priors
 pheatmap(filename = fplot, pr)

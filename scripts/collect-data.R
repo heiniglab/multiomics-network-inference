@@ -424,6 +424,12 @@ data <- cbind.data.frame(covars,
                          geno[,colnames(geno) %in% snp_ids, drop=F], 
                          geno_ids=rownames(geno),
                          stringsAsFactors=F)
+
+# check which probes we didnt have available
+print("Unavailable probes:")
+print(expr_probes[!expr_probes %in% colnames(expr)])
+print(meth_probes[!meth_probes %in% colnames(meth)])
+
 # remove not needed remaining data frames
 rm(expr, meth, covars)
 gc()

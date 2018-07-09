@@ -30,14 +30,7 @@ get_link_priors <- function(ranges, nodes, string_db, fcpgcontext) {
     cat("WARNING: Sentinel", id, "has no GTEx eQTL!\n")
     gtex.eqtl <- NULL
   }
-  
-  # default window (needed for distance calculation) and number of bins
-  wnd <- 1e6;
-  nbins <- 200;
-  # create bin vector
-  step <- wnd/nbins;
-  bins <- seq(0,wnd-step, by=step);
-  
+ 
   # now build the prior matrix using a pseudo prior
   pseudo_prior <- 1e-7
   priors <- matrix(data = pseudo_prior, 
@@ -50,27 +43,31 @@ get_link_priors <- function(ranges, nodes, string_db, fcpgcontext) {
                               header = T, sep="\t", row.names = 1)
   
   ## SET CPG-CPGGENE PRIOR
-  for(n in names(ranges$cpg_genes)){
-    cg <- ranges$cpg_genes[n]
-    cpg <- strsplit(n, "\\.")[[1]][1]
-    symbol <- cg$SYMBOL
-    d <- cg$distance
-    if(symbol %in% colnames(priors)) {
-      # set the basic prior based on distance 
-      # (the larger the distance, the lower the prior should be)
-      # but scale it to be between 0 and 1
-      if(!is.na(d)){
-        # if the cpg is in range of the tss (within 200bp), 
-        # set a specific prior for active TSS... 
-        p <- pseudo_prior
-        if(d <= 200){
-          # set the cpg.state prior
-          p <- p + sum(epigen.states[cpg, c("Active.TSS", 
-                                          "Flanking.Active.TSS", 
-                                          "Bivalent.Poised.TSS",
-                                          "Flanking.Bivalent.TSS.Enh")]) 
+  for(n in names(ranges$cpg_genes_by_cpg)){
+    cpg <- ranges$cpgs[n]
+    cgs <- ranges$cpg_genes_by_cpg[[n]]
+    
+    for(i in 1:length(cgs)) {
+      g <- cgs[i]
+      symbol <- g$SYMBOL
+      d <- distance(g, cpg)
+      if(symbol %in% colnames(priors)) {
+        # set the basic prior based on distance 
+        # (the larger the distance, the lower the prior should be)
+        # but scale it to be between 0 and 1
+        if(!is.na(d)){
+          # if the cpg is in range of the tss (within 200bp), 
+          # set a specific prior for active TSS... 
+          p <- pseudo_prior
+          if(d <= 200){
+            # set the cpg.state prior
+            p <- p + sum(epigen.states[n, c("Active.TSS", 
+                                              "Flanking.Active.TSS", 
+                                              "Bivalent.Poised.TSS",
+                                              "Flanking.Bivalent.TSS.Enh")]) 
+          }
+          priors[n,symbol] <- priors[symbol,n] <- p
         }
-        priors[cpg,symbol] <- priors[symbol,cpg] <- p
       }
     }
   }

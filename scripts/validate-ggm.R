@@ -28,7 +28,7 @@ source("scripts/lib.R")
 # Get snakemake parameters
 # ------------------------------------------------------------------------------
 
-sentinel <- snakemake@wildcards$sentinel
+# inputs
 fkora_data <- snakemake@input[["kora_data"]]
 franges <- snakemake@input[["ranges"]]
 flolipop_data <- snakemake@input[["lolipop_data"]]
@@ -40,6 +40,10 @@ fciseqtl_kora <- snakemake@input[["cis_kora"]]
 ftranseqtl_kora <- snakemake@input[["trans_kora"]]
 fbonder_eqtm <- snakemake@input[["bonder_eqtm"]]
 
+# params
+threads <- snakemake@threads
+sentinel <- snakemake@wildcards$sentinel
+
 # this is the main outfile, to which to write all the validation results
 fout <- snakemake@output[[1]]
 
@@ -49,22 +53,23 @@ fout <- snakemake@output[[1]]
 
 print("Loading gene expression data.")
 
-# load gtex data
+# load geuvadis data
 geu <- fread(fgtex, header=T,
-             data.table=F, sep="\t")
-rownames(geu) <- geu[,1]
-geu <- t(geu[,-1])
+             sep="\t")
+colnames(geu)[1] <- "symbol"
+setkey(geu, symbol)
+
+# load GEO/ARCHS4  data
 geo <- fread(fgeo, 
-             data.table=F, header=T, sep="\t")
-rownames(geo) <- geo[,1]
-geo <- t(geo[,-1])
+             header=T, sep="\t")
+colnames(geo)[1] <- "symbol"
+setkey(geo, symbol)
 
 print("Loading KORA eQTL.")
-
-kora_ceqtl <- fread(fciseqtl_kora, sep=";",
-                         header=T, data.table=F)
-kora_teqtl <- fread(ftranseqtl_kora, sep=";",
-                    header=T, data.table=F)
+kora_ceqtl <- fread(fciseqtl_kora, sep="\t",
+                    header=T)
+kora_teqtl <- fread(ftranseqtl_kora, sep="\t",
+                    header=T)
 
 # load cis-eQTL data
 #ceqtl <- fread("zcat data/current/joehanes-et-al-2017/eqtls/eqtl-gene-annot_cis-only.txt.gz",
@@ -221,21 +226,27 @@ temp <- lapply(cohorts, function(cohort){
     data[,snp] <- as.integer(as.character(data[,snp]))
     cpgs <- intersect(dnodes, names(ranges$cpgs))
     cpgs_selected <- cpgs[cpgs %in% gnodes]
-    all_genes <- colnames(data)[!grepl("^rs|^cg", colnames(data))]
+    all_genes <- dnodes[!grepl("^rs|^cg", dnodes)]
     sgenes <- intersect(dnodes, ranges$snp_genes$SYMBOL)
     if(!is.na(snp_cluster)){
       sgenes_selected <- sgenes[sgenes %in% unlist(adj(g,snp))]
     } else {
       sgenes_selected <- c()
     }
-    
+
+    # cpg genes and TFs    
     cgenes <- intersect(dnodes, ranges$cpg_genes$SYMBOL)
-    cgenes_selected <- cgenes[cgenes %in% unlist(adj(g,cpgs_selected))]
-    
     # TODO also check TF to cpg-gene association..
     tfs <- intersect(dnodes, ranges$tfs$SYMBOL)
-    tfs_selected <- tfs[tfs %in% unlist(adj(g,cpgs_selected))]
-    tfs_selected
+
+    # selected cpg genes and TFs
+    if(length(cpgs_selected)>0) {
+      cgenes_selected <- cgenes[cgenes %in% unlist(adj(g,cpgs_selected))]
+      tfs_selected <- tfs[tfs %in% unlist(adj(g,cpgs_selected))]
+    } else {
+      cgenes_selected <- c()
+      tfs_selected <- c()
+    }
     
     # the shortest path genes
     spath <- ranges$spath$SYMBOL
@@ -285,7 +296,7 @@ temp <- lapply(cohorts, function(cohort){
     
     # filter ceqtl to be only related to our sentinel SNP
     # TODO use proxy/high ld snps to increase ceqtl number?
-    ceqtlsub <- ceqtl[ceqtl$Rs_ID %in% snp,,drop=F]
+    ceqtlsub <- ceqtl[ceqtl$SNP %in% snp]
     if(nrow(ceqtlsub) < 1) {
       warning("Sentinel " %+% sentinel %+% " not found in cis-eQTL data")
       # report NA in stats file 
@@ -326,7 +337,7 @@ temp <- lapply(cohorts, function(cohort){
     
     # filter teqtl to be only related to our sentinel SNP
     # TODO use proxy/high ld snps to increase teqtl number?
-    teqtlsub <- teqtl[teqtl$`top SNP KORA` %in% snp,,drop=F]# & (teqtl$log10FDR) < (-2),,drop=F]
+    teqtlsub <- teqtl[teqtl$SNP %in% snp]# & (teqtl$log10FDR) < (-2),,drop=F]
     if(nrow(teqtlsub)<1) {
       warning("Sentinel " %+% sentinel %+% " not available in trans-eQTL data.")
       # report NA in stats file 
@@ -357,10 +368,16 @@ temp <- lapply(cohorts, function(cohort){
     # load the expression data from geuvadis/lappaleinen
    
     # subset to genes which were available to the gggm algorithm
-    geusub <- geu[,colnames(geu) %in% dnodes, drop=F]
-    
+    geu_sym <- all_genes[all_genes %in% geu$symbol]
+    geusub <- geu[geu_sym]
+    geusub <- t(geusub[,-1,with=F])
+    colnames(geusub) <- geu_sym
+
     # load geo whole blood expression data
-    geosub <- geo[,colnames(geo) %in% dnodes, drop=F]
+    geo_sym <- all_genes[all_genes %in% geo$symbol]
+    geosub <- geo[geo_sym]
+    geosub <- t(geosub[,-1,with=F])
+    colnames(geosub) <- geo_sym
     
     # We collected the expression data from 3 different datasets, i.e. kora/lolipop,
     # GEO and the Geuvadis datasets.
@@ -368,7 +385,7 @@ temp <- lapply(cohorts, function(cohort){
     # of samples. 
     
     # list of all expr datasets
-    expr.data <- list(geuvadis=geusub, geo=geosub, cohort=data[,!grepl("^cg|^rs",colnames(data)),drop=F])
+    expr.data <- list(geuvadis=geusub, geo=geosub, cohort=data[,all_genes,drop=F])
     row <- c(row, validate.gene2gene(expr.data, g, all_genes))
     
     # --------------------------------------------------------------------------
@@ -391,5 +408,7 @@ if(nrow(tab) == 6){
               row.names=F, quote=F, sep="\t")
 } else {
   # report error
-  cat(file=fout, "Error for sentinel with id", sentinel, "\n")
+  stop(paste0("Error for sentinel with id", 
+              sentinel, 
+              ". Not all models were validated successfully."))
 }

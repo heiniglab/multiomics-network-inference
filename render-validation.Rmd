@@ -49,8 +49,7 @@ fsummary <- "results/current/validation/validation.all.txt"
 
 # load the large result table for all loci
 # TODO we currently remove the results for the GO enrichment
-tab <- read.table(fsummary, header=T, sep="\t")[1:33]
-print(head(tab))
+tab <- read.table(fsummary, header=T, sep="\t", stringsAsFactors=F)[1:33]
 
 # create some basic plots of the gene counts
 toplot <- tab[,c("sentinel", "cohort", "graph_type",
@@ -62,39 +61,51 @@ toplot <- tab[,c("sentinel", "cohort", "graph_type",
                  "tfs", "tfs_selected",
                  "spath", "spath_selected")]
 toplot$snp_in_network <- !is.na(toplot[,"snp_cluster"])
-ggplot(data=toplot, aes(snp_in_network)) + geom_histogram() + 
+
+
+gp1 <- ggplotGrob(ggplot(data=toplot, aes(snp_in_network)) + geom_histogram(stat="count") + 
   facet_grid(cohort ~ graph_type) + 
-  ggtitle("Number of networks in which the SNP has been selected at all")
+  ggtitle("Number of networks in which the SNP has been selected at all"))
 
 # show the distribution of number of nodes per network
-ggplot(data=toplot, aes(number_nodes)) + geom_histogram() + 
+gp2 <- ggplotGrob(ggplot(data=toplot, aes(number_nodes)) + geom_histogram() + 
   facet_grid(cohort ~ graph_type) + 
-  ggtitle("Distribution of the number of nodes in the networks")
+  ggtitle("Distribution of the number of nodes in the networks"))
 
 # show the distribution of number of edges per network
-ggplot(data=toplot, aes(number_edges)) + geom_histogram() + 
+gp3 <- ggplotGrob(ggplot(data=toplot, aes(number_edges)) + geom_histogram() + 
   facet_grid(cohort ~ graph_type) + 
-  ggtitle("Distribution of the number of edges in the graph")
+  ggtitle("Distribution of the number of edges in the graph"))
 
 # show the distribution of graph_densities network
-ggplot(data=toplot, aes(graph_density)) + geom_histogram() + 
+gp4 <- ggplotGrob(ggplot(data=toplot, aes(graph_density)) + geom_histogram() + 
   facet_grid(cohort ~ graph_type) + 
-  ggtitle("Distribution of graph densities over all networks", "density= 2*|E| / |V|*(|V|-1)")
+  ggtitle("Distribution of graph densities over all networks", "density= 2*|E| / |V|*(|V|-1)"))
 
 # show the distribution of resulting clusters (number of clusters, largest cluster size)
 cluster_ratios <- c()
 for(i in 1:nrow(toplot)) {
   # get cluster ratio
-  clusters_sizes <- toplot[i,"cluster_sizes"]
-  largest_cluster <- sort(as.numeric(strsplit(cluster_sizes, ",")[[1]]), decreasing = T)
+  cluster_sizes <- toplot[i,"cluster_sizes"]
+  largest_cluster <- sort(as.numeric(strsplit(cluster_sizes, ",")[[1]]), decreasing = T)[1]
   cluster_ratios <- c(cluster_ratios, 
                       largest_cluster/toplot[i,"number_nodes"])
 }
 toplot$cluster_ratio <- cluster_ratios
 
-ggplot(data=toplot, aes(cluster_ratio)) + geom_histogram() + 
+# summarize the first four plots in one file
+ggsave(plot=grid.arrange(gp1, gp2, gp3, gp4, ncol=2),
+       file="results/current/validation/stat_overview.pdf", 
+       width=12, 
+       height=8)
+
+# save the cluster ratios plot individually
+gp <- ggplotGrob(ggplot(data=toplot, aes(cluster_ratio)) + geom_histogram() + 
   facet_grid(cohort ~ graph_type) + 
-  ggtitle("Ratio of the amount of nodes in the largest clusters vs all nodes in the network")
+  ggtitle("Ratio of the amount of nodes in the largest clusters vs all nodes in the network"))
+ggsave(plot=gp,
+       file="results/current/validation/cluster_ratios.pdf",
+       width=10, height=10)
 
 # define pseudo_count and get ratios of retained genes
 pc <- 0 # no log10 for now
@@ -104,21 +115,26 @@ toplot$tf_ratio <- ((toplot$tfs_selected + pc) / (toplot$tfs + pc))
 toplot$spath_ratio <- ((toplot$spath_selected + pc) / (toplot$spath + pc))
 
 # snp gene ratio
-ggplot(data=toplot, aes(snp_gene_ratio)) + geom_histogram() + 
+ggp1 <- ggplotGrob(ggplot(data=toplot, aes(snp_gene_ratio)) + geom_histogram() + 
   facet_grid(cohort ~ graph_type) + 
-  ggtitle("Ratio of the number of SNP-genes kept in GGM vs all SNP-genes in locus")
+  ggtitle("Ratio of the number of SNP-genes kept in GGM vs all SNP-genes in locus"))
 # cpg gene ratio
-ggplot(data=toplot, aes(cpg_gene_ratio)) + geom_histogram() + 
+ggp2 <- ggplotGrob(ggplot(data=toplot, aes(cpg_gene_ratio)) + geom_histogram() + 
   facet_grid(cohort ~ graph_type) + 
-  ggtitle("Ratio of the number of CpG-genes kept in GGM vs all CpG-genes in locus")
+  ggtitle("Ratio of the number of CpG-genes kept in GGM vs all CpG-genes in locus"))
 # tf ratio
-ggplot(data=toplot, aes(tf_ratio)) + geom_histogram() + 
+ggp3 <- ggplotGrob(ggplot(data=toplot, aes(tf_ratio)) + geom_histogram() + 
   facet_grid(cohort ~ graph_type) + 
-  ggtitle("Ratio of the number of TFs kept in GGM vs all TFs in locus")
+  ggtitle("Ratio of the number of TFs kept in GGM vs all TFs in locus"))
 # spath ratio
-ggplot(data=toplot, aes(spath_ratio)) + geom_histogram() + 
+ggp4 <- ggplotGrob(ggplot(data=toplot, aes(spath_ratio)) + geom_histogram() + 
   facet_grid(cohort ~ graph_type) +
-  ggtitle("Ratio of the number of shortest path genes kept in GGM vs all shortest path genes in locus")
+  ggtitle("Ratio of the number of shortest path genes kept in GGM vs all shortest path genes in locus"))
+
+# arrange and plot
+ggsave(plot=grid.arrange(ggp1, ggp2, ggp3, ggp4, ncol=2),
+       file="results/current/validation/gene_types.pdf",
+       width=12, height=8)
 ```
 
 Above we see a simple overview over the selected entities (snp genes, cpg genes,
@@ -148,13 +164,12 @@ toplot <- mediation[order(mediation$mediation_selected),]
 toplot$sentinel <- factor(toplot$sentinel, levels=unique(toplot$sentinel))
 toplot <- melt(toplot, measure.vars=c(4,5), value.name = "pval")
 
-p <- ggplot(data=toplot, aes(x=graph_type, y=-log10(pval), fill=variable)) +
+gp1 <- ggplot(data=toplot, aes(x=graph_type, y=-log10(pval), fill=variable)) +
   geom_boxplot(outlier.color = NA) + 
   facet_grid(cohort ~ .) +
-  theme(axis.text.x = 
-          element_text(angle = 90, hjust = 1, vjust=0)) + 
-  geom_hline(yintercept = -log10(0.05), color="red")
-p
+  geom_hline(yintercept = -log10(0.05), color="red") + 
+  ggtitle("Mediation results of all SNP genes over all loci.")
+gp1
 ```
 
 ### Mediation log-foldchanges
@@ -167,18 +182,27 @@ toplot$sentinel <- factor(toplot$sentinel, levels=unique(toplot$sentinel))
 
 toplot <- melt(toplot, measure.vars=6, value.name="log_fc")
 toplot$favored <- factor(sign(toplot$log_fc),labels = c("not selected", "selected"))
-p <- ggplot(toplot, aes(x=sentinel, y=log_fc, fill=favored)) +
+gp2 <- ggplot(toplot, aes(x=sentinel, y=log_fc, fill=favored)) +
   geom_bar(stat="identity") + 
   facet_grid(cohort ~ graph_type) +
   theme(axis.text.x = 
           element_text(angle = 90, hjust = 1, vjust=0)) +
-  ylab("log10(all / selected)")
-p
+  ylab("log10(all / selected)") + 
+  ggtitle("Mediation results of all SNP genes, log-foldchanges.")
+gp2
 
 perc <- table(toplot$favored, toplot$graph_type)
 perc <- perc["selected",] / colSums(perc)
 print("Percentage of selected vs not selected mediating genes:")
 print(perc)
+
+# save the two mediation plots
+gp1 <- ggplotGrob(gp1)
+gp2 <- ggplotGrob(gp2)
+
+ggsave(plot=grid.arrange(gp1, gp2, nrow=2),
+       file="results/current/validation/mediation.pdf",
+       width=12, height=8)
 
 ```
 This figure shows a different summary of the mediation results. Shown is the log10 fold change
@@ -236,7 +260,9 @@ temp <- lapply(names(results), function(n) {
   return(p)
 })
 theme_update(plot.title = element_text(hjust = 0.5))
-grid.arrange(temp[[1]], temp[[2]], ncol=2)
+ga <- grid.arrange(temp[[1]], temp[[2]], temp[[3]], ncol=2)
+ggsave(plot=ga, file="results/current/validation/mediation_percentages.pdf",
+       width=12, height=8)
 
 ```
 
@@ -252,43 +278,57 @@ kable(temp,align = c("c","c"))
 # do it for both cohorts separately for now
 # we canin the endsum up the tables to get an overall view
 # TODO currently we only look at the graph incl priors
-cohorts <- c("kora", "lolipop")
-values <- lapply(cohorts, function(cohort){
-  dat <- tab[tab$cohort == cohort & tab$graph_type == "graph",
-             c("sentinel", "snp_genes", "snp_genes_selected",
-               "mediation_significant", "mediation_selected_significant")]
-  result <- sapply(dat$sentinel, function(s) {
-    d <- dat[dat$sentinel==s,,drop=F]
-    v1 <- d$mediation_significant==0 & d$snp_genes_selected == 0
-    v2 <- d$mediation_significant==0 & d$snp_genes_selected > 0
-    v3 <- d$mediation_significant>0 & d$snp_genes_selected == 0 
-    v4 <- d$mediation_selected_significant > 0
-    # todo
-    v5 <- ""
-    return(c(v1,v2,v3,v4))  
-  })
+cohorts <- c("kora", "lolipop", "both")
+graph_types <- unique(tab$graph_type)
+values <- lapply(cohorts, function(cohort) {
+  temp <- lapply(graph_types, function(graph_type) {
+    if(cohort=="both") {
+      cohort2 <- c("kora", "lolipop")
+    } else { 
+      cohort2 <- cohort
+    }
+    dat <- tab[tab$cohort %in% cohort2 & tab$graph_type == graph_type,
+               c("sentinel", "snp_genes", "snp_genes_selected",
+                 "mediation_significant", "mediation_selected_significant")]
+    result <- sapply(1:nrow(dat), function(i) {
+      d <- dat[i,,drop=F]
+      v1 <- d$mediation_significant==0 & d$snp_genes_selected == 0
+      v2 <- d$mediation_significant==0 & d$snp_genes_selected > 0
+      v3 <- d$mediation_significant>0 & d$snp_genes_selected == 0 
+      v4 <- d$mediation_selected_significant > 0
+      # todo
+      v5 <- ""
+      return(c(v1,v2,v3,v4))  
+    })
   
-  result <- matrix(unlist(result), byrow = T, ncol=4)
-  result <- colSums(result)
-  names(result) <- c("TN", "FP", "FN", "TP")
-  result
+    result <- matrix(unlist(result), byrow = T, ncol=4)
+    result <- colSums(result)
+    names(result) <- c("TN", "FP", "FN", "TP")
+    result
+  })
+  names(temp) <- paste(cohort, graph_types, sep=".")
+  do.call(rbind, temp)
 })
 names(values) <- cohorts
+values <- as.data.frame(do.call(rbind, values))
+values$cohort <- unlist(lapply(strsplit(rownames(values), "\\."), "[[", 1))
+values$graph_type <- unlist(lapply(strsplit(rownames(values), "\\."), "[[", 2))
 
-print.perf <- function(v, msg) {
-  print(msg) 
-  print(paste0("Sensitivity: ", 
-             v["TP"] / (v["TP"] + v["FN"])))
-  print(paste0("Specificity: ", 
-             v["TN"] / (v["TN"] + v["FP"])))
-}
+sens <- function(d) { d[,"TP"] / (d[,"TP"] + d[,"FN"]) }
+spec <- function(d) { d[,"TN"] / (d[,"TN"] + d[,"FP"]) }
 
-v <- values$kora
-print.perf(v, "## Results for KORA:")
-v <- values$lolipop
-print.perf(v, "## Results for LOLIPOP:")
-v <- v + values$kora[names(v)]
-print.perf(v, "## Results summed over both cohorts:")
+# save a simple plot showing the performance values
+df <- values
+df$sensitivity <- sens(df)
+df$specificity <- spec(df)
+df <- melt(df, measure.vars=c(7,8), value.name="performance")
+gp <- ggplot(data=df, aes(y=performance, x=graph_type, fill=graph_type)) + 
+	geom_bar(stat="identity") + 
+	facet_grid(cohort ~ variable) + scale_y_continuous(limits=c(0,1)) + 
+	ggtitle("Performance of GGMs on different cohorts", "Baseline defined via significant mediation genes. Summary over all sentinels.")
+
+ggsave(plot=gp, file="results/current/validation/performance.pdf",
+       width=10,height=12)
 
 ```
 
@@ -341,6 +381,10 @@ p <- ggplot(gg, aes(x=reorder(sentinel,value), y=value, fill=variable)) +
   geom_hline(yintercept = -log10(0.05))
 
 p
+
+ggsave(plot=p,
+       file="results/current/validation/gene_expression.pdf",
+       width=12, height=8)
 
 #create list of plots
 #p <- lapply(split(gg,gg$variable), function(x){

@@ -1,15 +1,37 @@
+# -----------------------------------------------------------------------------
+# Define some global vars
+# -----------------------------------------------------------------------------
 LISTS = glob_wildcards("data/current/sentinels/{sentinel}.dummy")
 COHORTS = ["lolipop", "kora"]
 
 
+
+# -----------------------------------------------------------------------------
+# Define rules which should only be executed locally
+# -----------------------------------------------------------------------------
 localrules: 
-	all, preprocess, summarize_validation, 
+	all, preprocess_kora_individuals, summarize_validation, 
 	all_sim, validate_ggm_simulation, create_priors,
 	summarize_simulation, render_validation,
-	create_stringdb, create_cosmo_pairs, all_ranges, all_data
+	create_stringdb, create_cosmo_splits, all_ranges
+
+
+# -----------------------------------------------------------------------------
+# Target rule for complete cohort study
+# -----------------------------------------------------------------------------
+rule all:
+	input:
+		"results/current/validation.html"
+	
+#------------------------------------------------------------------------------
+# Target rule for complete simulation study
+#------------------------------------------------------------------------------
+#rule all_sim:
+#	input: "results/current/simulation/simulation.html"
+
 
 ###############################################################################
-####### General rules used in both simulation and cohort studies ##############
+# General rules used in both simulation and cohort studies
 ###############################################################################
 
 #------------------------------------------------------------------------------
@@ -138,10 +160,6 @@ rule prepare_lolipop_data:
 	script:
 		"scripts/prepare-lolipop-data.R"
 		
-###############################################################################
-###################### Rules for cohort GGM study #############################
-###############################################################################
-
 #------------------------------------------------------------------------------
 # Collect range information per sentinel snp (snp genes, cpg genes, etc)
 #------------------------------------------------------------------------------
@@ -150,8 +168,10 @@ rule collect_ranges:
 		cpgcontext="data/current/cpgs_with_chipseq_context_100.RData",
 		string="results/current/string.v9.expr.rds",
 		meqtl="data/current/meQTLs/transpairs_r02_110117_converted_1MB.txt",
-		tcosmo="results/current/trans-cosmopairs_combined_151216.rds"
-	output: "results/current/ranges/{sentinel}.rds"
+		tcosmo="results/current/trans-cosmopairs_combined_151216.rds",
+		priorization="data/current/rw_string_v9_ld_wb_prioritize_full_with_empirical_p_lte_0.05.txt"
+	output: 
+		"results/current/ranges/{sentinel}.rds"
 	log: 
 		"logs/collect-ranges/{sentinel}.log"
 	benchmark: 
@@ -159,13 +179,11 @@ rule collect_ranges:
 	threads: 1
 	resources:
 		mem_mb=2300
-	params:
-		sentinel="{sentinel}"
 	script:
 		"scripts/collect-ranges.R"
 
 #------------------------------------------------------------------------------
-# Pseudo rule to collect ranges for all sentinels
+# Meta rule to collect ranges for all sentinels
 #------------------------------------------------------------------------------
 rule all_ranges:
 	input:
@@ -204,7 +222,8 @@ rule collect_priors:
 		gg_priors="results/current/gtex.gg.cors.rds", 
 		eqtl_priors="results/current/gtex.eqtl.priors.rds",
 		ranges="results/current/ranges/{sentinel}.rds",
-		string="results/current/string.v9.expr.rds"
+		string="results/current/string.v9.expr.rds",
+		cpg_context="data/current/cpgs_with_chipseq_context_100.RData"
 	output: 
 		"results/current/priors/{sentinel}.rds",
 		"results/current/priors/{sentinel}.pdf"
@@ -221,9 +240,17 @@ rule collect_priors:
 	script:
 		"scripts/collect-priors.R"
 
+#------------------------------------------------------------------------------
+# Meta rule to get priors for all sentinels
+#------------------------------------------------------------------------------
 rule all_priors:
 	input: 
 		expand("results/current/priors/{sentinel}.pdf", sentinel=LISTS.sentinel)
+
+
+###############################################################################
+# Rules for cohort GGM study
+###############################################################################
 
 #------------------------------------------------------------------------------
 # Apply ggm on collected data and priors for a sentinel
@@ -257,7 +284,16 @@ rule apply_ggm:
 #------------------------------------------------------------------------------
 rule validate_ggm:
 	input: 
-		expand("results/current/fits/{cohort}/{{sentinel}}.rds", cohort=COHORTS)
+		ranges="results/current/ranges/{sentinel}.rds",
+		gtex="data/current/geuvadis/GD660.GeneQuantRPKM.tsv",
+		geo="data/current/archs4/whole_blood/expression_matrix_norm_peer.tsv",
+		cis_kora="data/current/kora/eqtl/cis-full.tsv",
+		trans_kora="data/current/kora/eqtl/trans-full.tsv",
+		bonder_eqtm="data/current/bonder-et-al-2017/2015_09_02_cis_eQTMsFDR0.05-CpGLevel.txt",
+		kora_data="results/current/cohort-data/kora/{sentinel}.rds",
+		lolipop_data="results/current/cohort-data/lolipop/{sentinel}.rds",
+		kora_fit="results/current/fits/kora/{sentinel}.rds",
+		lolipop_fit="results/current/fits/lolipop/{sentinel}.rds"
 	output: 
 		"results/current/validation/{sentinel}.txt"
 	log: 
@@ -268,7 +304,7 @@ rule validate_ggm:
 	resources:
 		mem_mb=3000
 	script:
-		"R/validate-ggm.R"
+		"scripts/validate-ggm.R"
 
 #------------------------------------------------------------------------------
 # Collect validation information in single file
@@ -288,23 +324,17 @@ rule render_validation:
 	log:	
 		"logs/validation.log"
 	script:
-		"R/render-validation.Rmd"
-
-#------------------------------------------------------------------------------
-# Target rule for complete cohort study
-#------------------------------------------------------------------------------
-rule all:
-	input: "results/current/validation.html"
+		"render-validation.Rmd"
 
 
 ###############################################################################
-###################### Rules for simulation study #############################
+# Rules for simulation study
 ###############################################################################
 
 #------------------------------------------------------------------------------
 # Simulate ground truth and data for simulation study
 #------------------------------------------------------------------------------
-RUNS = 100
+RUNS = 1
 rule simulate_data:
 	input: 
 		data="results/current/cohort-data/lolipop/{sentinel}.rds",
@@ -368,30 +398,24 @@ rule validate_ggm_simulation:
 #------------------------------------------------------------------------------
 # Target rule to validate all simulation runs
 #------------------------------------------------------------------------------
-TEMP = glob_wildcards("results/current/simulation/fits/{sentinel}-iter{iteration}.RData")
-rule validate_subset:
-        input: expand("results/current/simulation/validation/{sentinel}-iter{iter}.txt", zip, sentinel=TEMP.sentinel, iter=TEMP.iteration)
+#TEMP = glob_wildcards("results/current/simulation/fits/{sentinel}-iter{iteration}.RData")
+#rule validate_subset:
+#        input: expand("results/current/simulation/validation/{sentinel}-iter{iter}.txt",  sentinel=TEMP.sentinel, iter=TEMP.iteration)
 
-rule validate_all:
-	input: expand("results/current/simulation/validation/{sentinel}-iter{iter}.txt", sentinel=LISTS.sentinel, iter=ITERATIONS)
+#rule validate_all:
+#	input: expand("results/current/simulation/validation/{sentinel}-iter{iter}.txt", sentinel=LISTS.sentinel, iter=ITERATIONS)
 
 #------------------------------------------------------------------------------
 # Create simulation report
 #------------------------------------------------------------------------------
-rule summarize_simulation:
-	input: 
-		expand("results/current/simulation/validation/{sentinel}-iter{iter}.txt", sentinel=TEMP.sentinel, iter=TEMP.iteration)
-	params:
-		indir="../results/current/simulation/validation/"
-	output: 
-		"results/current/simulation/simulation.html"
-	log: 
-		"logs/simulation/summarize-simulation.log"
-	script:
-		"scripts/summarize-simulation.Rmd"
-
-#------------------------------------------------------------------------------
-# Target rule for complete simulation study
-#------------------------------------------------------------------------------
-rule all_sim:
-	input: "results/current/simulation/simulation.html"
+#rule summarize_simulation:
+#	input: 
+#		expand("results/current/simulation/validation/{sentinel}-iter{iter}.txt", sentinel=TEMP.sentinel, iter=TEMP.iteration)
+#	params:
+#		indir="../results/current/simulation/validation/"
+#	output: 
+#		"results/current/simulation/simulation.html"
+#	log: 
+#		"logs/simulation/summarize-simulation.log"
+#	script:
+#		"scripts/summarize-simulation.Rmd"

@@ -34,12 +34,15 @@ expr = read.csv(gtex_file,
                 skip=2, 
                 stringsAsFactors=F)
 
-expressed = expr[expr[,"Whole.Blood"] > 0.1, "Name"]
-expressed = sapply(strsplit(expressed, "." ,fixed=T) ,"[", 1)
-expressed.symbols = select(Homo.sapiens, keys=expressed, keytype="ENSEMBL", columns="SYMBOL")
-expressed.symbols = unique(expressed.symbols[,"SYMBOL"])
+expressed <- expr[expr[,"Whole.Blood"] > 0.1, "Name"]
+expressed <- sapply(strsplit(expressed, "." ,fixed=T) ,"[", 1)
+expressed.symbols <- select(Homo.sapiens, keys=expressed, keytype="ENSEMBL", columns="SYMBOL")
+expressed.symbols <- unique(expressed.symbols[,"SYMBOL"])
+expressed.aliases <- select(Homo.sapiens, keys=expressed, keytype="ENSEMBL", columns="ALIAS")
+expressed.aliases <- setdiff(unique(expressed.aliases[,"ALIAS"]), NA)
 
-string.nodes = intersect(nodes(string.db), expressed.symbols)
+string.nodes = intersect(nodes(string.db), c(expressed.symbols, 
+                                             expressed.aliases))
 string.db = subGraph(string.nodes, string.db)
 
 # get largest connected component

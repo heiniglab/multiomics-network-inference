@@ -1371,7 +1371,7 @@ add.to.graphs <- function(graphs, sentinel, trans.genes, trans.cpgs, tfbs.ann) {
                          sentinel, trans.genes))
     new.nodes = setdiff(new.nodes, nodes(locus.graph))
     
-    locus.graph = addNode(new.nodes, locus.graph)
+    locus.graph = graph::addNode(new.nodes, locus.graph)
     
     ## also add some meta data (the type of nodes)
     nodeDataDefaults(locus.graph, "tf") = FALSE

@@ -56,7 +56,6 @@ get_string_shortest_paths <- function(cis, trans, snp_genes,
     return(NULL)
   }
   
-  
   # calculate weights for nodes
   prop = propagation(graph2sparseMatrix(g), n.eigs=500, 
                      from=cis, to=trans, sum="both")
@@ -65,11 +64,6 @@ get_string_shortest_paths <- function(cis, trans, snp_genes,
     warning("No best trans genes detected, using propagation results.")
     # get the best trans gene
     best_trans = snp_genes[which.max(prop[snp_genes,"from"])]
-  } else {
-    # if we use the predefined set of best trans, it can happen that there
-    # are symbols/aliases retrieved from a previous version of the annotaiton, which have
-    # been updated in the newer one. we replace those in case we encounter them
-    best_trans <- gsub("FTSJ2", "MRM2", best_trans)
   }
   
   print(paste0("Best trans: ", paste(best_trans, collapse = ",")))
@@ -104,13 +98,13 @@ fprio_tab <- snakemake@input$priorization
 fcpgcontext <- snakemake@input[["cpgcontext"]]
 
 ofile <- snakemake@output[[1]]
-sentinel <- snakemake@params[["sentinel"]]
+sentinel <- snakemake@wildcards$sentinel
 
 # ------------------------------------------------------------------------------
 # Load and preprocess data
 # ------------------------------------------------------------------------------
 
-cat("Loading data.\n")
+print("Loading data.")
 
 gene_annot <- get.gene.annotation()
 gene_annot$ids <- probes.from.symbols(gene_annot$SYMBOL, 

@@ -4,7 +4,7 @@
 # Prepare libraries and source scripts
 # ------------------------------------------------------------------------------
 # first load the custom BDgraph library plus others
-library(BDgraph, lib.loc = "/home/icb/johann.hawe/R/x86_64-redhat-linux-gnu-library/_3.4")
+library(BDgraph, lib.loc = "/home/icb/johann.hawe/R/x86_64-redhat-linux-gnu-library/3.4")
 library(pheatmap)
 library(GenomicRanges)
 library(igraph)

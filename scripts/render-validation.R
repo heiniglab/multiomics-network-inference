@@ -29,7 +29,7 @@ fsummary <- snakemake@input[[1]]
 # outputs
 fstats <- snakemake@output$stats
 fcratios <- snakemake@output$cratios
-fexpr <- snakemake@output$sexpr
+fexpr <- snakemake@output$expr
 fgene_types <- snakemake@output$gene_types
 fmediation <- snakemake@output$mediation
 fmediation_perc <- snakemake@output$mediation_perc

@@ -109,25 +109,31 @@ ggsave(plot=gp,
 
 # define pseudo_count and get ratios of retained genes
 pc <- 0 # no log10 for now
+
+# we filter to allow only genes, where we have at least one selected gene
 toplot$snp_gene_ratio <- ((toplot$snp_genes_selected + pc) / (toplot$snp_genes + pc))
 toplot$cpg_gene_ratio <- ((toplot$cpg_genes_selected + pc) / (toplot$cpg_genes + pc))
 toplot$tf_ratio <- ((toplot$tfs_selected + pc) / (toplot$tfs + pc))
 toplot$spath_ratio <- ((toplot$spath_selected + pc) / (toplot$spath + pc))
 
 # snp gene ratio
-ggp1 <- ggplotGrob(ggplot(data=toplot, aes(snp_gene_ratio)) + geom_histogram() + 
+use <- toplot$snp_genes_selected>0
+ggp1 <- ggplotGrob(ggplot(data=toplot[use,,drop=F], aes(snp_gene_ratio)) + geom_histogram() + 
   facet_grid(cohort ~ graph_type) + 
   ggtitle("Ratio of the number of SNP-genes kept in GGM vs all SNP-genes in locus"))
 # cpg gene ratio
-ggp2 <- ggplotGrob(ggplot(data=toplot, aes(cpg_gene_ratio)) + geom_histogram() + 
+use <- toplot$cpg_genes_selected>0
+ggp2 <- ggplotGrob(ggplot(data=toplot[use,,drop=F], aes(cpg_gene_ratio)) + geom_histogram() + 
   facet_grid(cohort ~ graph_type) + 
   ggtitle("Ratio of the number of CpG-genes kept in GGM vs all CpG-genes in locus"))
 # tf ratio
-ggp3 <- ggplotGrob(ggplot(data=toplot, aes(tf_ratio)) + geom_histogram() + 
+use <- toplot$tfs_selected>0
+ggp3 <- ggplotGrob(ggplot(data=toplot[use,,drop=F], aes(tf_ratio)) + geom_histogram() + 
   facet_grid(cohort ~ graph_type) + 
   ggtitle("Ratio of the number of TFs kept in GGM vs all TFs in locus"))
 # spath ratio
-ggp4 <- ggplotGrob(ggplot(data=toplot, aes(spath_ratio)) + geom_histogram() + 
+use <- toplot$spath_selected>0
+ggp4 <- ggplotGrob(ggplot(data=toplot[use,,drop=F], aes(spath_ratio)) + geom_histogram() + 
   facet_grid(cohort ~ graph_type) +
   ggtitle("Ratio of the number of shortest path genes kept in GGM vs all shortest path genes in locus"))
 
@@ -202,7 +208,7 @@ gp2 <- ggplotGrob(gp2)
 
 ggsave(plot=grid.arrange(gp1, gp2, nrow=2),
        file="results/current/validation/mediation.pdf",
-       width=12, height=8)
+       width=8, height=12)
 
 ```
 This figure shows a different summary of the mediation results. Shown is the log10 fold change

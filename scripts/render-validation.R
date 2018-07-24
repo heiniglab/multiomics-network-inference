@@ -117,22 +117,22 @@ toplot$spath_ratio <- toplot$spath_selected / toplot$spath
 use <- toplot$snp_genes_selected>0
 ggp1 <- ggplotGrob(ggplot(data=toplot[use,,drop=F], aes(snp_gene_ratio)) + geom_histogram() + 
   facet_grid(cohort ~ graph_type) + 
-  ggtitle("Ratio of the number of SNP-genes kept in GGM vs all SNP-genes in locus"))
+  ggtitle("Ratio of number of selected SNP-genes vs all SNP-genes"))
 # cpg gene ratio
 use <- toplot$cpg_genes_selected>0
 ggp2 <- ggplotGrob(ggplot(data=toplot[use,,drop=F], aes(cpg_gene_ratio)) + geom_histogram() + 
   facet_grid(cohort ~ graph_type) + 
-  ggtitle("Ratio of the number of CpG-genes kept in GGM vs all CpG-genes in locus"))
+  ggtitle("Ratio of number of selected CpG-genes vs all CpG-genes"))
 # tf ratio
 use <- toplot$tfs_selected>0
 ggp3 <- ggplotGrob(ggplot(data=toplot[use,,drop=F], aes(tf_ratio)) + geom_histogram() + 
   facet_grid(cohort ~ graph_type) + 
-  ggtitle("Ratio of the number of TFs kept in GGM vs all TFs in locus"))
+  ggtitle("Ratio of number of selected TFs vs all TFs"))
 # spath ratio
 use <- toplot$spath_selected>0
 ggp4 <- ggplotGrob(ggplot(data=toplot[use,,drop=F], aes(spath_ratio)) + geom_histogram() + 
   facet_grid(cohort ~ graph_type) +
-  ggtitle("Ratio of the number of shortest path genes kept in GGM vs all shortest path genes in locus"))
+  ggtitle("Ratio of number of selected shortest path genes vs all shortest path genes"))
 
 # arrange and plot
 ggsave(plot=grid.arrange(ggp1, ggp2, ggp3, ggp4, ncol=2),

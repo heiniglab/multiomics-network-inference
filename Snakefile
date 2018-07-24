@@ -21,7 +21,7 @@ localrules:
 # -----------------------------------------------------------------------------
 rule all:
 	input:
-		"results/current/validation.html"
+		"results/current/validation/stat_overview.pdf"
 	
 #------------------------------------------------------------------------------
 # Target rule for complete simulation study
@@ -319,12 +319,20 @@ rule summarize_validation:
 # Create summary report
 #------------------------------------------------------------------------------
 rule render_validation:
-	input: "results/current/validation/validation.all.txt"
-	output: "results/current/validation.html"
+	input: 
+		"results/current/validation/validation.all.txt"
+	output: 
+		stats="results/current/validation/stat_overview.pdf",
+		cratios="results/current/validation/cluster_ratios.pdf",
+		expr="results/current/validation/gene_expression.pdf",
+		gene_types="results/current/validation/gene_types.pdf",
+		mediation="results/current/validation/mediation.pdf",
+		mediation_perc="results/current/validation/mediation_percentages.pdf",
+		perf="results/current/validation/performance.pdf"
 	log:	
 		"logs/validation.log"
 	script:
-		"render-validation.Rmd"
+		"scripts/render-validation.R"
 
 
 ###############################################################################

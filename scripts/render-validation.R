@@ -1,22 +1,13 @@
----
-title: "Validation summary"
-author: "Johann Hawe"
-date: "`r format(Sys.time(), '%d %B, %Y')`"
-params:
-   rmd: "render-validation.Rmd"
-output:
-  html_document:
-  highlight: tango
-  number_sections: no
-  theme: default
-  toc: yes
-  toc_depth: 3
-  toc_float:
-    collapsed: no
-    smooth_scroll: yes
----
+#!/usr/bin/env Rscript
 
-```{r echo=F}
+# ------------------------------------------------------------------------------
+#' 
+#' Script gathering all validation results and plotting them
+#'
+#' @author Johann Hawe johann.hawe@helmholtz-muenchen.de
+#'
+# ------------------------------------------------------------------------------
+
 # ------------------------------------------------------------------------------
 # Load libraries and source scripts
 # ------------------------------------------------------------------------------
@@ -27,31 +18,32 @@ library(knitr)
 library(gridExtra)
 library(graph)
 source("scripts/lib.R")
-```
 
-# Validation results for Bayesian GGMs calculated on KORA and LOLIPOP cohort
-
-This document is a (graphical) summary of the results from the validation output.
-
-## Mediation results
-
-### Overall mediation pvalues
-
-```{r echo=F}
 # ------------------------------------------------------------------------------
-# get snakemake vars
-# TODO the paste command is a quick hack to avoid wdir problems
-# with rmarkdown files. Follow up on this and learn the proper way
-# (if any) to handle this
+# Get snakemake params if available 
 # ------------------------------------------------------------------------------
-#fsummary <- snakemake@input[[1]]
-fsummary <- "results/current/validation/validation.all.txt"
 
+# inputs
+fsummary <- snakemake@input[[1]]
+
+# outputs
+fstats <- snakemake@output$stats
+fcratios <- snakemake@output$cratios
+fexpr <- snakemake@output$sexpr
+fgene_types <- snakemake@output$gene_types
+fmediation <- snakemake@output$mediation
+fmediation_perc <- snakemake@output$mediation_perc
+fperf <- snakemake@output$perf
+
+# ------------------------------------------------------------------------------
 # load the large result table for all loci
 # TODO we currently remove the results for the GO enrichment
+# ------------------------------------------------------------------------------
 tab <- read.table(fsummary, header=T, sep="\t", stringsAsFactors=F)[1:33]
 
+# ------------------------------------------------------------------------------
 # create some basic plots of the gene counts
+# ------------------------------------------------------------------------------
 toplot <- tab[,c("sentinel", "cohort", "graph_type",
                  "number_nodes", "number_edges", 
                  "graph_density", "cluster", "cluster_sizes", 
@@ -62,7 +54,7 @@ toplot <- tab[,c("sentinel", "cohort", "graph_type",
                  "spath", "spath_selected")]
 toplot$snp_in_network <- !is.na(toplot[,"snp_cluster"])
 
-
+# whether the SNP has been selected or not
 gp1 <- ggplotGrob(ggplot(data=toplot, aes(snp_in_network)) + geom_histogram(stat="count") + 
   facet_grid(cohort ~ graph_type) + 
   ggtitle("Number of networks in which the SNP has been selected at all"))
@@ -95,7 +87,7 @@ toplot$cluster_ratio <- cluster_ratios
 
 # summarize the first four plots in one file
 ggsave(plot=grid.arrange(gp1, gp2, gp3, gp4, ncol=2),
-       file="results/current/validation/stat_overview.pdf", 
+       file=fstats, 
        width=12, 
        height=8)
 
@@ -104,17 +96,22 @@ gp <- ggplotGrob(ggplot(data=toplot, aes(cluster_ratio)) + geom_histogram() +
   facet_grid(cohort ~ graph_type) + 
   ggtitle("Ratio of the amount of nodes in the largest clusters vs all nodes in the network"))
 ggsave(plot=gp,
-       file="results/current/validation/cluster_ratios.pdf",
+       file=fcratios,
        width=10, height=10)
 
-# define pseudo_count and get ratios of retained genes
-pc <- 0 # no log10 for now
+# ------------------------------------------------------------------------------
+# Check how many genes are retained in the graphs for each gene_type
+# ------------------------------------------------------------------------------
 
-# we filter to allow only genes, where we have at least one selected gene
-toplot$snp_gene_ratio <- ((toplot$snp_genes_selected + pc) / (toplot$snp_genes + pc))
-toplot$cpg_gene_ratio <- ((toplot$cpg_genes_selected + pc) / (toplot$cpg_genes + pc))
-toplot$tf_ratio <- ((toplot$tfs_selected + pc) / (toplot$tfs + pc))
-toplot$spath_ratio <- ((toplot$spath_selected + pc) / (toplot$spath + pc))
+# get ratios
+toplot$snp_gene_ratio <- toplot$snp_genes_selected / toplot$snp_genes
+toplot$cpg_gene_ratio <- toplot$cpg_genes_selected / toplot$cpg_genes
+toplot$tf_ratio <- toplot$tfs_selected / toplot$tfs
+toplot$spath_ratio <- toplot$spath_selected / toplot$spath
+
+# ------------------------------------------------------------------------------
+# Plot everything
+# ------------------------------------------------------------------------------
 
 # snp gene ratio
 use <- toplot$snp_genes_selected>0
@@ -139,27 +136,25 @@ ggp4 <- ggplotGrob(ggplot(data=toplot[use,,drop=F], aes(spath_ratio)) + geom_his
 
 # arrange and plot
 ggsave(plot=grid.arrange(ggp1, ggp2, ggp3, ggp4, ncol=2),
-       file="results/current/validation/gene_types.pdf",
+       file=fgene_types,
        width=12, height=8)
-```
 
-Above we see a simple overview over the selected entities (snp genes, cpg genes,
-transcription factors and shortest path genes).
-Shown is the log10-ratio of the number of entities selected by the GGM and the total 
-number of entities in the network. Therefore, low values indicate that comparatively more genes
-were dropped during the inference process and only fewer were selected for the final network.
+#Above we see a simple overview over the selected entities (snp genes, cpg genes,
+#transcription factors and shortest path genes).
+#Shown is the log10-ratio of the number of entities selected by the GGM and the total 
+#number of entities in the network. Therefore, low values indicate that comparatively more genes
+#were dropped during the inference process and only fewer were selected for the final network.
 
-Below the mediation results on the different cohorts for all hotspots 
-in which at least one SNP gene was extracted by our algorithm are shown.
-The *mediation_selected* group shows the significance of the mediation analysis of 
-those selected genes, the *mediation* group shows the significance of all NOT selected genes. 
-Note, that for the 'mediation_selected' group, we always take the largest obtained p-value, whereas
-for the NOT selected group we always select the lowest obtained p-value as of now.
+#Below the mediation results on the different cohorts for all hotspots 
+#in which at least one SNP gene was extracted by our algorithm are shown.
+#The *mediation_selected* group shows the significance of the mediation analysis of 
+#those selected genes, the *mediation* group shows the significance of all NOT selected genes. 
+#Note, that for the 'mediation_selected' group, we always take the largest obtained p-value, whereas
+#for the NOT selected group we always select the lowest obtained p-value as of now.
 
-
-```{r echo=F}
-# create a mediation specific plot
-# TODO update those indices
+# ------------------------------------------------------------------------------
+# Mediation summary plots
+# ------------------------------------------------------------------------------
 mediation <- tab[,c("sentinel", "cohort", "graph_type",
                     "mediation", "mediation_selected","log10_mediation")]
 # for now we ignore results where we didn't have SNP genes at all
@@ -175,12 +170,7 @@ gp1 <- ggplot(data=toplot, aes(x=graph_type, y=-log10(pval), fill=variable)) +
   facet_grid(cohort ~ .) +
   geom_hline(yintercept = -log10(0.05), color="red") + 
   ggtitle("Mediation results of all SNP genes over all loci.")
-gp1
-```
 
-### Mediation log-foldchanges
-
-```{r echo=F}
 # in addition we plot the log fold-change
 # sort by log_fc
 toplot <- mediation[order(mediation$log10_mediation, decreasing = T),]
@@ -195,7 +185,6 @@ gp2 <- ggplot(toplot, aes(x=sentinel, y=log_fc, fill=favored)) +
           element_text(angle = 90, hjust = 1, vjust=0)) +
   ylab("log10(all / selected)") + 
   ggtitle("Mediation results of all SNP genes, log-foldchanges.")
-gp2
 
 perc <- table(toplot$favored, toplot$graph_type)
 perc <- perc["selected",] / colSums(perc)
@@ -207,26 +196,25 @@ gp1 <- ggplotGrob(gp1)
 gp2 <- ggplotGrob(gp2)
 
 ggsave(plot=grid.arrange(gp1, gp2, nrow=2),
-       file="results/current/validation/mediation.pdf",
+       file=fmediation,
        width=8, height=12)
 
-```
-This figure shows a different summary of the mediation results. Shown is the log10 fold change
-of the mediation p-value for the not selected SNP genes ($p_n$) over the p-value for selected
-genes ($p_s$). The red bars (*not selected*) indicate fold changes where $p_n$ is lower 
-than the corresponding $p_s$, whereas the blue bars indicate the opposite. Overall, 
-**`r format(perc*100,digits=4)`\%** of all fold changes show negative fold changes 
-(i.e. $p_s$ being smaller than their respective $p_n$s). Currently, we select the
-minimal p-value obtained from the genes not selected via a GGM and the maximal p-value
-from the selected genes which is a rather conservative estimate. We could think about
-changing the way of summarizing the p-values...
+#This figure shows a different summary of the mediation results. Shown is the log10 fold change
+#of the mediation p-value for the not selected SNP genes ($p_n$) over the p-value for selected
+#genes ($p_s$). The red bars (*not selected*) indicate fold changes where $p_n$ is lower 
+#than the corresponding $p_s$, whereas the blue bars indicate the opposite. Overall, 
+#**`r format(perc*100,digits=4)`\%** of all fold changes show negative fold changes 
+#(i.e. $p_s$ being smaller than their respective $p_n$s). Currently, we select the
+#minimal p-value obtained from the genes not selected via a GGM and the maximal p-value
+#from the selected genes which is a rather conservative estimate. We could think about
+#changing the way of summarizing the p-values...
 
-### Percentage of mediating genes
-Here we look at the percentage of significant mediation results of the GGM selected
-SNP genes versus total number of SNP genes.
-```{r echo=F}
+# ------------------------------------------------------------------------------
+# Percentage of mediating genes
+# Here we look at the percentage of significant mediation results of the GGM selected
+# SNP genes versus total number of SNP genes.
+# ------------------------------------------------------------------------------
 # create data frame with all needed values
-# TODO do this over the real validation results over all loci
 results <- tab[,c("graph_type", "snp_genes", "snp_genes_selected",
                   "mediation_significant", "mediation_selected_significant")]
 
@@ -267,23 +255,15 @@ temp <- lapply(names(results), function(n) {
 })
 theme_update(plot.title = element_text(hjust = 0.5))
 ga <- grid.arrange(temp[[1]], temp[[2]], temp[[3]], ncol=2)
-ggsave(plot=ga, file="results/current/validation/mediation_percentages.pdf",
+ggsave(plot=ga, file=fmediation_perc,
        width=12, height=8)
 
-```
-
-### Specificity and sensitivity of gene selection over all sentinels
-Here we look at all sentinels and summarize the selected/not selected SNP genes and their mediation values by producing a table like the following for each sentinel and summing up over all of them:
-```{r results='asis', echo=F }
-temp <- matrix(c("W","X","Y","Z"),nrow=2,ncol=2)
-colnames(temp) <- c("In GGM", "Not in GGM")
-rownames(temp) <- c("Mediation sign","Mediation not sign")
-kable(temp,align = c("c","c"))
-```
-```{r}
-# do it for both cohorts separately for now
-# we canin the endsum up the tables to get an overall view
-# TODO currently we only look at the graph incl priors
+# ------------------------------------------------------------------------------
+# Specificity and sensitivity of gene selection over all sentinels
+# Here we look at all sentinels and summarize the selected/not selected SNP 
+# genes and their mediation values by calculating all TPs, TNs, FPs, and FNs.
+# We do this for the individual cohorts as well as summed up over both
+# ------------------------------------------------------------------------------
 cohorts <- c("kora", "lolipop", "both")
 graph_types <- unique(tab$graph_type)
 values <- lapply(cohorts, function(cohort) {
@@ -323,7 +303,9 @@ values$graph_type <- unlist(lapply(strsplit(rownames(values), "\\."), "[[", 2))
 sens <- function(d) { d[,"TP"] / (d[,"TP"] + d[,"FN"]) }
 spec <- function(d) { d[,"TN"] / (d[,"TN"] + d[,"FP"]) }
 
+# ------------------------------------------------------------------------------
 # save a simple plot showing the performance values
+# ------------------------------------------------------------------------------
 df <- values
 df$sensitivity <- sens(df)
 df$specificity <- spec(df)
@@ -333,80 +315,56 @@ gp <- ggplot(data=df, aes(y=performance, x=graph_type, fill=graph_type)) +
 	facet_grid(cohort ~ variable) + scale_y_continuous(limits=c(0,1)) + 
 	ggtitle("Performance of GGMs on different cohorts", "Baseline defined via significant mediation genes. Summary over all sentinels.")
 
-ggsave(plot=gp, file="results/current/validation/performance.pdf",
+ggsave(plot=gp, file=fperf,
        width=10,height=12)
 
-```
+# ------------------------------------------------------------------------------
+# CpG-Gene validation
+# ------------------------------------------------------------------------------
+#TODO
+#hist(tab$bonder_cis_eQTM)
 
-## CpG-Gene validation
-TODO
-```{r}
-# TODO not yet implemented
-hist(tab$bonder_cis_eQTM)
-```
+# ------------------------------------------------------------------------------
+# Gene-Gene validation 
+#
+#The gene-gene links were validated using external expression data from GEO (ARCHS4),
+#Geuvadis as well as the data from either LOLIPOP or KORA, depending on which cohort 
+#the bGGM was calculated.
 
-## Gene-Gene validation 
+#To assess how well our approach recovers co-expression of genes in the independent
+#datasets, we calculate all gene-vs-gene (gvg) correlations in those data and create a
+#confusion matrix as follows:
 
-The gene-gene links were validated using external expression data from GEO (ARCHS4),
-Geuvadis as well as the data from either LOLIPOP or KORA, depending on which cohort 
-the bGGM was calculated.
+#temp <- matrix(c("W","X","Y","Z"),nrow=2,ncol=2)
+#colnames(temp) <- c("In GGM", "Not in GGM")
+#rownames(temp) <- c("Correlation sign.","Correlation not sign.")
+#kable(temp,align = c("c","c"))
 
-To assess how well our approach recovers co-expression of genes in the independent
-datasets, we calculate all gene-vs-gene (gvg) correlations in those data and create a
-confusion matrix as follows:
+#We deem a correlation between two genes to be significant if 1) $p-value < 0.01$
+#and 2) $\rho > 0.3$ ($\rho$ being the Pearson Correlation Coefficient).
 
-```{r results='asis', echo=F }
-temp <- matrix(c("W","X","Y","Z"),nrow=2,ncol=2)
-colnames(temp) <- c("In GGM", "Not in GGM")
-rownames(temp) <- c("Correlation sign.","Correlation not sign.")
-kable(temp,align = c("c","c"))
-```
+#We test whether we can reject $H0$ (i.e. whether we detect a correlation regardless of it 
+#being significant in the independent data) using a Fisher's exact test.
+#Shown below are the p-values for those tests over all loci on the different datasets.
+#The black lines indicate a significance level of $0.05$.
+# ------------------------------------------------------------------------------
 
-We deem a correlation between two genes to be significant if 1) $p-value < 0.01$
-and 2) $\rho > 0.3$ ($\rho$ being the Pearson Correlation Coefficient).
-
-We test whether we can reject $H0$ (i.e. whether we detect a correlation regardless of it 
-being significant in the independent data) using a Fisher's exact test.
-Shown below are the p-values for those tests over all loci on the different datasets.
-The black lines indicate a significance level of $0.05$.
-```{r echo=F}
 # get the relevant data (pvalues on the different datasets)
-gg <- tab[,c("sentinel","cohort", "graph_type", "geuvadis_gene_gene","geo_gene_gene","cohort_gene_gene")]
-colnames(gg) <- c("sentinel", "cohort", "graph_type", "Geuvadis", "GEO", "LOLIPOP_KORA")
-#gg <- gg[order(gg$LOLIPOP_KORA),]
-#gg$sentinel <- factor(gg$sentinel, levels=unique(gg$sentinel))
+toplot <- tab[,c("sentinel","cohort", "graph_type", 
+             "geuvadis_gene_gene","geo_gene_gene","cohort_gene_gene")]
+colnames(toplot) <- c("sentinel", "cohort", "graph_type", 
+                  "Geuvadis", "GEO", "LOLIPOP_KORA")
 
 # plot the data
-gg <- melt(gg,measure.vars=c(4,5,6), id.vars=c(1,2,3))
-gg$value <- -log10(gg$value)
-p <- ggplot(gg, aes(x=reorder(sentinel,value), y=value, fill=variable)) + 
+df <- melt(toplot,measure.vars=c(4,5,6), id.vars=c(1,2,3))
+df$value <- -log10(df$value)
+gp <- ggplot(df, aes(x=reorder(sentinel,value), y=value, fill=variable)) + 
   facet_grid(cohort+graph_type~variable) +
   geom_bar(stat = "identity", position="dodge") + 
   theme(axis.text.x = element_text(vjust=1, angle = 90)) + 
   xlab("sentinel") +
   geom_hline(yintercept = -log10(0.05))
 
-p
-
-ggsave(plot=p,
-       file="results/current/validation/gene_expression.pdf",
+ggsave(plot=gp,
+       file=fexpr,
        width=12, height=8)
-
-#create list of plots
-#p <- lapply(split(gg,gg$variable), function(x){
-  
-#  x$sentinel <- factor(x$sentinel, levels=unique(x$sentinel[order(-log10(x$value))]))
-
-  # create the plot
-#  p <- ggplot(x, aes(x = sentinel, y = -log10(value), fill = variable)) +
-#    geom_bar(stat = "identity") +
-#    facet_grid(cohort~.) +
-#    theme(legend.position="none", axis.text.x = element_text(vjust=1, angle = 90)) + 
-#    geom_hline(yintercept = -log10(0.05)) +
-#    labs(title=unique(x$variable))
-#})
-
-#do.call(grid.arrange,(c(p, nrow=3)))
-```
-
-

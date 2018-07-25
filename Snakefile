@@ -183,11 +183,15 @@ rule collect_ranges:
 		"scripts/collect-ranges.R"
 
 #------------------------------------------------------------------------------
-# Meta rule to collect ranges for all sentinels
+# Meta rule to collect ranges for all sentinels and plot some information
 #------------------------------------------------------------------------------
-rule all_ranges:
+rule ranges_overview:
 	input:
 		expand("results/current/ranges/{sentinel}.rds", zip, sentinel=LISTS.sentinel)
+	output:
+		"results/current/ranges/overview.pdf"
+	script:
+		"scripts/create_locus_summary.R"
 
 #------------------------------------------------------------------------------
 # Collect cohort data for a single sentinel locus
@@ -273,9 +277,9 @@ rule apply_ggm:
 	resources:
 		mem_mb=1000
 	benchmark:
-		"benchmarks/apply-ggm/{sentinel}-{cohort}.bmk"
+		"benchmarks/apply_ggm/{sentinel}_{cohort}.bmk"
 	log:
-		"logs/apply-ggm/{sentinel}-{cohort}.log"
+		"logs/apply_ggm/{sentinel}_{cohort}.log"
 	script:
 		"scripts/apply-ggm.R"
 
@@ -343,7 +347,7 @@ rule generate_dot:
 	output:
 		"results/current/fits/{cohort}/{sentinel}_{graph_type}.dot"
 	log:
-		"logs/generate_dot/{sentinel}_{graph_type}.log"
+		"logs/generate_dot/{sentinel}_{graph_type}_{cohort}.log"
 	script:
 		"scripts/generate_dot.R"
 

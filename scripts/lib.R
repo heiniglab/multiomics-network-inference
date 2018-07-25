@@ -246,7 +246,7 @@ annotate.graph <- function(g, ranges, string_db, fcontext){
 #' 
 #' @author Johann Hawe
 #'
-plot.ggm <- function(g, id, dot.out=NULL){
+plot.ggm <- function(g, id, plot.on.device=T, dot.out=NULL){
   library(graph)
   library(Rgraphviz)
   library(GenomicRanges)
@@ -350,7 +350,7 @@ plot.ggm <- function(g, id, dot.out=NULL){
  
   if(numEdges(g)>500){
     warning("Skipping plotting on device due to large amount of edges")
-  } else{
+  } else if(plot.on.device) {
     plot(g, "twopi", nodeAttrs=nAttrs, edgeAttrs=eAttrs, attrs=attrs)
   }
   
@@ -788,16 +788,17 @@ get.g.start <- function(nodes, ranges){
 }
 
 #' Similar to get.g.start, but simply uses the prior matrix and extracts all
-#' pairs with prior>min(priors) to create the g.start
+#' pairs with prior>0.5 to create the g.start
 #'
 #' @param priors Matrix of prior values for all possible node edges
 #' 
 #' @author Johann Hawe
 #'
 get_gstart_from_priors <- function(priors){
-  out <- priors  
-  out[which(out==min(priors))] <- 0
-  out[which(out>min(priors))] <- 1
+  out <- priors
+  idx <- out>0.5
+  out[idx] <- 1
+  out[!idx] <- 0
   return(out)
 }
 

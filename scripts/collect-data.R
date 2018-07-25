@@ -8,9 +8,18 @@
 #' @export
 #' 
 
+log <- file(snakemake@log[[1]], open="wt")
+sink(log)
+sink(log, type="message")
+
+
+# ------------------------------------------------------------------------------
+# Load libraries, source scripts
+# ------------------------------------------------------------------------------
 library(GenomicRanges)
 source("scripts/lib.R")
 
+# ------------------------------------------------------------------------------
 #' Adjust the data collected for a specific sentinel SNP
 #'
 #' Adjusts all data for a given sentinel SNP, based on the previously
@@ -26,6 +35,7 @@ source("scripts/lib.R")
 #' 
 #' @author Johann Hawe
 #'
+# ------------------------------------------------------------------------------
 adjust.data <- function(sentinel, ranges, data, geno, fccosmo, fceqtl) {
   
   # collect gene symbols to get summarized probe levels
@@ -77,6 +87,7 @@ adjust.data <- function(sentinel, ranges, data, geno, fccosmo, fceqtl) {
   return(data)
 }
 
+# ------------------------------------------------------------------------------
 #' 
 #' Method to get gene level estimates from expression probes
 #' (=rowMeans on respective probe.ids/gene)
@@ -93,6 +104,7 @@ adjust.data <- function(sentinel, ranges, data, geno, fccosmo, fceqtl) {
 #' 
 #' @export
 #' 
+# ------------------------------------------------------------------------------
 summarize <- function(m, symbols){
   # prepare annotation
   library(illuminaHumanv3.db)
@@ -137,6 +149,7 @@ summarize <- function(m, symbols){
   return(result)
 }
 
+# ------------------------------------------------------------------------------
 #' Gets residuals based on linear models from a data matrix
 #'
 #' Calculates the residual matrix for a given matrix considering available covariates. 
@@ -152,6 +165,7 @@ summarize <- function(m, symbols){
 #' @return A matrix  where in the colums are the measured entities (e.g.probes) 
 #' and in the rows are the samples, containing the calculated residuals
 #'
+# ------------------------------------------------------------------------------
 get.residuals <- function(data, data.type, col.names=NULL) {
   
   cols <- col.names
@@ -188,6 +202,7 @@ get.residuals <- function(data, data.type, col.names=NULL) {
   return(residual.mat)
 }
 
+# ------------------------------------------------------------------------------
 #' Takes a gene expression matrix and adjusts the genes' expression for cis-eQTLs
 #' using gtex eqtl results.
 #'
@@ -199,6 +214,7 @@ get.residuals <- function(data, data.type, col.names=NULL) {
 #'
 #' @author  Johann Hawe
 #'
+# ------------------------------------------------------------------------------
 adjust.cis.eqtls <- function(g, eqtls, geno_data){
   
   # for all cpg-genes, adjust for potential cis-eqtls (i.e. snp-effects)
@@ -242,6 +258,7 @@ adjust.cis.eqtls <- function(g, eqtls, geno_data){
   return(g)
 }
 
+# ------------------------------------------------------------------------------
 #' Takes a methylation matrix and adjusts the cpgs' expression for cis-meQTLs
 #' using currently the BONDER meqtl results.
 #'
@@ -251,6 +268,7 @@ adjust.cis.eqtls <- function(g, eqtls, geno_data){
 #'
 #' @author  Johann Hawe
 #'
+# ------------------------------------------------------------------------------
 adjust.cis.meqtls <- function(c, meqtls, geno_data){
   # for all cpg-genes, adjust for potential cis-eqtls (i.e. snp-effects)
   toUse <- which(meqtls$cpg_id %in% colnames(c))
@@ -299,6 +317,7 @@ adjust.cis.meqtls <- function(c, meqtls, geno_data){
   return(c)
 }
 
+# ------------------------------------------------------------------------------
 #' Load cis-eqtls identified in KORA
 #'
 #' Loads a list of cis-eqtls identified previously in the KORA F4 cohort.
@@ -311,6 +330,7 @@ adjust.cis.meqtls <- function(c, meqtls, geno_data){
 #' 
 #' @return GRanges objects containing the eqtl information
 #'
+# ------------------------------------------------------------------------------
 load.eqtls <- function(fceqtl, expr.probes=NULL) {
   # columns: top SNP KORA F4;Chr SNP;minor allele KORA F4;MAF KORA F4;Probe_Id;Gene;Chr Gene; etc...
   eqtls <- read.csv(fceqtl,
@@ -345,6 +365,7 @@ load.eqtls <- function(fceqtl, expr.probes=NULL) {
   return(eqtls)
 }
 
+# ------------------------------------------------------------------------------
 #' Load cis meqtls identified in LOLIPOP/KORA study
 #' 
 #' @param cpg_probes Optional. Restrict the list of meqtls on those cpg-probes only.
@@ -353,6 +374,7 @@ load.eqtls <- function(fceqtl, expr.probes=NULL) {
 #' 
 #' @return GRanges object reflecting all found cis-meQTLs
 #' 
+# ------------------------------------------------------------------------------
 load.meqtls <- function(fccosmo, cpg_probes=NULL) {
   
   cosmo <- readRDS(fccosmo)
@@ -381,7 +403,9 @@ load.meqtls <- function(fccosmo, cpg_probes=NULL) {
 
 # start processing -------------------------------------------------------------
 
-# get params -------------------------------------------------------------------
+# ------------------------------------------------------------------------------
+# Get snakemake params
+# ------------------------------------------------------------------------------
 franges <- snakemake@input[["ranges"]]
 fkora_data <- snakemake@input[["kora"]]
 flolipop_data <- snakemake@input[["lolipop"]]
@@ -393,7 +417,9 @@ fout <- snakemake@output[[1]]
 
 print(paste0("Sentinel is ", sentinel, "."))
 
-# prepare probe and snp ids ----------------------------------------------------
+# ------------------------------------------------------------------------------
+# prepare probe and snp ids
+# ------------------------------------------------------------------------------
 ranges <- readRDS(franges)
 expr_probes = c(unlist(ranges$snp_genes$ids), 
                 unlist(ranges$cpg_genes$ids))

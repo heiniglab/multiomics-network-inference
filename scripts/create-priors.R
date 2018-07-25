@@ -1,7 +1,16 @@
+# -------------------------------------------------------------------------------
 #' Script to create the GTEX priros (gene-gene and snp-gene priors)
 #'
 #' @author Johann Hawe
+# -------------------------------------------------------------------------------
 
+log <- file(snakemake@log[[1]], open="wt")
+sink(log)
+sink(log, type="message")
+
+# -------------------------------------------------------------------------------
+# Load libraries and source scripts
+# -------------------------------------------------------------------------------
 library(qvalue)
 library(data.table)
 library(graph)
@@ -10,11 +19,12 @@ library(fdrtool)
 library(Homo.sapiens)
 library(rtracklayer)
 library(FDb.InfiniumMethylation.hg19)
-
-# source necessary scripts
 source("scripts/lib.R")
 source("scripts/priors.R")
 
+# -------------------------------------------------------------------------------
+# Get snakemake params
+# -------------------------------------------------------------------------------
 feqtl <- snakemake@input[["eqtl"]]
 fsnpinfo <- snakemake@input[["snpinfo"]]
 fexpr <- snakemake@input[["expr"]]
@@ -24,6 +34,10 @@ fstring <- snakemake@input[["string"]]
 dplots <- snakemake@params$plot_dir
 
 threads <- snakemake@threads
+
+# -------------------------------------------------------------------------------
+# Start processing
+# -------------------------------------------------------------------------------
 
 print("Loading string db.")
 string_db <- readRDS(fstring)
@@ -56,9 +70,14 @@ samples <- intersect(colnames(expr), colnames(meth))
 expr <- t(expr[,samples])
 meth <- t(meth[,samples])
 
+# -------------------------------------------------------------------------------
 # get (our) chip-seq context for the cpgs
+# -------------------------------------------------------------------------------
 tfbs_ann <- get.chipseq.context(names(cpgs), fcpgcontext)
 
+# -------------------------------------------------------------------------------
+# For each TF, get the correlation to each of the CpGs it is bound nearby
+# -------------------------------------------------------------------------------
 pairs <- lapply(colnames(expr), function(tf) {
   # get columns for tf 
   sub <- tfbs_ann[,grepl(tf, colnames(tfbs_ann), ignore.case = T), drop=F]
@@ -77,6 +96,9 @@ pairs <- lapply(colnames(expr), function(tf) {
                    stringsAsFactors=F)
 })
 
+# -------------------------------------------------------------------------------
+# Collect and finalize results.
+# -------------------------------------------------------------------------------
 tab <- do.call(rbind, pairs)
 colnames(tab) <- c("TF", "CpG", "pval")
 tab$qval <- qvalue(tab$pval)$lfdr

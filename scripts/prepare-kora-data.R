@@ -1,11 +1,22 @@
+# -------------------------------------------------------------------------------
 #' Script to collect needed kora data for all subsequent analysis in a single
 #' RData file. Makes collecting data for sentinel SNPs easier.
 #'
-#' @author Johann Hawe
+#' @author Johann Hawe <johann.hawe@helmholtz-muenchen.de>
 #'
+# -------------------------------------------------------------------------------
+
+log <- file(snakemake@log[[1]], open="wt")
+sink(log)
+sink(log, type="message")
+
+# -------------------------------------------------------------------------------
+# Load libraries and source scripts
+# -------------------------------------------------------------------------------
 library(GenomicRanges)
 library(parallel)
 
+# -------------------------------------------------------------------------------
 #' Method to get the genotypes for a certain set of SNPs
 #' 
 #' @param snp_ranges A GRanges of SNPs for which to get genotypes. Needed for
@@ -13,6 +24,7 @@ library(parallel)
 #' 
 #' @return Matrix of genotypes with SNPs in the columns and subjects in the rows
 #' 
+# -------------------------------------------------------------------------------
 get_genotypes <- function(snp_ranges, dosage_file, 
                           individuals, individuals_to_keep,
                           threads){
@@ -49,6 +61,7 @@ get_genotypes <- function(snp_ranges, dosage_file,
   return(geno)
 }
 
+# -------------------------------------------------------------------------------
 #' Scans genotype files for SNPs within the provided genomic ranges
 #'
 #' @param ranges GRanges object containing the ranges which to scan for SNPs
@@ -60,6 +73,7 @@ get_genotypes <- function(snp_ranges, dosage_file,
 #' 
 #' @author Johann Hawe
 #'
+# -------------------------------------------------------------------------------
 scan_snps <- function(ranges, dosage_file, individuals) {
   library(data.table)
   
@@ -113,7 +127,9 @@ scan_snps <- function(ranges, dosage_file, individuals) {
 
 # start processing -------------------------------------------------------------
 
-# get input files --------------------------------------------------------------
+# -------------------------------------------------------------------------------
+# Get snakemake params
+# -------------------------------------------------------------------------------
 fdosage <- snakemake@input[["genotypes"]]
 findividual_mapping <- snakemake@input[["individuals"]]
 fexpression <- snakemake@input[["expression"]]
@@ -126,11 +142,15 @@ fccosmo <- snakemake@input[["ccosmo"]]
 fceqtl <- snakemake@input[["ceqtl_locations"]]
 threads <- snakemake@threads
 
+# -------------------------------------------------------------------------------
 # load the imputation individuals (individuals with genotypes)
+# -------------------------------------------------------------------------------
 imputation_individuals <- read.table(snakemake@input[["impute_indiv"]], 
                                      header=F)[,1]
 
+# -------------------------------------------------------------------------------
 # load trans meqtl snp ranges
+# -------------------------------------------------------------------------------
 trans_meqtl <- read.table(ftrans_meqtl, sep="\t", header=T)
 ranges <- unique(with(trans_meqtl, 
                       GRanges(paste0("chr", chr.snp), 
@@ -146,14 +166,13 @@ ranges <- unique(c(ranges, with(eqtl,
 rm(cosmo, eqtl)
 gc()
 
-# in addition we add the ciseqtl and cismeqtl snps we need for adjusting
-# our data
 print(paste0("Got ", length(ranges), " SNPs to process."))
 print("Loading KORA data.")
 
 # load id mapping to intersect expr/meth/geno data
 id_map <- read.table(findividual_mapping,
                      header=T, sep=";", stringsAsFactors = F)
+
 # convert ids to character (instead of int) for easier subsetting of data matrices
 id_map$axiom_s4f4 <- as.character(id_map$axiom_s4f4)
 id_map$genexp_s4f4ogtt <- as.character(id_map$genexp_s4f4ogtt)
@@ -182,14 +201,18 @@ id_map$utalteru <- NULL
 
 print(paste0("Using ", nrow(id_map), " samples."))
 
-# load genotypes ---------------------------------------------------------------
+# ------------------------------------------------------------------------------
+# Load genotypes
+# ------------------------------------------------------------------------------
 geno <- get_genotypes(ranges, fdosage, 
                       imputation_individuals, id_map$axiom_s4f4,
                       threads)
 print(paste0("Genotype dimensions: ", paste(dim(geno), collapse=",")))
 gc()
 
-# load and process rest of the data --------------------------------------------
+# ------------------------------------------------------------------------------
+# Load and process rest of the data
+# ------------------------------------------------------------------------------
 load(fexpression)
 load(fmethylation)
 

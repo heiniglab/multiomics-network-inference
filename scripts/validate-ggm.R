@@ -5,6 +5,10 @@
 #' @autor Johann Hawe
 #'
 
+log <- file(snakemake@log[[1]], open="wt")
+sink(log)
+sink(log, type="message")
+
 # define easy concatenation operator
 `%+%` = paste0
 

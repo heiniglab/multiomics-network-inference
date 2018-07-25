@@ -1,10 +1,20 @@
+# -------------------------------------------------------------------------------
 #' Script to collect and preprocess needed lolipop data  for all subsequent 
 #' analysis 
 #'
 #' @author Johann Hawe
 #'
+# -------------------------------------------------------------------------------
 
+# -------------------------------------------------------------------------------
+# Get snakemake params
+# -------------------------------------------------------------------------------
 fdata <- snakemake@input[["lolipop"]]
+fout <- snakemake@output[[1]]
+
+# -------------------------------------------------------------------------------
+# Load and prepare data
+# -------------------------------------------------------------------------------
 load(fdata)
 
 # prepare genotypes
@@ -23,6 +33,7 @@ expr <- expr[,!grepl("NA", colnames(expr)),drop=F]
 covars <- phe
 rownames(covars) <- covars$Sample.ID
 covars <- covars[rownames(geno),,drop=F]
+
 # change some colnames to correpond to the same names used in the KORA data
 cnames <- colnames(covars)
 colnames(covars)[grepl("Sex",cnames)] <- "sex"
@@ -32,5 +43,7 @@ colnames(covars)[grepl("RNA_extr_batch",cnames)] <- "batch2"
 covars[,"batch1"] <- factor(covars[,"batch1"])
 covars[,"batch2"] <- factor(covars[,"batch2"])
 
-fout <- snakemake@output[[1]]
+# ------------------------------------------------------------------------------
+# All done, save.
+# ------------------------------------------------------------------------------
 save(file=fout, expr, meth, geno, covars)

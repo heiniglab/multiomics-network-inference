@@ -266,7 +266,7 @@ rule apply_ggm:
 		fit="results/current/fits/{cohort}/{sentinel}.rds",
 		summary_file="results/current/fits/{cohort}/{sentinel}.pdf",
 		gstart_file="results/current/fits/{cohort}/{sentinel}-gstart.pdf"
-	threads: 16
+	threads: 8
 	params:
 		nriter=20000,
 		burnin=5000
@@ -334,6 +334,18 @@ rule render_validation:
 	script:
 		"scripts/render-validation.R"
 
+#------------------------------------------------------------------------------
+# Generate dot files for visualization with cytoscape
+#------------------------------------------------------------------------------
+rule generate_dot:
+	input:
+		"results/current/fits/{cohort}/{sentinel}.rds"
+	output:
+		"results/current/fits/{cohort}/{sentinel}_{graph_type}.dot"
+	log:
+		"logs/generate_dot/{sentinel}_{graph_type}.log"
+	script:
+		"scripts/generate_dot.R"
 
 ###############################################################################
 # Rules for simulation study

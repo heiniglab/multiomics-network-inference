@@ -18,9 +18,11 @@ output:
 
 ```{r}
 library(ggplot2)
+library(wesanderson)
+pal_cols <- wes_palette(n=4, "Moonrise2")
 ```
 
-This document summarizes the simmulation study for the bayesian Gaussian Graphical Modelling approach.
+This document summarizes the simulation study for the bayesian Gaussian Graphical Modelling approach.
 For each of the sentinels which had a 'true graph' available (currently based on the network-randwomwalk
 approach) we generated data and applied the bdgraph algorithm.
 
@@ -52,34 +54,70 @@ get_table <- function(files) {
 
 tab <- get_table(files)
 head(tab)
-# temporary part for the additional validation files
-#files <- list.files("../results/current/simulation/validation/", "*.txt", full.names = T)
-#tab <- rbind(tab, get_table(files))
 
+# add sentinel column
+tab$sentinel <- gsub("_.*","", rownames(tab))
 ```
 
 Overall we are looking at `r nrow(tab)/2` sentinels for we which we have calculated GGM fits with and without prior information, depicted in the plots below as 'ggm.type'. We show summary plots for the individual ggm.types for some standard performance measures (specificity, sensitivity, F1.score) as well as he Matthew's Correlation Coefficient (MCC) which is a correlation measure which can be applied if the individual classes differe largely in size.
-
 ```{r}
-# jitter the points shown in the boxplot
-gp <- geom_point(position = position_jitter(width = 0.15, height = 0))
-gb <- geom_boxplot(outlier.shape = NA)
-fg <- facet_grid(. ~ R)
-fw <- facet_wrap( ~ R, nrow = 2)
+# prepare ggplot
+theme_set(theme_bw())
 theme_update(plot.title = element_text(hjust = 0.5), 
              plot.subtitle = element_text(hjust = 0.5))
-theme_update(axis.text.x = element_blank())
+
+# create the two needed layers
+gg <- geom_violin(draw_quantiles=c(.25,.5,.75), position = position_dodge(0.7) )
+sfm <- scale_fill_manual(name="model", values=cols)
+
 # number of samples
 N <- length(unique(tab$snp))
 
-#pdf("../results/current/simulation/simulation_validation.pdf", width=9, height=9)
-ggplot(tab, aes(y=specificity,x=comparison,fill=comparison)) + gb +  fg + ggtitle("Specificity", subtitle = paste0("(N = ", N, ")"))
-ggplot(tab, aes(y=sensitivity,x=comparison,fill=comparison)) + gb +  fg + ggtitle("Sensitivity", subtitle = paste0("(N = ", N, ")"))
-ggplot(tab, aes(y=F1.score,x=comparison,fill=comparison)) + gb +  fg + 
-  ggtitle("F1.score", subtitle = paste0("(N = ", N, ")"))
-ggplot(tab, aes(y=MCC,x=comparison,fill=comparison)) + gb +  fg +
-  ggtitle("MCC", subtitle = paste0("(N = ", N, ")"))
-#dev.off()
+pdf("results/current/simulation/simulation_validation.pdf", width=10, height=7)
+
+# these is the main plot for the main text of the paper
+ggplot(tab, aes(y=MCC,x=R,fill=comparison)) + 
+	gg + sfm + 
+	ggtitle("MCC", subtitle = paste0("(N = ", N, ")"))
+
+# likely supplement plots
+ggplot(tab, aes(y=specificity,x=R,fill=comparison)) +
+	gg + sfm +
+	ggtitle("Specificity", subtitle = paste0("(N = ", N, ")"))
+
+ggplot(tab, aes(y=sensitivity,x=R,fill=comparison)) + 
+	gg + sfm + 
+	ggtitle("Sensitivity", subtitle = paste0("(N = ", N, ")"))
+
+ggplot(tab, aes(y=F1.score,x=R,fill=comparison)) + 
+	gg + sfm + 
+	ggtitle("F1.score", subtitle = paste0("(N = ", N, ")"))
+
+# also do the additional, more fine grained plot.rather for the supplement.
+# uses two distinct layers for plottin the different models
+
+# remove the rbinom results for now (should be added in an extra step)
+tab2 <- tab[!grepl("rbinom", rownames(tab),]
+tab_ggm <- tab2[tab2$comparison == "ggm_fit",]
+tab_ggm_no_priors <- tab2[tab2$comparison == "ggm_fit_no_priors",]
+
+gp <- ggplot(aes(y=MCC, x=R), data=tab)
+gp2 <- gp + geom_line(data=tab_ggm, 
+		      aes(group=sentinel, color="orange"), 
+		      stat="summary", 
+		      fun.y=median)
+gp3 <- gp2 + geom_line(data=tab_ggm_no_priors, 
+		       aes(group=sentinel, color="black"), 
+		       stat="summary", 
+		       fun.y=median) + 
+		  theme(axis.text.x=element_text(angle=-90, hjust=0.5))
+gp4 <- gp3 + scale_colour_manual(name = 'model', 
+				 values =c('orange'=cols[1],'black'=cols[2]), 
+				 labels = c('no priors', 'full'))
+gp5 <- gp4 + ggtitle("Performance of model fits (MCC)", 
+		     "Shown is the median value of the MCC for each sentinel over all iterations.")
+gp5
+dev.off()
 
 ```
 

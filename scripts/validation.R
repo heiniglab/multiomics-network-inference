@@ -118,19 +118,19 @@ mediation <- function(data, snp, genes, cpgs, plot=F) {
 #' 
 #' @author Johann Hawe
 #' 
-mediation.summary <- function(med, s, s.selected) {
+mediation.summary <- function(med, s, s.selected, cutoff=0.05) {
   # mediation for only ggm selected snp genes
   med.selected <- med[s.selected]
   med.selected.sign <- med.selected[unlist(lapply(med.selected, 
                                                   function(x) { 
-                                                    x["pvalue"]<0.05 
+                                                    x["pvalue"]<cutoff
                                                   }))]
   
   # mediation for only not selected snp genes
   med <- med[setdiff(s,s.selected)]
   med.sign <- med[unlist(lapply(med, 
                                 function(x) { 
-                                  x["pvalue"]<0.05 
+                                  x["pvalue"]<cutoff
                                 }))]
   
   # TODO if we choose to do a test for comparing 
@@ -150,7 +150,8 @@ mediation.summary <- function(med, s, s.selected) {
   cat("Difference (log10(ns/s)): ", d, "\n")
   
   # return 'nice' result
-  return(c(length(med.sign),
+  return(c(length(which(unlist(med)<cutoff)),
+	   length(med.sign),
            length(med.selected.sign),
            paste(names(med.sign), collapse=";"),
            paste(names(med.selected.sign), collapse=";"),

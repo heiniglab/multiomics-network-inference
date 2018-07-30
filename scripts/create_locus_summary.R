@@ -10,9 +10,10 @@ print("Loading libraries and sourcing scripts.")
 library(ggplot2)
 library(reshape)
 library(GenomicRanges)
-library(wesanderson)
-cols <- wes_palette(n=5, "Cavalcanti1")
 source("scripts/lib.R")
+cols <- set_defaultcolors()
+sfm <- scale_fill_manual(values=cols)
+theme_set(theme_bw())
 
 # ------------------------------------------------------------------------------
 print("Getting snakemake params.")
@@ -55,12 +56,11 @@ colnames(melted) <- c("locus", "entity", "count")
 # ------------------------------------------------------------------------------
 print("Plotting and saving results.")
 # ------------------------------------------------------------------------------
-theme_set(theme_bw())
 
 gt <- ggtitle(paste0("Overview over all entities gathered for\n", length(finputs), " network loci.")) 
 gp <- ggplot(aes(y=count, x=entity, fill=entity), data=melted) + 
 	geom_violin(draw_quantiles = c(0.25, 0.5, 0.75)) + 
-	scale_fill_manual(values=cols) + gt
+	sfm + gt
 gp1 <- gp + geom_jitter(height = 0, width = 0.1)
 gp2 <- gp + geom_line(aes(group=locus))
 

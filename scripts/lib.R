@@ -1,3 +1,18 @@
+# ------------------------------------------------------------------------------
+#' Method to quickly set a vector of default plotting colors
+#' to be used in all generated plots for consistency
+#' 
+#' TODO: parameter for number of colors to get. Then probably
+#' the palettes have to be switched accordingly
+#'
+#' @author Johann Hawe
+# ------------------------------------------------------------------------------
+set_defaultcolors <- function() {
+  library(wesanderson)
+  cols <- wes_palette(n=5, "FantasticFox1")
+  return(cols)
+}
+
 #' Gets trans-associated CpGs for a sentinel SNP
 #'
 #' Get all trans cpgs for an individual sentinel SNP using a "cosmo"

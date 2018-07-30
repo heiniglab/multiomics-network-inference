@@ -18,6 +18,11 @@ library(knitr)
 library(gridExtra)
 library(graph)
 source("scripts/lib.R")
+cols <- set_defaultcolors()
+
+# prepare some ggplot stuff
+sfm <- scale_fill_manual(values=cols)
+theme_set(theme_bw())
 
 # ------------------------------------------------------------------------------
 # Get snakemake params if available 
@@ -33,13 +38,14 @@ fexpr <- snakemake@output$expr
 fgene_types <- snakemake@output$gene_types
 fmediation <- snakemake@output$mediation
 fmediation_perc <- snakemake@output$mediation_perc
+fmediation_distr <- snakemake@output$mediation_distr
 fperf <- snakemake@output$perf
 
 # ------------------------------------------------------------------------------
 # load the large result table for all loci
 # TODO we currently remove the results for the GO enrichment
 # ------------------------------------------------------------------------------
-tab <- read.table(fsummary, header=T, sep="\t", stringsAsFactors=F)[1:33]
+tab <- read.table(fsummary, header=T, sep="\t", stringsAsFactors=F)
 
 # ------------------------------------------------------------------------------
 # create some basic plots of the gene counts
@@ -56,22 +62,22 @@ toplot$snp_in_network <- !is.na(toplot[,"snp_cluster"])
 
 # whether the SNP has been selected or not
 gp1 <- ggplotGrob(ggplot(data=toplot, aes(snp_in_network)) + geom_histogram(stat="count") + 
-  facet_grid(cohort ~ graph_type) + 
+  facet_grid(cohort ~ graph_type) + sfm +
   ggtitle("Number of networks in which the SNP has been selected at all"))
 
 # show the distribution of number of nodes per network
 gp2 <- ggplotGrob(ggplot(data=toplot, aes(number_nodes)) + geom_histogram() + 
-  facet_grid(cohort ~ graph_type) + 
+  facet_grid(cohort ~ graph_type) + sfm +
   ggtitle("Distribution of the number of nodes in the networks"))
 
 # show the distribution of number of edges per network
 gp3 <- ggplotGrob(ggplot(data=toplot, aes(number_edges)) + geom_histogram() + 
-  facet_grid(cohort ~ graph_type) + 
+  facet_grid(cohort ~ graph_type) + sfm +
   ggtitle("Distribution of the number of edges in the graph"))
 
 # show the distribution of graph_densities network
 gp4 <- ggplotGrob(ggplot(data=toplot, aes(graph_density)) + geom_histogram() + 
-  facet_grid(cohort ~ graph_type) + 
+  facet_grid(cohort ~ graph_type) + sfm +
   ggtitle("Distribution of graph densities over all networks", "density= 2*|E| / |V|*(|V|-1)"))
 
 # show the distribution of resulting clusters (number of clusters, largest cluster size)
@@ -93,7 +99,7 @@ ggsave(plot=grid.arrange(gp1, gp2, gp3, gp4, ncol=2),
 
 # save the cluster ratios plot individually
 gp <- ggplotGrob(ggplot(data=toplot, aes(cluster_ratio)) + geom_histogram() + 
-  facet_grid(cohort ~ graph_type) + 
+  facet_grid(cohort ~ graph_type) + sfm +
   ggtitle("Ratio of the amount of nodes in the largest clusters vs all nodes in the network"))
 ggsave(plot=gp,
        file=fcratios,
@@ -116,22 +122,22 @@ toplot$spath_ratio <- toplot$spath_selected / toplot$spath
 # snp gene ratio
 use <- toplot$snp_genes_selected>0
 ggp1 <- ggplotGrob(ggplot(data=toplot[use,,drop=F], aes(snp_gene_ratio)) + geom_histogram() + 
-  facet_grid(cohort ~ graph_type) + 
+  facet_grid(cohort ~ graph_type) + sfm +
   ggtitle("Ratio of number of selected SNP-genes vs all SNP-genes"))
 # cpg gene ratio
 use <- toplot$cpg_genes_selected>0
 ggp2 <- ggplotGrob(ggplot(data=toplot[use,,drop=F], aes(cpg_gene_ratio)) + geom_histogram() + 
-  facet_grid(cohort ~ graph_type) + 
+  facet_grid(cohort ~ graph_type) + sfm +
   ggtitle("Ratio of number of selected CpG-genes vs all CpG-genes"))
 # tf ratio
 use <- toplot$tfs_selected>0
 ggp3 <- ggplotGrob(ggplot(data=toplot[use,,drop=F], aes(tf_ratio)) + geom_histogram() + 
-  facet_grid(cohort ~ graph_type) + 
+  facet_grid(cohort ~ graph_type) + sfm +
   ggtitle("Ratio of number of selected TFs vs all TFs"))
 # spath ratio
 use <- toplot$spath_selected>0
 ggp4 <- ggplotGrob(ggplot(data=toplot[use,,drop=F], aes(spath_ratio)) + geom_histogram() + 
-  facet_grid(cohort ~ graph_type) +
+  facet_grid(cohort ~ graph_type) +sfm +
   ggtitle("Ratio of number of selected shortest path genes vs all shortest path genes"))
 
 # arrange and plot
@@ -156,7 +162,7 @@ ggsave(plot=grid.arrange(ggp1, ggp2, ggp3, ggp4, ncol=2),
 # Mediation summary plots
 # ------------------------------------------------------------------------------
 mediation <- tab[,c("sentinel", "cohort", "graph_type",
-                    "mediation", "mediation_selected","log10_mediation")]
+                    "mediation_notselected", "mediation_selected","log10_mediation")]
 # for now we ignore results where we didn't have SNP genes at all
 mediation <- mediation[!is.infinite(mediation$log10_mediation), ,drop=F]
 
@@ -167,7 +173,7 @@ toplot <- melt(toplot, measure.vars=c(4,5), value.name = "pval")
 
 gp1 <- ggplot(data=toplot, aes(x=graph_type, y=-log10(pval), fill=variable)) +
   geom_boxplot(outlier.color = NA) + 
-  facet_grid(cohort ~ .) +
+  facet_grid(cohort ~ .) + sfm +
   geom_hline(yintercept = -log10(0.05), color="red") + 
   ggtitle("Mediation results of all SNP genes over all loci.")
 
@@ -179,17 +185,12 @@ toplot$sentinel <- factor(toplot$sentinel, levels=unique(toplot$sentinel))
 toplot <- melt(toplot, measure.vars=6, value.name="log_fc")
 toplot$favored <- factor(sign(toplot$log_fc),labels = c("not selected", "selected"))
 gp2 <- ggplot(toplot, aes(x=sentinel, y=log_fc, fill=favored)) +
-  geom_bar(stat="identity") + 
+  geom_bar(stat="identity") + sfm +
   facet_grid(cohort ~ graph_type) +
   theme(axis.text.x = 
           element_text(angle = 90, hjust = 1, vjust=0)) +
   ylab("log10(all / selected)") + 
   ggtitle("Mediation results of all SNP genes, log-foldchanges.")
-
-perc <- table(toplot$favored, toplot$graph_type)
-perc <- perc["selected",] / colSums(perc)
-print("Percentage of selected vs not selected mediating genes:")
-print(perc)
 
 # save the two mediation plots
 gp1 <- ggplotGrob(gp1)
@@ -214,43 +215,86 @@ ggsave(plot=grid.arrange(gp1, gp2, nrow=2),
 # Here we look at the percentage of significant mediation results of the GGM selected
 # SNP genes versus total number of SNP genes.
 # ------------------------------------------------------------------------------
+
+perc <- table(toplot$favored, toplot$graph_type)
+perc <- perc["selected",] / colSums(perc)
+print("Percentage of selected vs not selected mediating genes:")
+print(perc)
+
 # create data frame with all needed values
-results <- tab[,c("graph_type", "snp_genes", "snp_genes_selected",
-                  "mediation_significant", "mediation_selected_significant")]
+results <- tab[,c("graph_type", "cohort", "snp_genes", "snp_genes_selected",
+		  "mediation_total",
+                  "mediation_notselected_significant", "mediation_selected_significant")]
+
+# get SNP gene percentages regarding mediation
+results$sign_selected <- results[,"mediation_selected_significant"] / results[,"snp_genes_selected"]
+results$snp_genes_notselected <- results[,"snp_genes"] - results[,"snp_genes_selected"]
+results$sign_notselected <- results[,"mediation_notselected_significant"] / results[,"snp_genes_notselected"]
+
+fg <- facet_grid(. ~ cohort)
+sc <- scale_y_continuous(limits=c(0,1))
+gg <- ggplot(data=results, aes(y=sign_selected, x=graph_type, fill=graph_type))
+# plot distribution  of selected SNP genes showing mediation
+gp1 <- gg + geom_violin(draw_quantiles=c(.25,.5,.75)) + 
+			sfm + fg + sc +
+			ggtitle("Percentage of selected SNP-genes showing mediation.")
+
+# plot distribution  of not-selected SNP genes showing mediation
+gp2 <- gg + aes(y=sign_notselected) +
+       geom_violin(draw_quantiles=c(.25,.5,.75)) +
+       sfm + fg + sc +
+       ggtitle("Percentage of not-selected SNP-genes showing mediation.")
+
+# plot distribution of percentage of total number of mediating genes
+gp3 <- gg + aes(y=mediation_total/snp_genes) +
+       geom_violin(draw_quantiles=c(.25,.5,.75)) +
+       sfm + fg + sc +
+       ggtitle("Percentage of SNP-genes showing mediation.")
+
+# plot distribution  of total number of mediating genes
+gp4 <- gg + aes(y=mediation_total) +
+       geom_violin(draw_quantiles=c(.25,.5,.75)) +
+       sfm + fg +
+       ggtitle("Total number of SNP-genes showing mediation.")
+
+ga <- grid.arrange(gp1,gp2,gp3,gp4,ncol=2)
+ggsave(ga, file=fmediation_distr, width=12, height=9)
 
 # handle different graph types separately
 results <- split(results, f = results$graph_type)
 
 temp <- lapply(names(results), function(n) {
-  r <- results[[n]]
-  # summarize results
-  r <- colSums(r[,-1])
-  # total amount of genes per group, selected/notselected
-  sgenes.selected <- r["snp_genes_selected"]
-  sgenes.notselected <- r["snp_genes"] - sgenes.selected
-  # proportion of significant genes per group
-  sign.selected <- r["mediation_selected_significant"] / sgenes.selected
-  sign.notselected <- r["mediation_significant"] / sgenes.notselected
+  rsub <- results[[n]]
+  cohort <- rsub[,2]
   
-  toplot <- data.frame(selected=c(1,sign.selected), 
-                       not.selected=c(1,sign.notselected))
-  rownames(toplot) <- c("total tested", "proportion significant")
+  summary <- lapply(unique(cohort), function(co) {
+    # summarize results per cohort
+    r <- colSums(rsub[rsub$cohort==co,c(-1,-2)], na.rm=T)
   
-  toplot <- melt(cbind(toplot, mediation = rownames(toplot)), 
-                 id.vars = c('mediation'))
+    # proportion of significant genes per group
+    sign.selected <- r["mediation_selected_significant"] / r["snp_genes_selected"]
+    sign.notselected <- r["mediation_notselected_significant"] / r["snp_genes_notselected"]
+    
+    # number of  
+    toplot <- data.frame(selected=c(1,sign.selected), 
+                         not.selected=c(1,sign.notselected),
+			 cohort=c(co,co))
+    rownames(toplot) <- c("total tested", "proportion significant")
+  
+    toplot <- melt(cbind(toplot, mediation = rownames(toplot)), 
+                   id.vars = c('mediation', 'cohort'))
+    return(toplot)
+  })
+  toplot <- do.call(rbind, summary)
   p <- ggplot(toplot, aes(x=variable,y=value, fill=mediation)) + 
     geom_bar(position="identity", stat="identity") +
+    facet_grid(. ~ cohort) + sfm +
     theme(axis.text.x = 
              element_text(angle = 90, hjust = 1, vjust=0)) +
     ylab("percentage of genes") +
     xlab("mediation group") +
     scale_y_continuous(labels=percent_format()) + 
     ggtitle(n)
-  
-  print(paste0("Difference between groups (", n, "):"))
-  di <- max(sign.notselected, sign.selected) - min(sign.notselected, sign.selected)
-  print(paste0(format(di,digits=2), "%"))
-  
   return(p)
 })
 theme_update(plot.title = element_text(hjust = 0.5))
@@ -275,12 +319,12 @@ values <- lapply(cohorts, function(cohort) {
     }
     dat <- tab[tab$cohort %in% cohort2 & tab$graph_type == graph_type,
                c("sentinel", "snp_genes", "snp_genes_selected",
-                 "mediation_significant", "mediation_selected_significant")]
+                 "mediation_notselected_significant", "mediation_selected_significant")]
     result <- sapply(1:nrow(dat), function(i) {
       d <- dat[i,,drop=F]
-      v1 <- d$mediation_significant==0 & d$snp_genes_selected == 0
-      v2 <- d$mediation_significant==0 & d$snp_genes_selected > 0
-      v3 <- d$mediation_significant>0 & d$snp_genes_selected == 0 
+      v1 <- d$mediation_notselected_significant==0 & d$snp_genes_selected == 0
+      v2 <- d$mediation_notselected_significant==0 & d$snp_genes_selected > 0
+      v3 <- d$mediation_notselected_significant>0 & d$snp_genes_selected == 0 
       v4 <- d$mediation_selected_significant > 0
       # todo
       v5 <- ""
@@ -300,19 +344,25 @@ values <- as.data.frame(do.call(rbind, values))
 values$cohort <- unlist(lapply(strsplit(rownames(values), "\\."), "[[", 1))
 values$graph_type <- unlist(lapply(strsplit(rownames(values), "\\."), "[[", 2))
 
+# define performance summary methods
 sens <- function(d) { d[,"TP"] / (d[,"TP"] + d[,"FN"]) }
 spec <- function(d) { d[,"TN"] / (d[,"TN"] + d[,"FP"]) }
-
+prec <- function(d) { d[,"TP"] / (d[,"TP"] + d[,"FP"]) }
+f1 <- function(d) { 2 * 1 / ((1/sens(d)) + 
+			     (1/prec(d))) }
 # ------------------------------------------------------------------------------
 # save a simple plot showing the performance values
 # ------------------------------------------------------------------------------
 df <- values
 df$sensitivity <- sens(df)
 df$specificity <- spec(df)
-df <- melt(df, measure.vars=c(7,8), value.name="performance")
+df$f1 <- f1(df)
+
+df <- melt(df, measure.vars=c(7,8,9), value.name="performance")
 gp <- ggplot(data=df, aes(y=performance, x=graph_type, fill=graph_type)) + 
 	geom_bar(stat="identity") + 
-	facet_grid(cohort ~ variable) + scale_y_continuous(limits=c(0,1)) + 
+	facet_grid(cohort ~ variable) + scale_y_continuous(limits=c(0,1)) +
+        sfm +
 	ggtitle("Performance of GGMs on different cohorts", "Baseline defined via significant mediation genes. Summary over all sentinels.")
 
 ggsave(plot=gp, file=fperf,
@@ -359,7 +409,7 @@ colnames(toplot) <- c("sentinel", "cohort", "graph_type",
 df <- melt(toplot,measure.vars=c(4,5,6), id.vars=c(1,2,3))
 df$value <- -log10(df$value)
 gp <- ggplot(df, aes(x=reorder(sentinel,value), y=value, fill=variable)) + 
-  facet_grid(cohort+graph_type~variable) +
+  facet_grid(cohort+graph_type~variable) + sfm +
   geom_bar(stat = "identity", position="dodge") + 
   theme(axis.text.x = element_text(vjust=1, angle = 90)) + 
   xlab("sentinel") +

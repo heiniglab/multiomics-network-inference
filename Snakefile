@@ -332,6 +332,7 @@ rule render_validation:
 		gene_types="results/current/validation/gene_types.pdf",
 		mediation="results/current/validation/mediation.pdf",
 		mediation_perc="results/current/validation/mediation_percentages.pdf",
+		mediation_distr="results/current/validation/mediation_distributions.pdf",
 		perf="results/current/validation/performance.pdf"
 	log:	
 		"logs/validation.log"

@@ -125,19 +125,24 @@ mediation.summary <- function(med, s, s.selected, cutoff=0.05) {
                                                   function(x) { 
                                                     x["pvalue"]<cutoff
                                                   }))]
-  
+   
   # mediation for only not selected snp genes
-  med <- med[setdiff(s,s.selected)]
-  med.sign <- med[unlist(lapply(med, 
+  med.notselected <- med[setdiff(s,s.selected)]
+  med.notselected.sign <- med.notselected[unlist(lapply(med.notselected, 
                                 function(x) { 
                                   x["pvalue"]<cutoff
                                 }))]
   
+  # get the best mediating gene based on the correlation
+  best <- med[which.max(unlist(lapply(med, "[[", "correlation")))]
+  best_mediator <- names(best)
+  best_correlation <- unname(best[[1]]["correlation"])
+
   # TODO if we choose to do a test for comparing 
   # selected/not selected, check assumptions first
   
   # min mediation pv for all not selected snpgenes
-  med.pv <- min(unlist(lapply(med, "[[", "pvalue")))
+  med.pv <- min(unlist(lapply(med.notselected, "[[", "pvalue")))
   # max mediation pv for selected snpgenes
   med.pv.selected <- max(unlist(lapply(med.selected, "[[", "pvalue")))
   
@@ -151,9 +156,11 @@ mediation.summary <- function(med, s, s.selected, cutoff=0.05) {
   
   # return 'nice' result
   return(c(length(which(unlist(med)<cutoff)),
-	   length(med.sign),
+	   best_mediator,
+	   best_correlation,
+	   length(med.notselected.sign),	   
            length(med.selected.sign),
-           paste(names(med.sign), collapse=";"),
+           paste(names(med.notselected.sign), collapse=";"),
            paste(names(med.selected.sign), collapse=";"),
            med.pv, 
            med.pv.selected,
@@ -240,71 +247,58 @@ validate.cpggenes <- function(eqtm.genes, cg, cg.selected){
 #' respective set 
 #' 
 validate.gene2gene <- function(expr.data, g, all.genes){
-  
+ 
+  require(BDgraph)	
+
   # the complete set of nodes in the ggm graph
   gnodes <- nodes(g)
   
-  # get the gene-gene links which are possible in our graph
-  em <- expand.grid(all.genes, all.genes, stringsAsFactors = F)
-  em <- (em[em$Var1 != em$Var2, ])
-  # remove duplicated entries
-  em.names <- vector(mode="character", length=nrow(em))
-  for(i in 1:nrow(em)){
-    em.names[i] <- paste0(sort(c(em[i,1], em[i,2])), collapse="")
-  }
-  em <- em[!duplicated(em.names),]
-  # create final dataframe to be used
-  em <- cbind(em[,1], em[,2])
-  em <- as.data.frame(em, stringsAsFactors=F)
-  
-  # get the gene-gene links which can be found in our graph
-  em.selected <- t(graph::edgeMatrix(g))
-  em.selected <- cbind(gnodes[em.selected[,1]], gnodes[em.selected[,2]])
-  em.selected <- em.selected[!grepl("^rs|^cg", em.selected[,1]),,drop=F]
-  em.selected <- em.selected[!grepl("^rs|^cg", em.selected[,2]),,drop=F]
-  colnames(em) <- colnames(em.selected) <- c("n1", "n2")
-  em.selected <- as.data.frame(em.selected, stringsAsFactors=F)
-  
-  # we collect for each data set the results (fisher pvalue)
+  # get adjacency matrices
+  model_adj <- as(g, "matrix")
+
+  # we create a adjacency matrix for each of the expression sets
   # TODO: for the external datasets, check whether we could normalize for age/sex
   results <- lapply(names(expr.data), function(ds) {
     # get the data set
     dset <- expr.data[[ds]]
-    
+    dset <- dset[,colnames(dset) %in% gnodes]
+    # create adj_matrix
+    m <- matrix(nrow=ncol(dset), ncol=ncol(dset))
+    rownames(m) <- colnames(m) <- colnames(dset)
+
     # calculate correlations
-    pvs <- lapply(1:nrow(em), function(r){
-      n1 <- em[r,1]
-      n2 <- em[r,2]
-      # check whether we have data for both nodes
-      if(n1 %in% colnames(dset) & n2 %in% colnames(dset)){
-        res <- cor.test(dset[,n1], dset[,n2])
-        c(n1,n2,res$p.value, res$estimate)
-      } else {
-        c(n1,n2,NA,NA)
+    res <- c()
+    cnames <- colnames(dset)
+    for(i in 1:ncol(dset)) {
+      for(j in i:ncol(dset)) {
+	if(j==i) next
+        corr <- cor.test(dset[,i], dset[,j])
+        res <- rbind(res, c(cnames[i], cnames[j], corr$p.value, corr$estimate))
       }
-    })
-    pvs <- as.data.frame(matrix(unlist(pvs), ncol=4, byrow = T), stringsAsFactors=F)
+    }
+    pvs <- as.data.frame(matrix(res, ncol=4, byrow = F), stringsAsFactors=F)
     colnames(pvs) <- c("n1", "n2", "pval", "cor")
     pvs$pval <- as.numeric(pvs$pval)
     pvs$cor <- as.numeric(pvs$cor)
+
     # get qvalue
     pvs <- cbind(pvs, qval=qvalue(pvs$pval)$qvalues)
-    sign.cors <- pvs[pvs$qval<0.01 & abs(pvs$cor)>0.3,]
-    
-    em.sign <- em[(em$n1 %in% sign.cors$n1 & em$n2 %in% sign.cors$n2)
-                  | (em$n2 %in% sign.cors$n1 & em$n1 %in% sign.cors$n2),]
-    em.selected.sign <- em.selected[(em.selected$n1 %in% sign.cors$n1 & em.selected$n2 %in% sign.cors$n2)
-                                    | (em.selected$n2 %in% sign.cors$n1 & em.selected$n1 %in% sign.cors$n2),]
-    
-    # create matrix for fisher test
-    cont <- matrix(c(nrow(em.selected.sign),nrow(em.sign),
-                     nrow(em.selected),nrow(em)),
-                   nrow=2,ncol=2, byrow = T)
-    rownames(cont) <- c("sign", "not sign")
-    colnames(cont) <- c("selected", "not selected")
-    print(ds)
-    print(cont)
-    format(fisher.test(cont)$p.value, digits=4)
+    use <- pvs$qval<0.01 & abs(pvs$cor)>0.3
+
+    # fill matrix
+    for(i in 1:nrow(pvs)) {
+     r <- pvs[i,,drop=F]
+     if(use[i]) {
+       m[r$n1, r$n2] <- m[r$n2, r$n1] <- 1
+     } else {
+       m[r$n1, r$n2] <- m[r$n2, r$n1] <- 0
+     }
+    }
+    n <- intersect(colnames(m), colnames(model_adj))
+    m <- m[n,n]
+    model_adj <- model_adj[n,n]
+    res <- BDgraph::compare(model_adj, m)  
+    res["MCC","estimate"]
   })
   names(results) <- names(expr.data)
   # report fisher test result for each DS

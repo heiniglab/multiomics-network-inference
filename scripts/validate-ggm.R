@@ -57,12 +57,6 @@ fout <- snakemake@output[[1]]
 
 print("Loading gene expression data.")
 
-# load geuvadis data
-geu <- fread(fgtex, header=T,
-             sep="\t")
-colnames(geu)[1] <- "symbol"
-setkey(geu, symbol)
-
 # load GEO/ARCHS4  data
 geo <- fread(fgeo, 
              header=T, sep="\t")
@@ -108,12 +102,12 @@ cols <- c("sentinel","cohort","graph_type", "number_nodes", "number_edges",
           "graph_density", "cluster", "cluster_sizes", 
           "snp_cluster", "snp_genes", "snp_genes_selected", "snp_genes.list", 
           "snp_genes_selected.list", "cpg_genes", "cpg_genes_selected", "tfs", "tfs_selected",
-          "spath", "spath_selected", "mediation_total",
+          "spath", "spath_selected", "best_mediation", "best_mediation_corr", "mediation_total",
           "mediation_notselected_significant", "mediation_selected_significant",
           "mediation_notselected_significant.list", "mediation_selected_significant.list",
           "mediation_notselected","mediation_selected","log10_mediation",
           "cisEqtl", "transEqtl_cgenes","transEqtl_tfs", "bonder_cis_eQTM",
-          "geuvadis_gene_gene", "geo_gene_gene", "cohort_gene_gene",
+          "geo_gene_gene", "cohort_gene_gene",
           "go_ids", "go_terms", "go_pvals", "go_qvals")
 # the result table
 tab <- cbind(t(cols))
@@ -371,12 +365,6 @@ temp <- lapply(cohorts, function(cohort){
     # calculated correlations only on the subset of genes which is within our network.
     # load the expression data from geuvadis/lappaleinen
    
-    # subset to genes which were available to the gggm algorithm
-    geu_sym <- all_genes[all_genes %in% geu$symbol]
-    geusub <- geu[geu_sym]
-    geusub <- t(geusub[,-1,with=F])
-    colnames(geusub) <- geu_sym
-
     # load geo whole blood expression data
     geo_sym <- all_genes[all_genes %in% geo$symbol]
     geosub <- geo[geo_sym]
@@ -389,7 +377,7 @@ temp <- lapply(cohorts, function(cohort){
     # of samples. 
     
     # list of all expr datasets
-    expr.data <- list(geuvadis=geusub, geo=geosub, cohort=data[,all_genes,drop=F])
+    expr.data <- list(geo=geosub, cohort=data[,all_genes,drop=F])
     row <- c(row, validate.gene2gene(expr.data, g, all_genes))
     
     # --------------------------------------------------------------------------

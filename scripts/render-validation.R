@@ -211,9 +211,10 @@ ggsave(plot=grid.arrange(gp1, gp2, nrow=2),
 #changing the way of summarizing the p-values...
 
 # ------------------------------------------------------------------------------
-# Percentage of mediating genes
+# Mediation details
 # Here we look at the percentage of significant mediation results of the GGM selected
-# SNP genes versus total number of SNP genes.
+# SNP genes versus total number of SNP genes. We also check whether we detected 
+# the single best mediation gene via the models
 # ------------------------------------------------------------------------------
 
 perc <- table(toplot$favored, toplot$graph_type)
@@ -223,8 +224,26 @@ print(perc)
 
 # create data frame with all needed values
 results <- tab[,c("graph_type", "cohort", "snp_genes", "snp_genes_selected",
-		  "mediation_total",
+		  "mediation_best", "mediation_total",
                   "mediation_notselected_significant", "mediation_selected_significant")]
+
+# ------------------------------------------------------------------------------
+# Here we prepare the information of whether the best mediating gene
+# (according to the correlation value of the betas) was selected by the models
+# ------------------------------------------------------------------------------
+results$identified_mediator <- NA
+for(i in 1:nrow(results)) {
+  lab <- ifelse(grepl(results[i,"mediation_best"], 
+		      results[i,"snp_genes_selected"]),
+		"identified",
+		"missing")
+  results[i,"identified_mediator"] <- lab
+}
+
+# ------------------------------------------------------------------------------
+# Here we visualize the distributions over all loci for the individual groups
+# and other details concerning mediation
+# ------------------------------------------------------------------------------
 
 # get SNP gene percentages regarding mediation
 results$sign_selected <- results[,"mediation_selected_significant"] / results[,"snp_genes_selected"]
@@ -234,6 +253,12 @@ results$sign_notselected <- results[,"mediation_notselected_significant"] / resu
 fg <- facet_grid(. ~ cohort)
 sc <- scale_y_continuous(limits=c(0,1))
 gg <- ggplot(data=results, aes(y=sign_selected, x=graph_type, fill=graph_type))
+
+# plot how often we identified the mediator
+gp <- gg + geom_bar(stat="count", aes(x=identified_mediator)) + 
+	sfm + fg +
+	ggtitle("Number of times best mediator was selected in models." )
+
 # plot distribution  of selected SNP genes showing mediation
 gp1 <- gg + geom_violin(draw_quantiles=c(.25,.5,.75)) + 
 			sfm + fg + sc +

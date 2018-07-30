@@ -554,7 +554,7 @@ symbol.from.ensembl <- function(ensemblIDs, na.drop=T, org="hs"){
   if("hs" %in% org){
     library(org.Hs.eg.db)
     hs <- org.Hs.eg.db
-    result <- select(hs, 
+    result <- AnnotationDbi::select(hs, 
                      keytype="ENSEMBL", 
                      keys=c(ensemblIDs), 
                      columns=c("SYMBOL", "ENSEMBL"))

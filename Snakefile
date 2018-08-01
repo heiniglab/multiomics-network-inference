@@ -293,6 +293,8 @@ rule validate_ggm:
 		geo="data/current/archs4/whole_blood/expression_matrix_norm_peer.tsv",
 		cis_kora="data/current/kora/eqtl/cis-full.tsv",
 		trans_kora="data/current/kora/eqtl/trans-full.tsv",
+		cis_joehanes="data/current/joehanes-2017/eqtls/eqtl-gene-annot_cis-only_logFDR2.txt.gz",
+		trans_joehanes="data/current/joehanes-2017/eqtls/eqtl-gene-annot_trans-only_logFDR10.txt.gz",
 		bonder_eqtm="data/current/bonder-et-al-2017/2015_09_02_cis_eQTMsFDR0.05-CpGLevel.txt",
 		kora_data="results/current/cohort-data/kora/{sentinel}.rds",
 		lolipop_data="results/current/cohort-data/lolipop/{sentinel}.rds",

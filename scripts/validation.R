@@ -282,8 +282,9 @@ validate.gene2gene <- function(expr.data, g, all.genes){
     pvs$cor <- as.numeric(pvs$cor)
 
     # get qvalue
-    pvs <- cbind(pvs, qval=qvalue(pvs$pval)$qvalues)
-    use <- pvs$qval<0.01 & abs(pvs$cor)>0.3
+    pvs <- cbind(pvs, qval=qvalue(pvs$pval, 
+				  lambda=seq(0.05,max(pvs$pval), 0.05))$qvalues)
+    use <- pvs$qval<0.05 & abs(pvs$cor)>0.3
 
     # fill matrix
     for(i in 1:nrow(pvs)) {
@@ -301,7 +302,7 @@ validate.gene2gene <- function(expr.data, g, all.genes){
     res["MCC","estimate"]
   })
   names(results) <- names(expr.data)
-  # report fisher test result for each DS
+  # report MCC for each dataset
   return(unlist(results))
 }
 

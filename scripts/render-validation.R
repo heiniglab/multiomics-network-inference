@@ -224,7 +224,8 @@ print(perc)
 
 # create data frame with all needed values
 results <- tab[,c("graph_type", "cohort", "snp_genes", "snp_genes_selected",
-		  "mediation_best", "mediation_total",
+		  "snp_genes_selected.list", 
+		  "mediation_best_gene", "mediation_total",
                   "mediation_notselected_significant", "mediation_selected_significant")]
 
 # ------------------------------------------------------------------------------
@@ -233,8 +234,8 @@ results <- tab[,c("graph_type", "cohort", "snp_genes", "snp_genes_selected",
 # ------------------------------------------------------------------------------
 results$identified_mediator <- NA
 for(i in 1:nrow(results)) {
-  lab <- ifelse(grepl(results[i,"mediation_best"], 
-		      results[i,"snp_genes_selected"]),
+  lab <- ifelse(grepl(results[i,"mediation_best_gene"], 
+		      results[i,"snp_genes_selected.list"]),
 		"identified",
 		"missing")
   results[i,"identified_mediator"] <- lab
@@ -255,8 +256,8 @@ sc <- scale_y_continuous(limits=c(0,1))
 gg <- ggplot(data=results, aes(y=sign_selected, x=graph_type, fill=graph_type))
 
 # plot how often we identified the mediator
-gp <- gg + geom_bar(stat="count", aes(x=identified_mediator)) + 
-	sfm + fg +
+gp <- gg + geom_bar(stat="count", inherit.aes=F, aes(x=identified_mediator)) + 
+	sfm + facet_grid(graph_type ~ cohort) +
 	ggtitle("Number of times best mediator was selected in models." )
 
 # plot distribution  of selected SNP genes showing mediation
@@ -271,20 +272,23 @@ gp2 <- gg + aes(y=sign_notselected) +
        ggtitle("Percentage of not-selected SNP-genes showing mediation.")
 
 # plot distribution of percentage of total number of mediating genes
-gp3 <- gg + aes(y=mediation_total/snp_genes) +
-       geom_violin(draw_quantiles=c(.25,.5,.75)) +
-       sfm + fg + sc +
+gp3 <- gg +
+       geom_violin(inherit.aes=F, mapping=aes(y=mediation_total/snp_genes, x=cohort, fill=cohort), draw_quantiles=c(.25,.5,.75)) +
+       sfm + sc +
        ggtitle("Percentage of SNP-genes showing mediation.")
 
 # plot distribution  of total number of mediating genes
-gp4 <- gg + aes(y=mediation_total) +
-       geom_violin(draw_quantiles=c(.25,.5,.75)) +
-       sfm + fg +
+gp4 <- gg +
+       geom_violin(inherit.aes=F, mapping=aes(y=mediation_total, x=cohort, fill=cohort), draw_quantiles=c(.25,.5,.75)) +
+       sfm + 
        ggtitle("Total number of SNP-genes showing mediation.")
 
-ga <- grid.arrange(gp1,gp2,gp3,gp4,ncol=2)
+ga <- grid.arrange(gp,gp1,gp2,gp3,gp4,ncol=2)
 ggsave(ga, file=fmediation_distr, width=12, height=9)
 
+# not needed anymore - keep only relevant subset
+results <- results[,c("graph_type", "cohort", "mediation_selected_significant", "snp_genes_selected",
+		      "mediation_notselected_significant","snp_genes_notselected")]
 # handle different graph types separately
 results <- split(results, f = results$graph_type)
 
@@ -294,7 +298,7 @@ temp <- lapply(names(results), function(n) {
   
   summary <- lapply(unique(cohort), function(co) {
     # summarize results per cohort
-    r <- colSums(rsub[rsub$cohort==co,c(-1,-2)], na.rm=T)
+    r <- colSums(rsub[rsub$cohort==co,c(-1, -2)], na.rm=T)
   
     # proportion of significant genes per group
     sign.selected <- r["mediation_selected_significant"] / r["snp_genes_selected"]
@@ -384,14 +388,28 @@ df$specificity <- spec(df)
 df$f1 <- f1(df)
 
 df <- melt(df, measure.vars=c(7,8,9), value.name="performance")
-gp <- ggplot(data=df, aes(y=performance, x=graph_type, fill=graph_type)) + 
+gp1 <- ggplot(data=df, aes(y=performance, x=graph_type, fill=graph_type)) + 
 	geom_bar(stat="identity") + 
 	facet_grid(cohort ~ variable) + scale_y_continuous(limits=c(0,1)) +
-        sfm +
+        sfm + theme(axis.text.x = element_text(vjust=1, angle = 90)) +
 	ggtitle("Performance of GGMs on different cohorts", "Baseline defined via significant mediation genes. Summary over all sentinels.")
 
-ggsave(plot=gp, file=fperf,
-       width=10,height=12)
+# ------------------------------------------------------------------------------
+# Evaluate the individual methods as of how well they reproduce across cohorts
+# using MCC
+# ------------------------------------------------------------------------------
+df <- tab[, c("sentinel", "cohort", "graph_type", "cross_cohort_mcc")]
+df <- melt(df, measure.vars=4, value.name="performance")
+gp2 <- ggplot(data=df, aes(y=performance, x=graph_type, fill=graph_type)) + 
+	geom_violin(draw_quantiles=c(.25,.5,.75)) + 
+	facet_grid(. ~ cohort) + 
+	sfm + theme(axis.text.x = element_text(vjust=1, angle = 90)) + 
+	ggtitle("Performance of methods regarding replication across cohorts (MCC).", 
+		"Only matched nodes in both graphs have been allowed for analysis.")
+
+# finalize performance plot and save
+ga <- grid.arrange(gp1, gp2, ncol=2)
+ggsave(plot=ga, file=fperf, width=12, height=8)
 
 # ------------------------------------------------------------------------------
 # CpG-Gene validation
@@ -402,43 +420,34 @@ ggsave(plot=gp, file=fperf,
 # ------------------------------------------------------------------------------
 # Gene-Gene validation 
 #
-#The gene-gene links were validated using external expression data from GEO (ARCHS4),
-#Geuvadis as well as the data from either LOLIPOP or KORA, depending on which cohort 
-#the bGGM was calculated.
+# The gene-gene links were validated using external expression data from GEO (ARCHS4),
+# as well as the data from either LOLIPOP or KORA, depending on which cohort 
+# the bGGM was calculated.
 
-#To assess how well our approach recovers co-expression of genes in the independent
-#datasets, we calculate all gene-vs-gene (gvg) correlations in those data and create a
-#confusion matrix as follows:
+# To assess how well our approach recovers co-expression of genes in the independent
+# datasets, we calculate all gene-vs-gene (gvg) correlations in those data and then
+# obtained the MCC between these networks vs. the ones obtained from the models
 
-#temp <- matrix(c("W","X","Y","Z"),nrow=2,ncol=2)
-#colnames(temp) <- c("In GGM", "Not in GGM")
-#rownames(temp) <- c("Correlation sign.","Correlation not sign.")
-#kable(temp,align = c("c","c"))
-
-#We deem a correlation between two genes to be significant if 1) $p-value < 0.01$
-#and 2) $\rho > 0.3$ ($\rho$ being the Pearson Correlation Coefficient).
-
-#We test whether we can reject $H0$ (i.e. whether we detect a correlation regardless of it 
-#being significant in the independent data) using a Fisher's exact test.
-#Shown below are the p-values for those tests over all loci on the different datasets.
-#The black lines indicate a significance level of $0.05$.
+# We deem a correlation between two genes to be significant if 1) $p-value < 0.01$
+# and 2) $\rho > 0.3$ ($\rho$ being the Pearson Correlation Coefficient).
 # ------------------------------------------------------------------------------
 
 # get the relevant data (pvalues on the different datasets)
 toplot <- tab[,c("sentinel","cohort", "graph_type", 
-             "geuvadis_gene_gene","geo_gene_gene","cohort_gene_gene")]
+             "geo_gene_gene","cohort_gene_gene")]
 colnames(toplot) <- c("sentinel", "cohort", "graph_type", 
-                  "Geuvadis", "GEO", "LOLIPOP_KORA")
+                      "GEO", "LOLIPOP_KORA")
 
 # plot the data
-df <- melt(toplot,measure.vars=c(4,5,6), id.vars=c(1,2,3))
-df$value <- -log10(df$value)
-gp <- ggplot(df, aes(x=reorder(sentinel,value), y=value, fill=variable)) + 
-  facet_grid(cohort+graph_type~variable) + sfm +
-  geom_bar(stat = "identity", position="dodge") + 
+df <- melt(toplot,measure.vars=c(4,5), id.vars=c(1,2,3))
+gp <- ggplot(df, aes(x=graph_type, y=value, fill=variable)) + 
+  facet_grid(cohort~variable) + sfm +
+  geom_violin(draw_quantiles=c(.25,.5,.75)) + 
   theme(axis.text.x = element_text(vjust=1, angle = 90)) + 
-  xlab("sentinel") +
-  geom_hline(yintercept = -log10(0.05))
+  xlab("sentinel") + ylab("MCC") +
+  ggtitle("Validation of gene networks.", 
+	  "Shown is the MCC over all loci calculated on gene-networks extracted from models against
+the networks obtained from a simple correlation analysis.")
 
 ggsave(plot=gp,
        file=fexpr,

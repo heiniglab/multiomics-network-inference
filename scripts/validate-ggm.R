@@ -15,6 +15,7 @@ sink(log, type="message")
 # ------------------------------------------------------------------------------
 # Load libraries and source scripts
 # ------------------------------------------------------------------------------
+library(BDgraph)
 library(igraph)
 library(graph)
 library(data.table)
@@ -43,6 +44,8 @@ fgeo <- snakemake@input[["geo"]]
 fciseqtl_kora <- snakemake@input[["cis_kora"]]
 ftranseqtl_kora <- snakemake@input[["trans_kora"]]
 fbonder_eqtm <- snakemake@input[["bonder_eqtm"]]
+fciseqtl_joehanes <- snakemake@input[["cis_joehanes"]]
+ftranseqtl_joehanes <- snakemake@input[["trans_joehanes"]]
 
 # params
 threads <- snakemake@threads
@@ -69,27 +72,19 @@ kora_ceqtl <- fread(fciseqtl_kora, sep="\t",
 kora_teqtl <- fread(ftranseqtl_kora, sep="\t",
                     header=T)
 
+print("Loading Joehanes eQTL.")
 # load cis-eQTL data
-#ceqtl <- fread("zcat data/current/joehanes-et-al-2017/eqtls/eqtl-gene-annot_cis-only.txt.gz",
-#               sep=",", 
-#               data.table=F, select = c("SNP_Chr","SNP_Pos_hg19","Rs_ID","SNP_MAF",
-#                                        "SNP_Imputation_RSq","ProbesetID","Transcript_Chr",
-#                                        "Transcript_GeneSymbol","Transcript_EntrezGeneID",
-#                                        "Is_Cis","log10FDR"))
+ceqtl <- fread(paste0("zcat ", fciseqtl_joehanes),
+               sep=",")
 # get only cis eqtls defined in the paper
-#ceqtl <- ceqtl[ceqtl$Is_Cis==1 & ceqtl$log10FDR < -2,,drop=F]
-ceqtl <- kora_ceqtl
+ceqtl <- ceqtl[ceqtl$Is_Cis==1]
 print(paste0("Loaded ", nrow(ceqtl), " cis-eQTL"))
 
 # load the trans-eQTL dataset
-#teqtl <- fread("zcat data/current/joehanes-et-al-2017/eqtls/eqtl-gene-annot_trans-only_logFDR2.txt.gz", 
-#               sep=",", 
-#               data.table=F, select = c("SNP_Chr","SNP_Pos_hg19","Rs_ID","SNP_MAF","SNP_Imputation_RSq",
-#                                        "ProbesetID","Transcript_Chr","Transcript_GeneSymbol",
-#                                        "Transcript_EntrezGeneID","Is_Cis","log10FDR"))
+teqtl <- fread(paste0("zcat ", ftranseqtl_joehanes), 
+               sep=",")
+
 # sanity check
-#cat("only trans: ", all(teqtl$Is_Cis == 0), "\n")
-teqtl <- kora_teqtl
 print(paste0("Loaded ", nrow(teqtl), " trans-eQTL"))
 
 # load the bonder cis-eQTMs for cpg-gene validation
@@ -102,13 +97,15 @@ cols <- c("sentinel","cohort","graph_type", "number_nodes", "number_edges",
           "graph_density", "cluster", "cluster_sizes", 
           "snp_cluster", "snp_genes", "snp_genes_selected", "snp_genes.list", 
           "snp_genes_selected.list", "cpg_genes", "cpg_genes_selected", "tfs", "tfs_selected",
-          "spath", "spath_selected", "best_mediation", "best_mediation_corr", "mediation_total",
+          "spath", "spath_selected", "cross_cohort_mcc", 
+	  "mediation_total", "mediation_best_gene", "mediation_best_corr",
           "mediation_notselected_significant", "mediation_selected_significant",
           "mediation_notselected_significant.list", "mediation_selected_significant.list",
           "mediation_notselected","mediation_selected","log10_mediation",
           "cisEqtl", "transEqtl_cgenes","transEqtl_tfs", "bonder_cis_eQTM",
           "geo_gene_gene", "cohort_gene_gene",
           "go_ids", "go_terms", "go_pvals", "go_qvals")
+
 # the result table
 tab <- cbind(t(cols))
 colnames(tab) <- cols
@@ -260,6 +257,37 @@ temp <- lapply(cohorts, function(cohort){
              length(tfs), length(tfs_selected), 
              length(spath), length(spath_selected))
     
+    # --------------------------------------------------------------------------
+    # Check replication of complete graph across the two cohorts
+    # Here we check via the MCC how well the graph structure correponds between
+    # the two applications on the different cohorts
+    # --------------------------------------------------------------------------
+    if("lolipop" %in% cohort) {
+	    cohort2 <- "kora"
+    } else {
+	    cohort2 <- "lolipop"
+    }
+    
+    # get graph fit on other cohort
+    g2 <- fits[[cohort2]][[gn]]
+    
+    # get adjacency matrices
+    g_adj <- as(g, "matrix")
+    g2_adj <- as(g2, "matrix")
+    
+    # ensure that we have the same nodes only in all graphs.
+    # this might somewhat change results, but otherwise we 
+    # cant compute the MCC properly.
+    use <- intersect(colnames(g_adj), colnames(g2_adj))
+    g_adj <- g_adj[use,use]
+    g2_adj <- g2_adj[use,use]
+    
+    # calculate performance using the DBgraph method compare()
+    mcc <- compare(g_adj,g2_adj)["MCC", "estimate"]
+    
+    # add to output
+    row <- c(row, mcc)
+
     # Above the number of snp genes (sgenes), cpg genes (cgenes), transcription
     # factors (tfs) as well as the genes on the shortest paths between tfs and sgenes (spath)
     # are shown. Starting from those set definitions, we now perform the validation of the model.
@@ -294,7 +322,7 @@ temp <- lapply(cohorts, function(cohort){
     
     # filter ceqtl to be only related to our sentinel SNP
     # TODO use proxy/high ld snps to increase ceqtl number?
-    ceqtlsub <- ceqtl[ceqtl$SNP %in% snp]
+    ceqtlsub <- ceqtl[ceqtl$Rs_ID %in% snp]
     if(nrow(ceqtlsub) < 1) {
       warning("Sentinel " %+% sentinel %+% " not found in cis-eQTL data")
       # report NA in stats file 
@@ -335,14 +363,14 @@ temp <- lapply(cohorts, function(cohort){
     
     # filter teqtl to be only related to our sentinel SNP
     # TODO use proxy/high ld snps to increase teqtl number?
-    teqtlsub <- teqtl[teqtl$SNP %in% snp]# & (teqtl$log10FDR) < (-2),,drop=F]
+    teqtlsub <- teqtl[teqtl$Rs_ID %in% snp]# & (teqtl$log10FDR) < (-2),,drop=F]
     if(nrow(teqtlsub)<1) {
       warning("Sentinel " %+% sentinel %+% " not available in trans-eQTL data.")
       # report NA in stats file 
       row <- c(row, NA, NA)
     } else {
-      row <- c(row, validate.trans.genes(teqtl, cgenes, tfs, 
-                                         cgenes_selected,   tfs_selected))
+      row <- c(row, validate.trans.genes(teqtlsub, cgenes, tfs, 
+                                         cgenes_selected, tfs_selected))
     }
     
     # we can also count how many of the identified cpg

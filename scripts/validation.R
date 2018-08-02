@@ -75,6 +75,8 @@ mediation <- function(data, snp, genes, cpgs, plot=F) {
   rownames(betas) <- rnames
   colnames(betas) <- c("snp.cpg", "snp.gene", "cpg.gene", "snp.cpg.hat")
   
+  # create dataframe to check correlations for each gene
+  # (of snp.cpg-beta and snp.cpg-hat-beta)
   betas <- as.data.frame(betas)
   betas$cpg <- gsub(".*[.]", "", rownames(betas))
   betas$gene <- gsub("[.].*", "", rownames(betas))
@@ -115,10 +117,11 @@ mediation <- function(data, snp, genes, cpgs, plot=F) {
 #' @param m The mediation result gotten from mediation()
 #' @param s The SNP-genes for the current instance
 #' @param s.selected The SNP-genes selected by the GGM
-#' 
+#' @param cutoff Significance cutoff for mediating genes 
+#'
 #' @author Johann Hawe
 #' 
-mediation.summary <- function(med, s, s.selected, cutoff=0.05) {
+mediation.summary <- function(med, s, s.selected, cutoff) {
   # mediation for only ggm selected snp genes
   med.selected <- med[s.selected]
   med.selected.sign <- med.selected[unlist(lapply(med.selected, 
@@ -165,6 +168,101 @@ mediation.summary <- function(med, s, s.selected, cutoff=0.05) {
            med.pv, 
            med.pv.selected,
            d))
+}
+
+#' Creates a summary of the comparison of mediation results
+#' from two different datasets
+#' 
+#' Given mediation results for a SNP and it's SNP-genes together
+#' with the GGM selected SNP genes, retrieves some values indicating
+#' the mediation 'performance' for the current SNP
+#' 
+#' @param sentinel The corresponding sentinel snp 
+#' @param mediation The mediation results on the validation cohort
+#' @param mediation2 The mediation results on the original cohort
+#' @param sgenes_selected List of all snp genes selected by the model
+#' @param cutoff Significance cutoff for mediating genes
+#' @param fout Output file were plot should be saved to
+#'
+#' @author Johann Hawe
+#' 
+compare_mediation_results <- function(sentinel, 
+				      mediation,
+				      mediation2, 
+				      sgenes_selected, 
+				      cutoff,
+				      fout) {
+  require(ggplot2)
+  require(reshape)
+
+  # get mediation correlations for all genes
+  med_correlations <- unlist(lapply(mediation, "[[", "correlation"))
+  med_correlations2 <- unlist(lapply(mediation2, "[[", "correlation"))
+  med_correlations2 <- med_correlations2[names(med_correlations)]
+
+  # get mediation pvalues for all genes
+  med_pvals <- unlist(lapply(mediation, "[[", "pvalue"))
+  med_pvals2 <- unlist(lapply(mediation2, "[[", "pvalue"))
+  med_pvals2 <- med_pvals2[names(med_pvals)]
+
+  # create dataframe for plotting
+  df <- cbind.data.frame(med_correlations, med_correlations2,
+                          med_pvals, med_pvals2)
+  colnames(df) <- c("correlation_validation",
+		    "correlation_original",
+		    "pvalue_validation",
+		    "pvalue_original")
+
+  df$gene <- names(med_pvals)
+  df$significant_validation <- df$pvalue_validation <= cutoff
+  df$significant_original <- df$pvalue_original <= cutoff
+  df$significant <- unlist(lapply(1:nrow(df), function(i) {
+			  r <- df[i,,drop=T]
+			  if(r[["significant_validation"]] & r[["significant_original"]]){
+			    return("both")
+			  } else if(r[["significant_original"]]){
+			    return("original")
+			  } else if(r[["significant_validation"]]) {
+			    return("validation")
+			  } else {
+			    return("none")
+			  }
+  }))
+  df$model_selected <- ifelse(df$gene %in% sgenes_selected, "yes", "no")
+  df <- reshape::melt(df, measure.vars=1:2, variable.name="dataset")
+
+  # add plotting x-lab proxy
+  df = transform(df, dvariable = as.numeric(variable) + runif(length(variable),-0.2,0.2))
+
+  # create the plot
+  source("scripts/lib.R")
+  cols <- set_defaultcolors()
+  sfm <- scale_fill_manual(values=cols)
+
+  gp <- ggplot(data=df, aes(y=value, x=variable))
+  gp <- gp + sfm + geom_violin(draw_quantiles=.5) + 
+	  geom_point(aes(color=significant, x=dvariable, shape=model_selected), size=3) + 
+	  geom_line(aes(group=gene, x=dvariable), linetype="dotted")+
+	  geom_text(aes(label=gene), size=2.5, nudge_x=-0.4, 
+		    data=subset(df, variable=="correlation_validation")) + 
+	  ggtitle(paste0("Mediation correlation values for ", sentinel, "."),
+			 "Shown are the distribution of correlation values for each SNP gene, once for the 
+validation dataset and once for the original dataset (on which models were calcualted.") + 
+	  theme_bw() + theme(plot.title = element_text(hjust = 0))
+  ggsave(file=fout,
+	 plot=gp)
+
+  # return the correlation of the mediation correlations between the two datasets
+  # and the fraction of significant mediations in validation set also significant in original 
+  # dataset
+  corr <- cor(med_correlations, med_correlations2)
+  df <- subset(df, variable=="correlation_validation")
+  # fraction of all SNP genes significant in both datasets
+  frac <- length(which(df$significant=="both"))/nrow(df)
+  # fraction of validation significant SNP genes significant in original dataset
+  frac2 <- length(which(df$significant=="both")) / 
+	  length(which(df$significant=="both" | df$significant=="validation"))
+  return(c(corr, frac, frac2))
 }
 
 #' Validates the given ggm fit based on the found SNP~Gene links

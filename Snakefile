@@ -300,6 +300,9 @@ rule validate_ggm:
 		lolipop_data="results/current/cohort-data/lolipop/{sentinel}.rds",
 		kora_fit="results/current/fits/kora/{sentinel}.rds",
 		lolipop_fit="results/current/fits/lolipop/{sentinel}.rds"
+	params:
+		dmediation_plots="results/current/validation/mediation_plots/",
+		mediation_cutoff=0.05
 	output: 
 		"results/current/validation/{sentinel}.txt"
 	log: 

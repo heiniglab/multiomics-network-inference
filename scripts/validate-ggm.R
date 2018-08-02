@@ -50,6 +50,11 @@ ftranseqtl_joehanes <- snakemake@input[["trans_joehanes"]]
 # params
 threads <- snakemake@threads
 sentinel <- snakemake@wildcards$sentinel
+dmediation_plots <- snakemake@params$dmediation_plots
+if(!dir.exists(dmediation_plots)) {
+	dir.create(dmediation_plots)
+}
+mediation_cutoff <- snakemake@params$mediation_cutoff
 
 # this is the main outfile, to which to write all the validation results
 fout <- snakemake@output[[1]]
@@ -102,6 +107,8 @@ cols <- c("sentinel","cohort","graph_type", "number_nodes", "number_edges",
           "mediation_notselected_significant", "mediation_selected_significant",
           "mediation_notselected_significant.list", "mediation_selected_significant.list",
           "mediation_notselected","mediation_selected","log10_mediation",
+	  "mediation_cross_cohort_correlation", "mediation_cross_cohort_fraction", 
+	  "mediation_cross_cohort_fraction_validation_significant",
           "cisEqtl", "transEqtl_cgenes","transEqtl_tfs", "bonder_cis_eQTM",
           "geo_gene_gene", "cohort_gene_gene",
           "go_ids", "go_terms", "go_pvals", "go_qvals")
@@ -153,14 +160,20 @@ temp <- lapply(cohorts, function(cohort){
   # we apply over all graphs...
   gs <- listN(graph, graph_no_priors, graph_genenet)
   
-  # dnodes -> full set of possible nodes
+  # we get the according dataset on which to validate
+  # data2 is only used for the mediation analysis check,
+  # where we investigate whether there would be any effect
+  # in the other cohort, in case we didnt pick it up with our models
   if("lolipop" %in% cohort){
     # ggm calculated on lolipop, validate on kora
     data <- kdata
+    data2 <- ldata
   } else {
     # assume kora cohort, validate on lolipop
     data <- ldata
+    data2 <- kdata
   }
+  # dnodes -> full set of possible nodes
   dnodes <- colnames(data)
   
   # ----------------------------------------------------------------------------
@@ -219,6 +232,7 @@ temp <- lapply(cohorts, function(cohort){
     # get names of all entities, total and selected by ggm
     snp <- names(ranges$sentinel_range)
     data[,snp] <- as.integer(as.character(data[,snp]))
+    data2[,snp] <- as.integer(as.character(data2[,snp]))
     cpgs <- intersect(dnodes, names(ranges$cpgs))
     cpgs_selected <- cpgs[cpgs %in% gnodes]
     all_genes <- dnodes[!grepl("^rs|^cg", dnodes)]
@@ -314,8 +328,20 @@ temp <- lapply(cohorts, function(cohort){
     # mediation over all snp genes
     # --------------------------------------------------------------------------
     med <- mediation(data, snp, sgenes, cpgs)
-    row <- c(row, mediation.summary(med, sgenes, sgenes_selected))
-    
+    row <- c(row, mediation.summary(med, sgenes, sgenes_selected, mediation_cutoff))
+   
+    # we also check the correspondence of the correlation values for all genes
+    # in the other cohort
+    med2 <- mediation(data2, snp, sgenes, cpgs)
+    fout <- file.path(dmediation_plots, paste0(paste(sentinel, 
+						     cohort, 
+						     gn,
+						     sep="_"),
+					       ".pdf"))
+    row <- c(row, compare_mediation_results(sentinel, med, med2, 
+			      sgenes_selected, mediation_cutoff, 
+			      fout))
+
     # --------------------------------------------------------------------------
     # (2) check cis-eQTL in independent study
     # --------------------------------------------------------------------------

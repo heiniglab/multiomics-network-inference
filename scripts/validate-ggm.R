@@ -102,7 +102,7 @@ cols <- c("sentinel","cohort","graph_type", "number_nodes", "number_edges",
           "graph_density", "cluster", "cluster_sizes", 
           "snp_cluster", "snp_genes", "snp_genes_selected", "snp_genes.list", 
           "snp_genes_selected.list", "cpg_genes", "cpg_genes_selected", "tfs", "tfs_selected",
-          "spath", "spath_selected", "cross_cohort_mcc", 
+          "spath", "spath_selected", "cross_cohort_mcc", "cross_cohort_mcc_frac",
 	  "mediation_total", "mediation_best_gene", "mediation_best_corr",
           "mediation_notselected_significant", "mediation_selected_significant",
           "mediation_notselected_significant.list", "mediation_selected_significant.list",
@@ -298,9 +298,10 @@ temp <- lapply(cohorts, function(cohort){
     
     # calculate performance using the DBgraph method compare()
     mcc <- compare(g_adj,g2_adj)["MCC", "estimate"]
-    
-    # add to output
-    row <- c(row, mcc)
+    # the fraction of nodes retained in the overlap w.r.t. to the 
+    # total number of possible nodes
+    mcc_frac <- ncol(g_adj)/ncol(data)
+    row <- c(row, mcc, mcc_frac)
 
     # Above the number of snp genes (sgenes), cpg genes (cgenes), transcription
     # factors (tfs) as well as the genes on the shortest paths between tfs and sgenes (spath)

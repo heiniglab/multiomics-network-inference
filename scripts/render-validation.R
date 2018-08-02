@@ -192,13 +192,33 @@ gp2 <- ggplot(toplot, aes(x=sentinel, y=log_fc, fill=favored)) +
   ylab("log10(all / selected)") + 
   ggtitle("Mediation results of all SNP genes, log-foldchanges.")
 
-# save the two mediation plots
+# get the two main mediation plots
 gp1 <- ggplotGrob(gp1)
 gp2 <- ggplotGrob(gp2)
 
-ggsave(plot=grid.arrange(gp1, gp2, nrow=2),
+# Cross cohort mediation summary plots
+mediation <- tab[,c("sentinel", "cohort", "graph_type",
+                    "mediation_cross_cohort_correlation", "mediation_cross_cohort_fraction",
+		    "mediation_cross_cohort_fraction_validation_significant")]
+# only choose one graph_type, since the information is redundant
+df <- subset(mediation, graph_type="graph")
+colnames(df) <- c("sentinel", "cohort", "graph_type", "corr",
+		  "fraction", "fraction_validation")
+df <- df[,c("sentinel", "cohort", "corr",
+                  "fraction", "fraction_validation")]
+df <- melt(df, measure.vars=c(3,4,5))
+df$type <- ifelse(df$variable=="corr", "correlation", "fraction")
+
+# plot
+gv <- geom_violin(draw_quantiles=c(.25,.5,.75))
+gp <- ggplot(data=df, aes(y=value, x=variable))
+gp3 <- gp + gv + facet_grid(cohort ~ type) + sfm + 
+	ggtitle("Cross cohort evaluation of mediation values")
+gp3 <- ggplotGrob(gp3)
+
+ggsave(plot=grid.arrange(gp1, gp2, gp3, nrow=3),
        file=fmediation,
-       width=8, height=12)
+       width=8, height=20)
 
 #This figure shows a different summary of the mediation results. Shown is the log10 fold change
 #of the mediation p-value for the not selected SNP genes ($p_n$) over the p-value for selected
@@ -392,7 +412,8 @@ gp1 <- ggplot(data=df, aes(y=performance, x=graph_type, fill=graph_type)) +
 	geom_bar(stat="identity") + 
 	facet_grid(cohort ~ variable) + scale_y_continuous(limits=c(0,1)) +
         sfm + theme(axis.text.x = element_text(vjust=1, angle = 90)) +
-	ggtitle("Performance of GGMs on different cohorts", "Baseline defined via significant mediation genes. Summary over all sentinels.")
+	ggtitle("Performance of GGMs on different cohorts", 
+		"Baseline defined via significant mediation genes. Summary over all sentinels.")
 
 # ------------------------------------------------------------------------------
 # Evaluate the individual methods as of how well they reproduce across cohorts
@@ -400,6 +421,7 @@ gp1 <- ggplot(data=df, aes(y=performance, x=graph_type, fill=graph_type)) +
 # ------------------------------------------------------------------------------
 df <- tab[, c("sentinel", "cohort", "graph_type", "cross_cohort_mcc")]
 df <- melt(df, measure.vars=4, value.name="performance")
+# show the distribution of MCC values
 gp2 <- ggplot(data=df, aes(y=performance, x=graph_type, fill=graph_type)) + 
 	geom_violin(draw_quantiles=c(.25,.5,.75)) + 
 	facet_grid(. ~ cohort) + 
@@ -407,8 +429,22 @@ gp2 <- ggplot(data=df, aes(y=performance, x=graph_type, fill=graph_type)) +
 	ggtitle("Performance of methods regarding replication across cohorts (MCC).", 
 		"Only matched nodes in both graphs have been allowed for analysis.")
 
+# show the MCC values w.r.t. to the fraction of retained nodes in the two compared models
+df <- tab[, c("sentinel", "cohort", "graph_type", "cross_cohort_mcc", "cross_cohort_mcc_frac")]
+#df <- melt(df, measure.vars=4, value.name="performance")
+gp3 <- ggplot(data=df, aes(y=cross_cohort_mcc, x=cross_cohort_mcc_frac, 
+			   color=graph_type, 
+			   shape=graph_type)) +
+        geom_point() +
+        facet_grid(cohort ~ .) +
+        scale_color_manual(values=cols) + geom_abline(linetype="dotted") + 
+        geom_hline(linetype="dotted",yintercept=0) + geom_vline(linetype="dotted",xintercept=0) + 
+        ggtitle("Performance of methods regarding replication across cohorts (MCC).",
+                "Shown is the MCC w.r.t. the fraction of nodes retained in the graphs regarding the total number
+of nodes available in the data.")
+
 # finalize performance plot and save
-ga <- grid.arrange(gp1, gp2, ncol=2)
+ga <- grid.arrange(gp1, gp2, gp3, ncol=2)
 ggsave(plot=ga, file=fperf, width=12, height=8)
 
 # ------------------------------------------------------------------------------

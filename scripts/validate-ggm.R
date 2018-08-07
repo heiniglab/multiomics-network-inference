@@ -223,12 +223,15 @@ temp <- lapply(cohorts, function(cohort){
     row <- c(row, ncluster, scluster, snp_cluster)
     
     # retain only nodes in the largest connected component
-    keep <- cl$membership==which.max(cl$csize))
-    keep <- names(cl$memvership[keep])
+    keep <- cl$membership==which.max(cl$csize)
+    keep <- names(cl$membership[keep])
 
     # the nodes retained in the fitted graph model
-    g <- subGraph(keep, g)
-    gnodes <- nodes(g)
+    g <- graph::subGraph(keep, g)
+    gnodes <- graph::nodes(g)
+    if(!sentinel %in% gnodes) {
+      g <- graph::addNode(sentinel, g)
+    }
     
     # for now, filter only for those nodes for which data was available
     # should change once we update the data matrix...
@@ -291,10 +294,12 @@ temp <- lapply(cohorts, function(cohort){
     # compare with largest connected component only
     ig = igraph::graph_from_graphnel(g2)
     cl = clusters(ig)
-    keep <- cl$membership==which.max(cl$csize))
-    keep <- names(cl$memvership[keep])
-    g2 <- subGraph(keep, g2)
-
+    keep <- cl$membership==which.max(cl$csize)
+    keep <- names(cl$membership[keep])
+    g2 <- graph::subGraph(keep, g2)
+    if(!sentinel %in% graph::nodes(g2)) {
+	    g2 <- graph::addNode(sentinel, g2)
+    }
     # get adjacency matrices
     g_adj <- as(g, "matrix")
     g2_adj <- as(g2, "matrix")

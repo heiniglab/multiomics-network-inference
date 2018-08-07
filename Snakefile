@@ -21,7 +21,8 @@ localrules:
 # -----------------------------------------------------------------------------
 rule all:
 	input:
-		"results/current/validation/stat_overview.pdf"
+		"results/current/validation/stat_overview.pdf",
+		"results/current/ranges/overview.pdf"
 	
 #------------------------------------------------------------------------------
 # Target rule for complete simulation study
@@ -47,8 +48,8 @@ rule create_priors:
 		sampleinfo="data/current/gtex/GTEx_Data_V6_Annotations_SampleAttributesDS.txt",
 		pheno="data/current/gtex/GTEx_Data_V6_Annotations_SubjectPhenotypesDS.txt"
 	output:	
-		gene=protected("results/current/gtex.gg.cors.rds"),
-		eqtl=protected("results/current/gtex.eqtl.priors.rds")
+		gene_priors=protected("results/current/gtex.gg.cors.rds"),
+		eqtl_priors=protected("results/current/gtex.eqtl.priors.rds")
 	threads: 1
 	params:
 		plot_dir = "results/current/plots/"
@@ -227,13 +228,14 @@ rule collect_priors:
 		eqtl_priors="results/current/gtex.eqtl.priors.rds",
 		ranges="results/current/ranges/{sentinel}.rds",
 		string="results/current/string.v9.expr.rds",
-		cpg_context="data/current/cpgs_with_chipseq_context_100.RData"
+		cpg_context="data/current/cpgs_with_chipseq_context_100.RData",
+		cpg_annot="data/current/epigenetic_state_annotation_weighted_all_sentinels.txt"
 	output: 
 		"results/current/priors/{sentinel}.rds",
 		"results/current/priors/{sentinel}.pdf"
 	log:
 		"logs/collect-priors/{sentinel}.log"
-	threads: 1
+	threads: 2
 	params:
 		sentinel="{sentinel}",
 		plot_file="results/current/priors/{sentinel}.pdf"

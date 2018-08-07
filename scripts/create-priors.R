@@ -25,6 +25,8 @@ source("scripts/priors.R")
 # -------------------------------------------------------------------------------
 # Get snakemake params
 # -------------------------------------------------------------------------------
+
+# inputs
 feqtl <- snakemake@input[["eqtl"]]
 fsnpinfo <- snakemake@input[["snpinfo"]]
 fexpr <- snakemake@input[["expr"]]
@@ -33,6 +35,11 @@ fpheno <- snakemake@input[["pheno"]]
 fstring <- snakemake@input[["string"]]
 dplots <- snakemake@params$plot_dir
 
+# outputs
+fout_gene_priors <- snakemake@output$gene_priors
+fout_eqtl_priors <- snakemake@output$eqtl_priors
+
+# params
 threads <- snakemake@threads
 
 # -------------------------------------------------------------------------------
@@ -43,7 +50,8 @@ print("Loading string db.")
 string_db <- readRDS(fstring)
 
 # simply delegate
-create.priors(feqtl, fsnpinfo, frpkm, fsampleDS, fphenotypeDS, dplots, string_db)
+create.priors(feqtl, fsnpinfo, frpkm, fsampleDS, fphenotypeDS, dplots, string_db, 
+	      fout_gene_priors, fout_eqtl_priors)
 
 # ------------------------------------------------------------------------------
 # prepare the Banovich based priors, i.e. TF-CpG priors

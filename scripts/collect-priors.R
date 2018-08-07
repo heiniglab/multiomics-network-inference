@@ -30,6 +30,7 @@ fcpgcontext <- snakemake@input[["cpg_context"]]
 fexpr <- snakemake@input[["ranges"]]
 fstring <- snakemake@input[["string"]]
 franges <- snakemake@input[["ranges"]]
+fcpg_annot <- snakemake@input[["cpg_annot"]]
 sentinel <- snakemake@params$sentinel
 ofile <- snakemake@output[[1]]
 fplot <- snakemake@params$plot_file
@@ -57,7 +58,7 @@ nodes <- unique(nodes)
 # ------------------------------------------------------------------------------
 # get link priors, simply delegate
 # ------------------------------------------------------------------------------
-pr <- get_link_priors(ranges, nodes, string_db, fcpgcontext)
+pr <- get_link_priors(ranges, nodes, string_db, fcpgcontext, fcpg_annot)
 
 print("Saving data.")
 saveRDS(pr, file=ofile)

@@ -6,13 +6,15 @@
 #' distances of snps/cpgs <-> genes)
 #'
 #' @param ranges Set of ranges with the annotated data (e.g. snp.ranges, 
-#' cpgs etc.) for which to extract the link priors
-#'
+#' cpgs etc.) for which to extract the link priors#'
 #' @param nodes All the nodes/entities being analyzed.
+#' @param string_db The loaded string db graph to be used (graphNEL)
+#' @param fcpgcontext The CpG TF annotation
+#' @param fcpg_annot The epigenetic state annotation file for the CpGs
 #' 
 #' @return A square matrix of link-priors
 #'------------------------------------------------------------------------------
-get_link_priors <- function(ranges, nodes, string_db, fcpgcontext) {
+get_link_priors <- function(ranges, nodes, string_db, fcpgcontext, fcpg_annot) {
   
   # assume single SNP
   message("WARNING: Assuming single SNP in given data.")
@@ -39,7 +41,7 @@ get_link_priors <- function(ranges, nodes, string_db, fcpgcontext) {
   colnames(priors) <- rownames(priors) <- nodes
   
   # load annotation needed for cpg2gene priors
-  epigen.states <- read.table("data/current/epigenetic_state_annotation_weighted_all_sentinels.txt",
+  epigen.states <- read.table(fcpg_annot,
                               header = T, sep="\t", row.names = 1)
   
   ## SET CPG-CPGGENE PRIOR
@@ -227,18 +229,21 @@ load.gtex.priors <- function(sentinel=NULL, env=.GlobalEnv) {
 #' @return nothing
 #'------------------------------------------------------------------------------
 create.priors <- function(feqtl, fsnpInfo, frpkm, 
-                          fsampleDS, fphenotypeDS, dplots, string_db) {
+                          fsampleDS, fphenotypeDS, dplots, string_db,
+			  fout_gene_priors, fout_eqtl_priors) {
   
   # might be the plotting directory does not exist yet
   dir.create(dplots)
   
   # create the gene-gene priors
-  create.gtex.gene.priors(fsampleDS, fphenotypeDS, frpkm, dplots, string_db)
-  
+  res <- create.gtex.gene.priors(fsampleDS, fphenotypeDS, frpkm, dplots, string_db)
+  saveRDS(fout_gene_priors, res)
+
   gc()
   
   # create the snp-gene priors
-  create.gtex.eqtl.priors(feqtl, fsnpInfo)
+  res <- create.gtex.eqtl.priors(feqtl, fsnpInfo)
+  saveRDS(fout_eqtl_priors, res)
 }
 
 #' Creates the gtex gene-gene priors under consideration of the ----------------
@@ -350,8 +355,8 @@ create.gtex.gene.priors <- function(sampleDS.file, pheno.file,
   pi1 <- 1-pi0est(gtex.gg.cors[,"pval"])$pi0
   print(paste0("1-pi0 is: ", pi1))
   
-  # report prior
-  saveRDS(file=paste0("results/current/gtex.gg.cors.rds"), gtex.gg.cors)
+  # return prior
+  return(gtex.gg.cors)
 }
 
 #' Preprocesses the gtex Whole_Blood eqtl data to add a column of local FDR
@@ -400,8 +405,7 @@ create.gtex.eqtl.priors <- function(eqtl.file, snpInfo.file) {
   pairs[, ("symbol") := symbols.by.id[ids]]
   
   # output rds file
-  out <- "results/current/gtex.eqtl.priors.rds"
-  saveRDS(file=out, pairs)
+  return(pairs)
 }
 
 #' Method creates priors for TF~CpG links for application of the GGM

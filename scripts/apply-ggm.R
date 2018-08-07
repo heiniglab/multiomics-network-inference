@@ -53,7 +53,7 @@ gstart <- get_gstart_from_priors(priors)
 pdf(fsummary_plot)  
 
 # ------------------------------------------------------------------------------
-# create the fits, learn our models
+# create the fits, learn our models using BDgraph with and without priors
 # ------------------------------------------------------------------------------
 ggm_fit <- bdgraph(data, 
                    method="gcgm", 
@@ -71,7 +71,15 @@ ggm_fit_no_priors <- bdgraph(data,
                              g.start = gstart,
                              cores=cores)
 
+# ------------------------------------------------------------------------------
+# Learn model using the MGM approach, with and without priors
+# ------------------------------------------------------------------------------
+if(F) {
+# TODO: implement MGM calls
+}
+# ------------------------------------------------------------------------------
 # estimate using genenet, remove NAs beforehand
+# ------------------------------------------------------------------------------
 gn_data <- data[,apply(data, 2, function(x) !anyNA(x))]
 
 pcors <- ggm.estimate.pcor(gn_data)

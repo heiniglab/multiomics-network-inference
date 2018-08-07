@@ -237,7 +237,6 @@ rule collect_priors:
 		"logs/collect-priors/{sentinel}.log"
 	threads: 2
 	params:
-		sentinel="{sentinel}",
 		plot_file="results/current/priors/{sentinel}.pdf"
 	benchmark:
 		"benchmarks/collect-priors/{sentinel}.bmk"

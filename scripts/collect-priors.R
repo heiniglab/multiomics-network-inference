@@ -31,7 +31,7 @@ fexpr <- snakemake@input[["ranges"]]
 fstring <- snakemake@input[["string"]]
 franges <- snakemake@input[["ranges"]]
 fcpg_annot <- snakemake@input[["cpg_annot"]]
-sentinel <- snakemake@params$sentinel
+sentinel <- snakemake@wildcards$sentinel
 ofile <- snakemake@output[[1]]
 fplot <- snakemake@params$plot_file
 

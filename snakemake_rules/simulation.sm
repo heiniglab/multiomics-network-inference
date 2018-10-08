@@ -4,7 +4,6 @@
 rule all_sim:
        input: "results/current/simulation/simulation.html"
 
-
 #------------------------------------------------------------------------------
 # Simulate ground truth and data for simulation study
 #------------------------------------------------------------------------------

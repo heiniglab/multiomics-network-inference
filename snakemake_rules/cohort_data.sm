@@ -1,18 +1,7 @@
 # -----------------------------------------------------------------------------
-# Define some global vars
+# Define specific vars
 # -----------------------------------------------------------------------------
-LISTS = glob_wildcards("data/current/sentinels/{sentinel}.dummy")
 COHORTS = ["lolipop", "kora"]
-
-# -----------------------------------------------------------------------------
-# Define rules which should only be executed locally
-# -----------------------------------------------------------------------------
-localrules:
-        all, preprocess_kora_individuals, summarize_validation,
-        all_sim, validate_ggm_simulation, create_priors,
-        summarize_simulation, render_validation,
-        create_stringdb, create_cosmo_splits, all_ranges
-
 
 # -----------------------------------------------------------------------------
 # Target rule for complete cohort study

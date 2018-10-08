@@ -20,7 +20,7 @@ localrules:
         all, preprocess_kora_individuals, summarize_validation,
         all_sim, validate_ggm_simulation, create_priors,
         summarize_simulation, render_validation,
-        create_stringdb, create_cosmo_splits, all_ranges
+        create_stringdb, create_cosmo_splits
 
 # ------------------------------------------------------------------------------
 # Include the rule-sets for the two individual analyses (cohort, simulation)

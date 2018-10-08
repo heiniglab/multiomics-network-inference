@@ -80,16 +80,16 @@ rule validate_ggm_simulation:
 #------------------------------------------------------------------------------
 # Create simulation report
 #------------------------------------------------------------------------------
-rule summarize_simulation:
-       input:
-               expand("results/current/simulation/validation/{sentinel}-iter{iter}.txt", sentinel=TEMP.sentinel, iter=TEMP.iteration)
-       params:
-               indir="../results/current/simulation/validation/"
-       output:
-               "results/current/simulation/simulation.html"
-       log:
-               "logs/simulation/summarize-simulation.log"
-       script:
-               "scripts/summarize-simulation.Rmd"
+#rule summarize_simulation:
+#       input:
+#               expand("results/current/simulation/validation/{sentinel}-iter{iter}.txt", sentinel=TEMP.sentinel, iter=TEMP.iteration)
+#       params:
+#               indir="../results/current/simulation/validation/"
+#       output:
+#               "results/current/simulation/simulation.html"
+#       log:
+#               "logs/simulation/summarize-simulation.log"
+#       script:
+#               "scripts/summarize-simulation.Rmd"
 
 

@@ -36,7 +36,7 @@ rule apply_ggm:
         log:
                 "logs/apply_ggm/{sentinel}_{cohort}.log"
         script:
-                "scripts/apply-ggm.R"
+                "../scripts/apply-ggm.R"
 
 #------------------------------------------------------------------------------
 # Validate calculated ggms
@@ -69,7 +69,7 @@ rule validate_ggm:
         resources:
                 mem_mb=3000
         script:
-                "scripts/validate-ggm.R"
+                "../scripts/validate-ggm.R"
 
 #------------------------------------------------------------------------------
 # Collect validation information in single file
@@ -98,7 +98,7 @@ rule render_validation:
         log:
                 "logs/validation.log"
         script:
-                "scripts/render-validation.R"
+                "../scripts/render-validation.R"
 
 #------------------------------------------------------------------------------
 # Generate dot files for visualization with cytoscape
@@ -111,6 +111,6 @@ rule generate_dot:
         log:
                 "logs/generate_dot/{sentinel}_{graph_type}_{cohort}.log"
         script:
-                "scripts/generate_dot.R"
+                "../scripts/generate_dot.R"
 
 

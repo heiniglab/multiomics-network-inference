@@ -60,7 +60,7 @@ adjust.data <- function(sentinel, ranges, data, geno, fccosmo, fceqtl) {
   ids <- unique(eqtls$snp_id)
   if(!is.null(ids)) {
     gen <- geno[,colnames(geno) %in% ids, drop=F]
-    gen<- gen[data$geno_ids,,drop=F]
+    gen <- gen[data$geno_ids,,drop=F]
     
     # get rid of cis-eqtl effects
     cat("Adjusting for cis eqtls.\n")
@@ -69,13 +69,13 @@ adjust.data <- function(sentinel, ranges, data, geno, fccosmo, fceqtl) {
   ids <- meqtls$snp_id
   if(!is.null(ids)) {
     gen <- geno[, colnames(geno) %in% ids, drop=F]
-    gen<- gen[data$geno_ids,,drop=F]
+    gen <- gen[data$geno_ids,,drop=F]
     # get rid of cis-eqtl effects
     cat("Adjusting for cis meqtls.\n")
-    c_resid <- adjust.cis.meqtls(c_resid, meqtls, geno)
+    c_resid <- adjust.cis.meqtls(c_resid, meqtls, gen)
   }
   
-  cat("Summarizing probe levels.\n")
+  print("Summarizing probe levels.")
   # summarize to gene level estimates from expression probes
   g_resid <- summarize(g_resid, symbols = symbols)
   
@@ -174,32 +174,29 @@ get.residuals <- function(data, data.type, col.names=NULL) {
     if(is.null(cols)) {
       cols <- colnames(data)[grepl("^cg", colnames(data))]
     }
-    res <- lapply(cols, function(n) {
-      fm <- as.formula(paste0(n,"~",
-                              paste0("1+CD4T+CD8T+NK+Bcell+Mono+",
-                                     paste0("PC", 
-                                            paste(1:20, "cp", sep="_"), 
-                                            collapse="+"))))
-      return(lm(fm, data=data, na.action=na.exclude))
-    })
+    # define design and response matrix
+    design <- data[,c("CD4T", "CD8T", 
+		      "NK", "Bcell", "Mono", 
+		      paste("PC", paste(1:20, "cp", sep="_"), sep=""))]
+    resp <- data[,cols]
   } else if(data.type == "expr") {
     if(is.null(cols)){
       cols <- colnames(data)[grepl("^ILMN_", colnames(data))]
     }
-    res <- lapply(cols, function(n) {
-      fm <- as.formula(paste0(n, "~",
-                              "1+age+sex+RIN+batch1+batch2"))
-      return(lm(fm,data=data, na.action=na.exclude))
-    })
+    # define design and response matrix
+    design <- data[,c("age", "sex", "RIN", "batch1", "batch2")]
+    resp <- data[,cols]
   } else {
     stop("Data type not supported for residual calculation.")
   }
-  # build the full residual matrix from model results
-  residual.mat <- matrix(data=unlist(lapply(res, resid)), nrow=nrow(data))
-  colnames(residual.mat) <- cols
-  rownames(residual.mat) <- rownames(data)
   
-  return(residual.mat)
+  resp <- data.matrix(resp)
+  design <- data.matrix(design)
+
+  # calculate lm and get residuals
+  residuals <- resid(lm(resp~design, na.action=na.exclude))
+  
+  return(residuals)
 }
 
 # ------------------------------------------------------------------------------
@@ -218,7 +215,7 @@ get.residuals <- function(data, data.type, col.names=NULL) {
 adjust.cis.eqtls <- function(g, eqtls, geno_data){
   
   # for all cpg-genes, adjust for potential cis-eqtls (i.e. snp-effects)
-  toUse <- which(eqtls$gene %in% colnames(g))
+  toUse <- which(eqtls$probe_id %in% colnames(g))
   if(length(toUse) == 0){
     return(g)
   }
@@ -227,7 +224,7 @@ adjust.cis.eqtls <- function(g, eqtls, geno_data){
   # for each gene, check whether we have an associated cis-eqtl
   temp <- lapply(colnames(g), function(x) {
     # indices of ciseqtls
-    idxs <- which((eqtls$gene == x) & eqtls$snp_id %in% colnames(geno_data))
+    idxs <- which((eqtls$probe_id == x) & eqtls$snp_id %in% colnames(geno_data))
     if(length(idxs) < 1) {
       return(NULL)
     }
@@ -414,6 +411,7 @@ fceqtl <- snakemake@input[["ceqtl"]]
 cohort <- snakemake@params$cohort
 sentinel <- snakemake@params$sentinel
 fout <- snakemake@output[[1]]
+fout_raw <- snakemake@output[[2]]
 
 print(paste0("Sentinel is ", sentinel, "."))
 
@@ -450,6 +448,8 @@ data <- cbind.data.frame(covars,
                          geno[,colnames(geno) %in% snp_ids, drop=F], 
                          geno_ids=rownames(geno),
                          stringsAsFactors=F)
+
+saveRDS(file=fout_raw, data)
 
 # check which probes we didnt have available
 print("Unavailable probes:")

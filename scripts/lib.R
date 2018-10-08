@@ -898,35 +898,6 @@ correct.peer <- function(data,
   return(re)
 }
 
-#' Gets residuals based on linear models from a data matrix (individuals in the rows). This
-#' is specifically used for the Gtex expression matrix rather than the cohort data
-#'
-#' Calculates the residual matrix for a given expression matrix 
-#' considering available covariates. Uses linear model. Expects expression probe ids to start
-#' with "ILMN_". Supplied covariates must not start with either of the prefixes
-#'
-#' @param data the matrix for which to calculate the covariates. Needs to contain covariates themselfes plus
-#' either the methylation or expression probes for which to get the residuals
-#'
-#' @return A matrix  where in the colums are the measured entities (e.g.probes) 
-#' and in the rows are the samples, containing the calculated residuals. Covariates supplied in the
-#' input matrix are discared
-#'
-get.residuals <- function(data, cov) {
-  # process GTEX data
-  res <- lapply(colnames(data), function(n) {      
-    fm <- as.formula(paste0("`", n, "`~",
-                      "1+age+sex+batch1+batch2"))     
-    d <- cbind(data[,n],cov)
-    colnames(d)[1] <- n
-    return(lm(fm,data=d))
-  });
-  residual.mat <- matrix(data=unlist(lapply(res, resid)), nrow=nrow(data))
-  colnames(residual.mat) <- colnames(data);
-  rownames(residual.mat) <- rownames(data);
-  return(residual.mat)
-}
-
 #' Small helper for a list() function automatically setting
 #' the variable names as the names of the created list
 #' 

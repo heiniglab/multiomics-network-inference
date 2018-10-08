@@ -1,0 +1,96 @@
+#------------------------------------------------------------------------------
+# Target rule for complete simulation study
+#------------------------------------------------------------------------------
+rule all_sim:
+       input: "results/current/simulation/simulation.html"
+
+
+#------------------------------------------------------------------------------
+# Simulate ground truth and data for simulation study
+#------------------------------------------------------------------------------
+RUNS = 1
+rule simulate_data:
+        input:
+                data="results/current/cohort-data/lolipop/{sentinel}.rds",
+                ranges="results/current/ranges/{sentinel}.rds",
+                priors="results/current/priors/{sentinel}.rds"
+        output:
+                "results/current/simulation/data/{sentinel}.RData"
+        threads: 10
+        resources:
+                mem_mb=1200
+        params:
+                sentinel="{sentinel}",
+                runs=RUNS
+        log:
+                "logs/simulation/simulate-data/{sentinel}.log"
+        benchmark:
+                "benchmarks/simulation/simulate-data/{sentinel}.bmk"
+        script:
+                "scripts/simulate-data.R"
+
+#------------------------------------------------------------------------------
+# Apply ggm on simulated data
+#------------------------------------------------------------------------------
+ITERATIONS = range(1,RUNS+1)
+
+rule apply_ggm_simulation:
+        input:
+                "results/current/simulation/data/{sentinel}.RData",
+        output:
+                "results/current/simulation/fits/{sentinel}-iter{iteration}.RData"
+        params:
+                nriter=20000,
+                burnin=5000,
+                iteration="{iteration}"
+        threads: 16
+        resources:
+                mem_mb=5000
+        log:
+                "logs/simulation/apply-ggm/{sentinel}-iter{iteration}.log"
+        benchmark:
+                "benchmarks/simulation/apply-ggm/{sentinel}-iter{iteration}.bmk"
+        script:
+                "scripts/apply-ggm-simulation.R"
+#------------------------------------------------------------------------------
+# Validate a simulation run
+#------------------------------------------------------------------------------
+rule validate_ggm_simulation:
+        input:
+                "results/current/simulation/fits/{sentinel}-iter{iteration}.RData"
+        output:
+                "results/current/simulation/validation/{sentinel}-iter{iteration}.txt"
+        params:
+                iteration="{iteration}"
+        log:
+                "logs/simulation/validate-ggm/{sentinel}-iter{iteration}.log"
+        script:
+                "scripts/validate-ggm-simulation.R"
+
+
+#------------------------------------------------------------------------------
+# Target rule to validate all simulation runs
+#------------------------------------------------------------------------------
+#TEMP = glob_wildcards("results/current/simulation/fits/{sentinel}-iter{iteration}.RData")
+#rule validate_subset:
+#        input: expand("results/current/simulation/validation/{sentinel}-iter{iter}.txt",  sentinel=TEMP.sentinel, iter=TEMP.iteration)
+
+#rule validate_all:
+#       input: expand("results/current/simulation/validation/{sentinel}-iter{iter}.txt", sentinel=LISTS.sentinel, iter=ITERATIONS)
+
+#------------------------------------------------------------------------------
+# Create simulation report
+#------------------------------------------------------------------------------
+rule summarize_simulation:
+       input:
+               expand("results/current/simulation/validation/{sentinel}-iter{iter}.txt", sentinel=TEMP.sentinel, iter=TEMP.iteration)
+       params:
+               indir="../results/current/simulation/validation/"
+       output:
+               "results/current/simulation/simulation.html"
+       log:
+               "logs/simulation/summarize-simulation.log"
+       script:
+               "scripts/summarize-simulation.Rmd"
+
+

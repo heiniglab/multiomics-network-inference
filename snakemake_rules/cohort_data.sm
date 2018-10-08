@@ -1,0 +1,127 @@
+# -----------------------------------------------------------------------------
+# Define some global vars
+# -----------------------------------------------------------------------------
+LISTS = glob_wildcards("data/current/sentinels/{sentinel}.dummy")
+COHORTS = ["lolipop", "kora"]
+
+# -----------------------------------------------------------------------------
+# Define rules which should only be executed locally
+# -----------------------------------------------------------------------------
+localrules:
+        all, preprocess_kora_individuals, summarize_validation,
+        all_sim, validate_ggm_simulation, create_priors,
+        summarize_simulation, render_validation,
+        create_stringdb, create_cosmo_splits, all_ranges
+
+
+# -----------------------------------------------------------------------------
+# Target rule for complete cohort study
+# -----------------------------------------------------------------------------
+rule all:
+        input:
+                "results/current/validation/stat_overview.pdf",
+                "results/current/ranges/overview.pdf"
+
+#------------------------------------------------------------------------------
+# Apply ggm on collected data and priors for a sentinel
+#------------------------------------------------------------------------------
+rule apply_ggm:
+        input:
+                data="results/current/cohort-data/{cohort}/{sentinel}.rds",
+                priors="results/current/priors/{sentinel}.rds",
+                ranges="results/current/ranges/{sentinel}.rds",
+                cpg_context="data/current/cpgs_with_chipseq_context_100.RData",
+                string="results/current/string.v9.expr.rds"
+        output:
+                fit="results/current/fits/{cohort}/{sentinel}.rds",
+                summary_file="results/current/fits/{cohort}/{sentinel}.pdf",
+                gstart_file="results/current/fits/{cohort}/{sentinel}-gstart.pdf"
+        threads: 8
+        params:
+                nriter=20000,
+                burnin=5000
+        resources:
+                mem_mb=1000
+        benchmark:
+                "benchmarks/apply_ggm/{sentinel}_{cohort}.bmk"
+        log:
+                "logs/apply_ggm/{sentinel}_{cohort}.log"
+        script:
+                "scripts/apply-ggm.R"
+
+#------------------------------------------------------------------------------
+# Validate calculated ggms
+#------------------------------------------------------------------------------
+rule validate_ggm:
+        input:
+                ranges="results/current/ranges/{sentinel}.rds",
+                gtex="data/current/geuvadis/GD660.GeneQuantRPKM.tsv",
+                geo="data/current/archs4/whole_blood/expression_matrix_norm_peer.tsv",
+                cis_kora="data/current/kora/eqtl/cis-full.tsv",
+                trans_kora="data/current/kora/eqtl/trans-full.tsv",
+                cis_joehanes="data/current/joehanes-2017/eqtls/eqtl-gene-annot_cis-only_logFDR2.txt.gz",
+                trans_joehanes="data/current/joehanes-2017/eqtls/eqtl-gene-annot_trans-only_logFDR10.txt.gz",
+                bonder_eqtm="data/current/bonder-et-al-2017/2015_09_02_cis_eQTMsFDR0.05-CpGLevel.txt",
+                kora_data="results/current/cohort-data/kora/{sentinel}.rds",
+                lolipop_data="results/current/cohort-data/lolipop/{sentinel}.rds",
+                kora_fit="results/current/fits/kora/{sentinel}.rds",
+                lolipop_fit="results/current/fits/lolipop/{sentinel}.rds"
+        params:
+                dmediation_plots="results/current/validation/mediation_plots/",
+                mediation_cutoff=0.05
+        output:
+                "results/current/validation/{sentinel}.txt",
+                mediation_detail="results/current/validation/mediation_plots/{sentinel}_betas_by_gene.pdf"
+        log:
+                "logs/validate-ggm/{sentinel}.log"
+        threads: 1
+        benchmark:
+                "benchmarks/validate-ggm/{sentinel}.bmk"
+        resources:
+                mem_mb=3000
+        script:
+                "scripts/validate-ggm.R"
+
+#------------------------------------------------------------------------------
+# Collect validation information in single file
+#------------------------------------------------------------------------------
+rule summarize_validation:
+        input: expand("results/current/validation/{sentinel}.txt", zip, sentinel=LISTS.sentinel)
+        output: "results/current/validation/validation.all.txt"
+        shell:
+                "cat {input} | sort -r | uniq > {output}"
+
+#------------------------------------------------------------------------------
+# Create summary report
+#------------------------------------------------------------------------------
+rule render_validation:
+        input:
+                "results/current/validation/validation.all.txt"
+        output:
+                stats="results/current/validation/stat_overview.pdf",
+                cratios="results/current/validation/cluster_ratios.pdf",
+                expr="results/current/validation/gene_expression.pdf",
+                gene_types="results/current/validation/gene_types.pdf",
+                mediation="results/current/validation/mediation.pdf",
+                mediation_perc="results/current/validation/mediation_percentages.pdf",
+                mediation_distr="results/current/validation/mediation_distributions.pdf",
+                perf="results/current/validation/performance.pdf"
+        log:
+                "logs/validation.log"
+        script:
+                "scripts/render-validation.R"
+
+#------------------------------------------------------------------------------
+# Generate dot files for visualization with cytoscape
+#------------------------------------------------------------------------------
+rule generate_dot:
+        input:
+                "results/current/fits/{cohort}/{sentinel}.rds"
+        output:
+                "results/current/fits/{cohort}/{sentinel}_{graph_type}.dot"
+        log:
+                "logs/generate_dot/{sentinel}_{graph_type}_{cohort}.log"
+        script:
+                "scripts/generate_dot.R"
+
+

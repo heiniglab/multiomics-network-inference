@@ -21,7 +21,9 @@
 #' @author Johann Hawe
 #' 
 #' 
-mediation <- function(data, snp, genes, cpgs, plot=F) {
+mediation <- function(data, snp, genes, cpgs, fout=NULL) {
+  require(ggplot2)
+
   if(any(!c(snp,genes,cpgs) %in% colnames(data))){
     stop("Some of the provided entities are not contained in data.")
   }
@@ -31,55 +33,53 @@ mediation <- function(data, snp, genes, cpgs, plot=F) {
   
   d <- data[,c(snp,genes,cpgs),drop=F]
   
-  # calculate all linear models and get the betas
-  # snp-gene
-  snp.gene <- lapply(genes, function(g){
-    r <- lm(paste0("`", g, "`~",snp), data=d)
-    coefficients(r)[snp]
-  })
-  names(snp.gene) <- genes
+  # get large matrix of all coefficients for all combinations
+  betas <- c()
+  for(g in genes) {
+    # snp-gene
+    snp.gene <- lm(paste0("`", g, "`~",snp), data=d)
+    snp.gene <- coefficients(snp.gene)[snp]
   
-  # snp-cpg
-  snp.cpg <- lapply(cpgs, function(c){
-    r <- lm(paste0(c,"~",snp), data=d)
-    coefficients(r)[snp]
-  })
-  names(snp.cpg) <- cpgs
-  
-  betas <- lapply(genes, function(g){
-    # gene-cpg
-    temp <- lapply(cpgs, function(c){
-      r <- lm(paste0(c, "~`", g, "`"), data=d)
-      # merge with the other betas (for each cpg and gene combi, we have 3 betas)
-      r <- c(snp.cpg[[c]], 
-             snp.gene[[g]], 
-             coefficients(r)[2])
-      # the estimated beta for snp-cpg via gene
-      r <- c(r, r[2] * r[3])
-      names(r) <- c(c,g,paste0(c,".",g), paste0(c, ".", g, ".hat"))
-      r
-    })
-  })
-  
-  betas <- matrix(unlist(betas), 
-                  ncol=4,
-                  nrow = length(unlist(betas))/4, 
-                  byrow = T)
-  rnames <- rep("", nrow(betas))
-  for(j in 1:length(cpgs)) {
-    for(i in 1:length(genes)) {
-      n <- paste(genes[i], cpgs[j], sep="."); 
-      rnames[i*j+(i-1)*(length(cpgs)-j)] <- n
+    # snp-cpg and gene-cpg
+    for(c in cpgs) {
+      snp.cpg <- lm(paste0(c,"~",snp), data=d)
+      snp.cpg <- coefficients(snp.cpg)[snp]
+
+      gene.cpg <- lm(paste0(c, "~`", g, "`"), data=d)
+      gene.cpg <- coefficients(gene.cpg)[g]
+
+      # snp-cpg hat
+      snp.cpg.hat <- snp.gene * gene.cpg
+
+      # save result
+      betas <- rbind(betas, c(snp, g, c, 
+			      snp.cpg, snp.gene, gene.cpg, snp.cpg.hat))
     }
   }
-  rownames(betas) <- rnames
-  colnames(betas) <- c("snp.cpg", "snp.gene", "cpg.gene", "snp.cpg.hat")
+  colnames(betas) <- c("snp", "gene", "cpg", "snp.cpg", "snp.gene", "gene.cpg", "snp.cpg.hat")
+  betas <- as.data.frame(betas, stringsAsFactors=F) 
+  betas$snp.cpg <- as.numeric(betas$snp.cpg)
+  betas$snp.gene <- as.numeric(betas$snp.gene)
+  betas$gene.cpg <- as.numeric(betas$gene.cpg)
+  betas$snp.cpg.hat <- as.numeric(betas$snp.cpg.hat)
   
-  # create dataframe to check correlations for each gene
-  # (of snp.cpg-beta and snp.cpg-hat-beta)
-  betas <- as.data.frame(betas)
-  betas$cpg <- gsub(".*[.]", "", rownames(betas))
-  betas$gene <- gsub("[.].*", "", rownames(betas))
+  # plot the betas for each gene
+  if(!is.null(fout)) {
+    pdf(fout)
+    ggplot(data=betas, aes(x=snp.cpg, y=snp.cpg.hat)) + 
+	    geom_hline(yintercept=0, colour="grey") + 
+	    geom_vline(xintercept=0, colour="grey") + 
+	    facet_wrap(~ gene, ncol=3) + theme_bw() + 
+  	    geom_point() + 
+  	    geom_smooth(method="lm") + 
+  	    ylab(expression(hat(beta)[c])) + 
+  	    xlab(expression(beta[c])) + 
+  	    geom_abline(slope=1, colour="orange")
+    dev.off()
+  }
+
+  # get the correlation results for the estimated against the
+  # observed betas
   result <- lapply(genes, function(g){
     d <- betas[betas$gene == g,]
     
@@ -89,23 +89,10 @@ mediation <- function(data, snp, genes, cpgs, plot=F) {
     r <- cor.test(d1, d2)
     cor <- r$estimate
     pv <- r$p.value
-    
-    if(plot){
-      pdf(paste0("results/current/plots/", snp, "_", g, "_mediation.pdf"))
-      plot(x = d1,y = d2,
-           main=paste0(g),
-           ylab=expression(hat(beta)[c]),
-           xlab=expression(beta[c]),
-           pch="+")
-      abline(fit, col="red")
-      text(x=-0.01, y=max(d1), labels = paste0("cor=", format(cor, digits=2), 
-                             "\np.value=", format(pv, digits=2)))
-      dev.off()
-    }
     c(correlation=unname(cor),pvalue=pv)
   })
   names(result) <- genes
-  result
+  return(result)
 }
 
 #' Creates a summary of the mediation results

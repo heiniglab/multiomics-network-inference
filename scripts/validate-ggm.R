@@ -46,7 +46,6 @@ ftranseqtl_kora <- snakemake@input[["trans_kora"]]
 fbonder_eqtm <- snakemake@input[["bonder_eqtm"]]
 fciseqtl_joehanes <- snakemake@input[["cis_joehanes"]]
 ftranseqtl_joehanes <- snakemake@input[["trans_joehanes"]]
-
 # params
 threads <- snakemake@threads
 sentinel <- snakemake@wildcards$sentinel
@@ -58,6 +57,7 @@ mediation_cutoff <- snakemake@params$mediation_cutoff
 
 # this is the main outfile, to which to write all the validation results
 fout <- snakemake@output[[1]]
+fout_mediation_detail <- snakemake@output[["mediation_detail"]]
 
 # ------------------------------------------------------------------------------
 # Load data
@@ -343,7 +343,7 @@ temp <- lapply(cohorts, function(cohort){
     # (1) Perform mediation analysis
     # mediation over all snp genes
     # --------------------------------------------------------------------------
-    med <- mediation(data, snp, sgenes, cpgs)
+    med <- mediation(data, snp, sgenes, cpgs, fout_mediation_detail)
     row <- c(row, mediation.summary(med, sgenes, sgenes_selected, mediation_cutoff))
    
     # we also check the correspondence of the correlation values for all genes

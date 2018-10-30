@@ -24,13 +24,14 @@ library(TxDb.Hsapiens.UCSC.hg19.knownGene)
 library(qvalue)
 library(Homo.sapiens)
 library(illuminaHumanv3.db)
+library(ggplot2)
 
 source("scripts/go-enrichment.R")
 source("scripts/validation.R")
 source("scripts/lib.R")
 
 # set some ggplot defaults
-ggplot2::theme_set(theme_bw())
+theme_set(theme_bw())
 
 # ------------------------------------------------------------------------------
 # Get snakemake parameters
@@ -107,12 +108,14 @@ cols <- c("sentinel","cohort","graph_type", "number_nodes", "number_edges",
           "snp_cluster", "snp_genes", "snp_genes_selected", "snp_genes.list",
           "snp_genes_selected.list", "cpg_genes", "cpg_genes_selected", "tfs", "tfs_selected",
           "spath", "spath_selected", "cross_cohort_mcc", "cross_cohort_mcc_frac",
-	  "mediation_total", "mediation_best_gene", "mediation_best_corr",
+          "mediation_total", "mediation_best_gene", "mediation_best_odds_ratio",
           "mediation_notselected_significant", "mediation_selected_significant",
           "mediation_notselected_significant.list", "mediation_selected_significant.list",
-          "mediation_notselected","mediation_selected","log10_mediation",
-	  "mediation_cross_cohort_correlation", "mediation_cross_cohort_fraction",
-	  "mediation_cross_cohort_fraction_validation_significant",
+          "mediation_notselected.list", "mediation_selected.list",
+          "mediation_notselected_pvals", "mediation_selected_pvals",
+          "mediation_pval_notselected","mediation_pval_selected","log10_mediation",
+          "mediation_cross_cohort_correlation", "mediation_cross_cohort_fraction",
+          "mediation_cross_cohort_fraction_validation_significant",
           "cisEqtl", "transEqtl_cgenes","transEqtl_tfs", "bonder_cis_eQTM",
           "geo_gene_gene", "cohort_gene_gene",
           "go_ids", "go_terms", "go_pvals", "go_qvals")
@@ -139,6 +142,7 @@ fits <- list(kora=kfit, lolipop=lfit)
 
 # process both cohorts
 cohorts <- c("lolipop", "kora")
+#cohorts <- c("kora")
 
 # ------------------------------------------------------------------------------
 # Main apply for validation, apply for both cohorts
@@ -312,16 +316,19 @@ temp <- lapply(cohorts, function(cohort){
     # this might somewhat change results, but otherwise we
     # cant compute the MCC properly.
     use <- intersect(colnames(g_adj), colnames(g2_adj))
-    g_adj <- g_adj[use,use]
-    g2_adj <- g2_adj[use,use]
+    if(length(use) > 1) {
+      g_adj <- g_adj[use,use]
+      g2_adj <- g2_adj[use,use]
 
-    # calculate performance using the DBgraph method compare()
-    mcc <- compare(g_adj,g2_adj)["MCC", "estimate"]
-    # the fraction of nodes retained in the overlap w.r.t. to the
-    # total number of possible nodes
-    mcc_frac <- ncol(g_adj)/ncol(data)
-    row <- c(row, mcc, mcc_frac)
-
+      # calculate performance using the DBgraph method compare()
+      mcc <- compare(g_adj,g2_adj)["MCC", "estimate"]
+      # the fraction of nodes retained in the overlap w.r.t. to the
+      # total number of possible nodes
+      mcc_frac <- ncol(g_adj)/ncol(data)
+      row <- c(row, mcc, mcc_frac)
+    } else {
+      row <- c(row, NA, NA)
+    }
     # Above the number of snp genes (sgenes), cpg genes (cgenes), transcription
     # factors (tfs) as well as the genes on the shortest paths between tfs and sgenes (spath)
     # are shown. Starting from those set definitions, we now perform the validation of the model.
@@ -347,9 +354,12 @@ temp <- lapply(cohorts, function(cohort){
     # (1) Perform mediation analysis
     # mediation over all snp genes
     # --------------------------------------------------------------------------
-    med <- mediation(data, snp, sgenes, cpgs, fout_mediation_detail)
-    row <- c(row, mediation.summary(med, sgenes, sgenes_selected, mediation_cutoff))
-
+    med <- try(mediation(data, snp, sgenes, cpgs, fout_mediation_detail))
+    if(inherits(med, "error")){
+      row <- c(row, rep(NA, 10))
+    } else {
+      row <- c(row, mediation.summary(med, sgenes, sgenes_selected, mediation_cutoff))
+    }
     # we also check the correspondence of the correlation values for all genes
     # in the other cohort
     med2 <- mediation(data2, snp, sgenes, cpgs)
@@ -478,3 +488,5 @@ if(nrow(tab) == 6){
               sentinel,
               ". Not all models were validated successfully."))
 }
+
+sink()

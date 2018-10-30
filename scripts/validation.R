@@ -36,16 +36,21 @@ mediation <- function(data, snp, genes, cpgs, fout=NULL) {
   # get large matrix of all coefficients for all combinations
   betas <- c()
   for(g in genes) {
+    if(grepl("-", g)){
+      g <- paste0("`",g,"`")
+    }
+
     # snp-gene
-    snp.gene <- lm(paste0("`", g, "`~",snp), data=d)
+    snp.gene <- lm(paste0(g, "~",snp), data=d)
     snp.gene <- coefficients(snp.gene)[snp]
 
     # snp-cpg and gene-cpg
     for(c in cpgs) {
+
       snp.cpg <- lm(paste0(c,"~",snp), data=d)
       snp.cpg <- coefficients(snp.cpg)[snp]
 
-      gene.cpg <- lm(paste0(c, "~`", g, "`"), data=d)
+      gene.cpg <- lm(paste0(c, "~", g), data=d)
       gene.cpg <- coefficients(gene.cpg)[g]
 
       # snp-cpg hat
@@ -65,8 +70,7 @@ mediation <- function(data, snp, genes, cpgs, fout=NULL) {
 
   # plot the betas for each gene
   if(!is.null(fout)) {
-    pdf(fout)
-    ggplot(data=betas, aes(x=snp.cpg, y=snp.cpg.hat)) +
+    gp <- ggplot(data=betas, aes(x=snp.cpg, y=snp.cpg.hat)) +
 	    geom_hline(yintercept=0, colour="grey") +
 	    geom_vline(xintercept=0, colour="grey") +
 	    facet_wrap(~ gene, ncol=3) +
@@ -75,16 +79,21 @@ mediation <- function(data, snp, genes, cpgs, fout=NULL) {
   	    ylab(expression(hat(beta)[c])) +
   	    xlab(expression(beta[c])) +
   	    geom_abline(slope=1, colour="orange")
-    dev.off()
+    ggsave(fout, plot=gp)
   }
 
   # get the correlation results for the estimated against the
   # observed betas
   result <- lapply(genes, function(g){
+    if(grepl("-", g)){
+      g <- paste0("`",g,"`")
+    }
+
     d <- betas[betas$gene == g,]
 
     d1 <- d[,"snp.cpg"]
     d2 <- d[,"snp.cpg.hat"]
+
     fit <- lm(d2~d1)
     r <- cor.test(d1, d2)
     cor <- r$estimate
@@ -101,14 +110,13 @@ mediation <- function(data, snp, genes, cpgs, fout=NULL) {
        if(obs>0&pred<0) tab[2,1] <- tab[2,1] + 1
        if(obs>0&pred>0) tab[1,1] <- tab[1,1] + 1
     }
-
     ft <- fisher.test(tab)
     pv_fisher <- ft$p.value
-    or <- ft$estiamte
+    or <- ft$estimate
 
     c(correlation=unname(cor),
       pval_cor=pv,
-      odds_ratio=or,
+      odds_ratio=unname(or),
       pval_fisher=pv_fisher)
   })
   names(result) <- genes
@@ -144,9 +152,9 @@ mediation.summary <- function(med, s, s.selected, cutoff) {
                                 }))]
 
   # get the best mediating gene based on the correlation
-  best <- med[which.max(unlist(lapply(med, "[[", "correlation")))]
+  best <- med[which.max(abs(unlist(lapply(med, "[[", "odds_ratio"))))]
   best_mediator <- names(best)
-  best_correlation <- unname(best[[1]]["correlation"])
+  best_odds_ratio <- unname(best[[1]]["odds_ratio"])
 
   # TODO if we choose to do a test for comparing
   # selected/not selected, check assumptions first
@@ -167,11 +175,15 @@ mediation.summary <- function(med, s, s.selected, cutoff) {
   # return 'nice' result
   return(c(length(which(unlist(med)<cutoff)),
 	   best_mediator,
-	   best_correlation,
+	   best_odds_ratio,
 	   length(med.notselected.sign),
            length(med.selected.sign),
            paste(names(med.notselected.sign), collapse=";"),
            paste(names(med.selected.sign), collapse=";"),
+           paste(names(med.notselected), collapse=";"),
+           paste(names(med.selected), collapse=";"),
+           paste(format(med.notselected, digits=3), collapse=";"),
+           paste(format(med.selected, digits=3), collapse=";"),
            med.pv,
            med.pv.selected,
            d))
@@ -329,11 +341,17 @@ validate.cpggenes <- function(eqtm.genes, cg, cg.selected){
   v4 <- sum(!cg.selected %in% eqtm.genes)
 
   # build the confusion matrix
-  cat("confusion matrix for cpg-genes:\n")
-  cont <- matrix(c(v3,v1,v4,v2),
-                 ncol=2, byrow=T)
+
+  print("Confusion matrix for cpg-genes:")
+  cont <- matrix(0, nrow=2, ncol=2)
+  cont[1,1] <- v3
+  cont[1,2] <- v1
+  cont[2,1] <- v4
+  cont[2,2] <- v2
+
   rownames(cont) <- c("has_eQTM", "has_no_eQTM")
   colnames(cont) <- c("ggm_selected", "not_gmm_selected")
+  print(cont)
 
   # report fisher test
   return(fisher.test(cont)$p.value)
@@ -367,6 +385,9 @@ validate.gene2gene <- function(expr.data, g, all.genes){
     # get the data set
     dset <- expr.data[[ds]]
     dset <- dset[,colnames(dset) %in% gnodes]
+    if(ncol(dset) == 0) {
+      return(NA)
+    }
     # create adj_matrix
     m <- matrix(nrow=ncol(dset), ncol=ncol(dset))
     rownames(m) <- colnames(m) <- colnames(dset)
@@ -376,7 +397,7 @@ validate.gene2gene <- function(expr.data, g, all.genes){
     cnames <- colnames(dset)
     for(i in 1:ncol(dset)) {
       for(j in i:ncol(dset)) {
-	if(j==i) next
+      	if(j==i) next
         corr <- cor.test(dset[,i], dset[,j])
         res <- rbind(res, c(cnames[i], cnames[j], corr$p.value, corr$estimate))
       }
@@ -387,9 +408,14 @@ validate.gene2gene <- function(expr.data, g, all.genes){
     pvs$cor <- as.numeric(pvs$cor)
 
     # get qvalue
-    pvs <- cbind(pvs, qval=qvalue(pvs$pval,
-				  lambda=seq(0.05,max(pvs$pval), 0.05))$qvalues)
-    use <- pvs$qval<0.05 & abs(pvs$cor)>0.3
+    if(nrow(pvs)>10) {
+      pvs <- cbind(pvs, qval=qvalue(pvs$pval,
+  				  lambda=seq(0.05,max(pvs$pval), 0.05))$qvalues)
+      use <- pvs$qval<0.05 & abs(pvs$cor)>0.3
+    } else {
+      pvs <- cbind(pvs, qval=rep(NA, nrow(pvs)))
+      use <- rep(F, nrow(pvs))
+    }
 
     # fill matrix
     for(i in 1:nrow(pvs)) {
@@ -400,6 +426,7 @@ validate.gene2gene <- function(expr.data, g, all.genes){
        m[r$n1, r$n2] <- m[r$n2, r$n1] <- 0
      }
     }
+
     n <- intersect(colnames(m), colnames(model_adj))
     m <- m[n,n]
     model_adj <- model_adj[n,n]
@@ -434,7 +461,7 @@ validate.geneenrichment <- function(gnodes) {
   annot <- illuminaHumanv3SYMBOLREANNOTATED
   bgset <- unique(unlist(as.list(annot)))
 
-  if(length(gn)<length(bgset)){
+  if(length(gn)>0 & length(gn)<length(bgset)){
     go.tab <- go.enrichment(gn, bgset, gsc)
     go.tab <- go.tab[go.tab$q<0.01,,drop=F]
     if(nrow(go.tab)>0){

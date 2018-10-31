@@ -7,6 +7,24 @@ rule all:
                 DRANGES + "overview.pdf"
 
 #------------------------------------------------------------------------------
+# Mediation analysis. This part can be performed indepdent of the graph fits
+#------------------------------------------------------------------------------
+rule mediation_analysis:
+	input:
+		data=DCOHORT_DATA + "{cohort}/{sentinel}.rds",
+		ranges=DRANGES + "{sentinel}.rds"
+	output:
+		mediation=DMEDIATION + "{cohort}/{sentinel}.rds",
+		betas_per_gene=DMEDIATION + "{cohort}/{sentinel}_betas_per_gene.pdf",
+		beta_table=DMEDIATION + "{cohort}/{sentinel}_betas.txt",
+	log:
+		"logs/mediation_analysis/{cohort}/{sentinel}.log"
+	benchmark:
+		"benchmarks/mediation_analysis/{cohort}/{sentinel}.bmk"
+	script:
+		"../scripts/mediation_analysis.R"
+
+#------------------------------------------------------------------------------
 # Apply ggm on collected data and priors for a sentinel
 #------------------------------------------------------------------------------
 rule apply_ggm:
@@ -36,6 +54,9 @@ rule apply_ggm:
 #------------------------------------------------------------------------------
 # Validate calculated ggms
 #------------------------------------------------------------------------------
+# define graph types
+GTYPES = ["graph", "graph_genenet", "graph_no_priors"]
+GTYPES_CONSTR = "|".join(GTYPES)
 rule validate_ggm:
         input:
                 ranges=DRANGES + "{sentinel}.rds",
@@ -54,15 +75,17 @@ rule validate_ggm:
                 dmediation_plots=DCOHORT_VAL + "mediation_plots/",
                 mediation_cutoff=0.05
         output:
-                DCOHORT_VAL + "{sentinel}.txt",
-                mediation_detail=DCOHORT_VAL + "mediation_plots/{sentinel}_betas_by_gene.pdf",
-
-
+                DCOHORT_VAL + "{sentinel}_{graph_type}.txt",
+                mediation_detail=DCOHORT_VAL + "mediation_plots/{sentinel}_{graph_type}_betas_by_gene.pdf",
+		graphdot=DCOHORT_VAL + "{sentinel}_{graph_type}.dot",
+		graphpdf=DCOHORT_VAL + "{sentinel}_{graph_type}.pdf"
+        wildcard_constraints:
+                graph_type = GTYPES_CONSTR
         log:
-                "logs/validate-ggm/{sentinel}.log"
+                "logs/validate-ggm/{sentinel}_{graph_type}.log"
         threads: 1
         benchmark:
-                "benchmarks/validate-ggm/{sentinel}.bmk"
+                "benchmarks/validate-ggm/{sentinel}_{graph_type}.bmk"
         resources:
                 mem_mb=3000
         script:
@@ -72,7 +95,7 @@ rule validate_ggm:
 # Collect validation information in single file
 #------------------------------------------------------------------------------
 rule summarize_validation:
-        input: expand(DCOHORT_VAL + "{sentinel}.txt", zip, sentinel=LISTS.sentinel)
+        input: expand(DCOHORT_VAL + "{sentinel}_{graph_type}.txt", zip, sentinel=LISTS.sentinel, graph_type=GTYPES)
         output: DCOHORT_VAL + "validation.all.txt"
         shell:
                 "cat {input} | sort -r | uniq > {output}"

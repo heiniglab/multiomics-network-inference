@@ -22,6 +22,7 @@ DPRIORS = "results/current/priors/"
 DRANGES = "results/current/ranges/"
 DCOHORT_DATA = "results/current/cohort-data/"
 DCOHORT_FITS = "results/current/fits/"
+DMEDIATION = "results/current/mediation/"
 
 # simulation study specific output directories
 DSIM_DATA = "results/current/simulation/data/"

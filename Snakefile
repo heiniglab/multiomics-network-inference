@@ -13,6 +13,21 @@
 # -----------------------------------------------------------------------------
 LISTS = glob_wildcards("data/current/sentinels/{sentinel}.dummy")
 
+# available cohorts
+COHORTS = ["lolipop", "kora"]
+
+# output directories
+DCOHORT_VAL = "results/current/validation/"
+DPRIORS = "results/current/priors/"
+DRANGES = "results/current/ranges/"
+DCOHORT_DATA = "results/current/cohort-data/"
+DCOHORT_FITS = "results/current/fits/"
+
+# simulation study specific output directories
+DSIM_DATA = "results/current/simulation/data/"
+DSIM_VALIDATION = "results/current/simulation/validation/"
+DSIM_FITS = "results/current/simulation/fits/"
+
 # -----------------------------------------------------------------------------
 # Define rules which should only be executed locally
 # -----------------------------------------------------------------------------
@@ -170,7 +185,7 @@ rule collect_ranges:
 		tcosmo="results/current/trans-cosmopairs_combined_151216.rds",
 		priorization="data/current/rw_string_v9_ld_wb_prioritize_full_with_empirical_p_lte_0.05.txt"
 	output: 
-		"results/current/ranges/{sentinel}.rds"
+		DRANGES + "{sentinel}.rds"
 	log: 
 		"logs/collect-ranges/{sentinel}.log"
 	benchmark: 
@@ -186,9 +201,9 @@ rule collect_ranges:
 #------------------------------------------------------------------------------
 rule ranges_overview:
 	input:
-		expand("results/current/ranges/{sentinel}.rds", zip, sentinel=LISTS.sentinel)
+		expand(DRANGES + "{sentinel}.rds", zip, sentinel=LISTS.sentinel)
 	output:
-		"results/current/ranges/overview.pdf"
+		DRANGES + "overview.pdf"
 	script:
 		"scripts/create_locus_summary.R"
 
@@ -197,14 +212,14 @@ rule ranges_overview:
 #------------------------------------------------------------------------------
 rule collect_data:
 	input: 
-		ranges="results/current/ranges/{sentinel}.rds",
+		ranges=DRANGES + "{sentinel}.rds",
 		kora="results/current/ggmdata_kora.RData",
 		lolipop="results/current/ggmdata_lolipop.RData",
 		ceqtl="data/current/kora/eqtl/kora-cis-eqtls.csv",
 		ccosmo="results/current/cis-cosmopairs_combined_151216.rds"
 	output:
-		"results/current/cohort-data/{cohort}/{sentinel}.rds",
-		"results/current/cohort-data/{cohort}/{sentinel}_raw.rds"
+		DCOHORT_DATA + "{cohort}/{sentinel}.rds",
+		DCOHORT_DATA + "{cohort}/{sentinel}_raw.rds"
 	threads: 1
 	params:
 		cohort="{cohort}",
@@ -225,18 +240,18 @@ rule collect_priors:
 	input:
 		gg_priors="results/current/gtex.gg.cors.rds", 
 		eqtl_priors="results/current/gtex.eqtl.priors.rds",
-		ranges="results/current/ranges/{sentinel}.rds",
+		ranges=DRANGES + "{sentinel}.rds",
 		string="results/current/string.v9.expr.rds",
 		cpg_context="data/current/cpgs_with_chipseq_context_100.RData",
 		cpg_annot="data/current/epigenetic_state_annotation_weighted_all_sentinels.txt"
 	output: 
-		"results/current/priors/{sentinel}.rds",
-		"results/current/priors/{sentinel}.pdf"
+		DPRIORS + "{sentinel}.rds",
+		DPRIORS + "{sentinel}.pdf"
 	log:
 		"logs/collect-priors/{sentinel}.log"
 	threads: 1
 	params:
-		plot_file="results/current/priors/{sentinel}.pdf"
+		plot_file=DPRIORS + "{sentinel}.pdf"
 	benchmark:
 		"benchmarks/collect-priors/{sentinel}.bmk"
 	resources:
@@ -249,4 +264,4 @@ rule collect_priors:
 #------------------------------------------------------------------------------
 rule all_priors:
 	input: 
-		expand("results/current/priors/{sentinel}.pdf", sentinel=LISTS.sentinel)
+		expand(DPRIORS + "{sentinel}.pdf", sentinel=LISTS.sentinel)

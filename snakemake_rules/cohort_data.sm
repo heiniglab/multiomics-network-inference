@@ -1,30 +1,25 @@
 # -----------------------------------------------------------------------------
-# Define specific vars
-# -----------------------------------------------------------------------------
-COHORTS = ["lolipop", "kora"]
-
-# -----------------------------------------------------------------------------
 # Target rule for complete cohort study
 # -----------------------------------------------------------------------------
 rule all:
         input:
-                "results/current/validation/stat_overview.pdf",
-                "results/current/ranges/overview.pdf"
+                DCOHORT_VAL + "stat_overview.pdf",
+                DRANGES + "overview.pdf"
 
 #------------------------------------------------------------------------------
 # Apply ggm on collected data and priors for a sentinel
 #------------------------------------------------------------------------------
 rule apply_ggm:
         input:
-                data="results/current/cohort-data/{cohort}/{sentinel}.rds",
-                priors="results/current/priors/{sentinel}.rds",
-                ranges="results/current/ranges/{sentinel}.rds",
+                data=DCOHORT_DATA + "{cohort}/{sentinel}.rds",
+                priors=DPRIORS + "{sentinel}.rds",
+                ranges=DRANGES + "{sentinel}.rds",
                 cpg_context="data/current/cpgs_with_chipseq_context_100.RData",
                 string="results/current/string.v9.expr.rds"
         output:
-                fit="results/current/fits/{cohort}/{sentinel}.rds",
-                summary_file="results/current/fits/{cohort}/{sentinel}.pdf",
-                gstart_file="results/current/fits/{cohort}/{sentinel}-gstart.pdf"
+                fit=DCOHORT_FITS + "{cohort}/{sentinel}.rds",
+                summary_file=DCOHORT_FITS + "{cohort}/{sentinel}.pdf",
+                gstart_file=DCOHORT_FITS + "{cohort}/{sentinel}-gstart.pdf"
         threads: 8
         params:
                 nriter=20000,
@@ -43,7 +38,7 @@ rule apply_ggm:
 #------------------------------------------------------------------------------
 rule validate_ggm:
         input:
-                ranges="results/current/ranges/{sentinel}.rds",
+                ranges=DRANGES + "{sentinel}.rds",
                 gtex="data/current/geuvadis/GD660.GeneQuantRPKM.tsv",
                 geo="data/current/archs4/whole_blood/expression_matrix_norm_peer.tsv",
                 cis_kora="data/current/kora/eqtl/cis-full.tsv",
@@ -51,16 +46,18 @@ rule validate_ggm:
                 cis_joehanes="data/current/joehanes-2017/eqtls/eqtl-gene-annot_cis-only_logFDR2.txt.gz",
                 trans_joehanes="data/current/joehanes-2017/eqtls/eqtl-gene-annot_trans-only_logFDR10.txt.gz",
                 bonder_eqtm="data/current/bonder-et-al-2017/2015_09_02_cis_eQTMsFDR0.05-CpGLevel.txt",
-                kora_data="results/current/cohort-data/kora/{sentinel}.rds",
-                lolipop_data="results/current/cohort-data/lolipop/{sentinel}.rds",
-                kora_fit="results/current/fits/kora/{sentinel}.rds",
-                lolipop_fit="results/current/fits/lolipop/{sentinel}.rds"
+                kora_data=DCOHORT_DATA + "kora/{sentinel}.rds",
+                lolipop_data=DCOHORT_DATA + "lolipop/{sentinel}.rds",
+                kora_fit=DCOHORT_FITS + "kora/{sentinel}.rds",
+                lolipop_fit=DCOHORT_FITS + "lolipop/{sentinel}.rds"
         params:
-                dmediation_plots="results/current/validation/mediation_plots/",
+                dmediation_plots=DCOHORT_VAL + "mediation_plots/",
                 mediation_cutoff=0.05
         output:
-                "results/current/validation/{sentinel}.txt",
-                mediation_detail="results/current/validation/mediation_plots/{sentinel}_betas_by_gene.pdf"
+                DCOHORT_VAL + "{sentinel}.txt",
+                mediation_detail=DCOHORT_VAL + "mediation_plots/{sentinel}_betas_by_gene.pdf",
+
+
         log:
                 "logs/validate-ggm/{sentinel}.log"
         threads: 1
@@ -75,8 +72,8 @@ rule validate_ggm:
 # Collect validation information in single file
 #------------------------------------------------------------------------------
 rule summarize_validation:
-        input: expand("results/current/validation/{sentinel}.txt", zip, sentinel=LISTS.sentinel)
-        output: "results/current/validation/validation.all.txt"
+        input: expand(DCOHORT_VAL + "{sentinel}.txt", zip, sentinel=LISTS.sentinel)
+        output: DCOHORT_VAL + "validation.all.txt"
         shell:
                 "cat {input} | sort -r | uniq > {output}"
 
@@ -85,16 +82,16 @@ rule summarize_validation:
 #------------------------------------------------------------------------------
 rule render_validation:
         input:
-                "results/current/validation/validation.all.txt"
+                DCOHORT_VAL + "validation.all.txt"
         output:
-                stats="results/current/validation/stat_overview.pdf",
-                cratios="results/current/validation/cluster_ratios.pdf",
-                expr="results/current/validation/gene_expression.pdf",
-                gene_types="results/current/validation/gene_types.pdf",
-                mediation="results/current/validation/mediation.pdf",
-                mediation_perc="results/current/validation/mediation_percentages.pdf",
-                mediation_distr="results/current/validation/mediation_distributions.pdf",
-                perf="results/current/validation/performance.pdf"
+                stats=DCOHORT_VAL + "stat_overview.pdf",
+                cratios=DCOHORT_VAL + "cluster_ratios.pdf",
+                expr=DCOHORT_VAL + "gene_expression.pdf",
+                gene_types=DCOHORT_VAL + "gene_types.pdf",
+                mediation=DCOHORT_VAL + "mediation.pdf",
+                mediation_perc=DCOHORT_VAL + "mediation_percentages.pdf",
+                mediation_distr=DCOHORT_VAL + "mediation_distributions.pdf",
+                perf=DCOHORT_VAL + "performance.pdf"
         log:
                 "logs/validation.log"
         script:
@@ -105,9 +102,9 @@ rule render_validation:
 #------------------------------------------------------------------------------
 rule generate_dot:
         input:
-                "results/current/fits/{cohort}/{sentinel}.rds"
+                DCOHORT_FITS + "{cohort}/{sentinel}.rds"
         output:
-                "results/current/fits/{cohort}/{sentinel}_{graph_type}.dot"
+                DCOHORT_FITS + "{cohort}/{sentinel}_{graph_type}.dot"
         log:
                 "logs/generate_dot/{sentinel}_{graph_type}_{cohort}.log"
         script:

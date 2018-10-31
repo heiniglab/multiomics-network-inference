@@ -10,11 +10,11 @@ rule all_sim:
 RUNS = 1
 rule simulate_data:
         input:
-                data="results/current/cohort-data/lolipop/{sentinel}.rds",
-                ranges="results/current/ranges/{sentinel}.rds",
-                priors="results/current/priors/{sentinel}.rds"
+                data=DCOHORT_DATA + "lolipop/{sentinel}.rds",
+                ranges=DRANGES + "{sentinel}.rds",
+                priors=DPRIORS + "{sentinel}.rds"
         output:
-                "results/current/simulation/data/{sentinel}.RData"
+                DSIM_DATA + "{sentinel}.RData"
         threads: 10
         resources:
                 mem_mb=1200
@@ -35,9 +35,9 @@ ITERATIONS = range(1,RUNS+1)
 
 rule apply_ggm_simulation:
         input:
-                "results/current/simulation/data/{sentinel}.RData",
+                DSIM_DATA + "{sentinel}.RData",
         output:
-                "results/current/simulation/fits/{sentinel}-iter{iteration}.RData"
+                DSIM_FITS + "{sentinel}-iter{iteration}.RData"
         params:
                 nriter=20000,
                 burnin=5000,
@@ -56,9 +56,9 @@ rule apply_ggm_simulation:
 #------------------------------------------------------------------------------
 rule validate_ggm_simulation:
         input:
-                "results/current/simulation/fits/{sentinel}-iter{iteration}.RData"
+                DSIM_FITS + "{sentinel}-iter{iteration}.RData"
         output:
-                "results/current/simulation/validation/{sentinel}-iter{iteration}.txt"
+                DSIM_VALIDATION + "{sentinel}-iter{iteration}.txt"
         params:
                 iteration="{iteration}"
         log:
@@ -70,19 +70,19 @@ rule validate_ggm_simulation:
 #------------------------------------------------------------------------------
 # Target rule to validate all simulation runs
 #------------------------------------------------------------------------------
-#TEMP = glob_wildcards("results/current/simulation/fits/{sentinel}-iter{iteration}.RData")
+#TEMP = glob_wildcards(DSIM_FITS + "{sentinel}-iter{iteration}.RData")
 #rule validate_subset:
-#        input: expand("results/current/simulation/validation/{sentinel}-iter{iter}.txt",  sentinel=TEMP.sentinel, iter=TEMP.iteration)
+#        input: expand(DSIM_VALIDATION + "{sentinel}-iter{iter}.txt",  sentinel=TEMP.sentinel, iter=TEMP.iteration)
 
 #rule validate_all:
-#       input: expand("results/current/simulation/validation/{sentinel}-iter{iter}.txt", sentinel=LISTS.sentinel, iter=ITERATIONS)
+#       input: expand(DSIM_VALIDATION + "{sentinel}-iter{iter}.txt", sentinel=LISTS.sentinel, iter=ITERATIONS)
 
 #------------------------------------------------------------------------------
 # Create simulation report
 #------------------------------------------------------------------------------
 #rule summarize_simulation:
 #       input:
-#               expand("results/current/simulation/validation/{sentinel}-iter{iter}.txt", sentinel=TEMP.sentinel, iter=TEMP.iteration)
+#               expand(DSIM_VALIDATION + "{sentinel}-iter{iter}.txt", sentinel=TEMP.sentinel, iter=TEMP.iteration)
 #       params:
 #               indir="../results/current/simulation/validation/"
 #       output:

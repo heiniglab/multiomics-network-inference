@@ -1711,3 +1711,17 @@ symbols.from.probeids <- function(ids, mapping=F){
     return(symbols)
   }
 }
+
+# ------------------------------------------------------------------------------
+#' Get the largest connected component in a graphNEL object using igraph
+#'
+#' @author Johann Hawe <johann.hawe@helmholtz-muenchen.de>
+# ------------------------------------------------------------------------------
+get_largest_cc <- function(g) {
+  ig = igraph::graph_from_graphnel(g)
+  cl = clusters(ig)
+  keep <- cl$membership==which.max(cl$csize)
+  keep <- names(cl$membership[keep])
+  g2 <- graph::subGraph(keep, g)
+  return(g2)
+}

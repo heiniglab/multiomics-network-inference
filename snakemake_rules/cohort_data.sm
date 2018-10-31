@@ -17,6 +17,9 @@ rule mediation_analysis:
 		mediation=DMEDIATION + "{cohort}/{sentinel}.rds",
 		betas_per_gene=DMEDIATION + "{cohort}/{sentinel}_betas_per_gene.pdf",
 		beta_table=DMEDIATION + "{cohort}/{sentinel}_betas.txt",
+	threads: 1
+	resources:
+		mem_mb=600
 	log:
 		"logs/mediation_analysis/{cohort}/{sentinel}.log"
 	benchmark:
@@ -70,22 +73,23 @@ rule validate_ggm:
                 kora_data=DCOHORT_DATA + "kora/{sentinel}.rds",
                 lolipop_data=DCOHORT_DATA + "lolipop/{sentinel}.rds",
                 kora_fit=DCOHORT_FITS + "kora/{sentinel}.rds",
-                lolipop_fit=DCOHORT_FITS + "lolipop/{sentinel}.rds"
+                lolipop_fit=DCOHORT_FITS + "lolipop/{sentinel}.rds",
+		mediation_kora=DMEDIATION + "kora/{sentinel}.rds",
+		mediation_lolipop=DMEDIATION + "lolipop/{sentinel}.rds"
         params:
-                dmediation_plots=DCOHORT_VAL + "mediation_plots/",
                 mediation_cutoff=0.05
         output:
-                DCOHORT_VAL + "{sentinel}_{graph_type}.txt",
-                mediation_detail=DCOHORT_VAL + "mediation_plots/{sentinel}_{graph_type}_betas_by_gene.pdf",
-		graphdot=DCOHORT_VAL + "{sentinel}_{graph_type}.dot",
-		graphpdf=DCOHORT_VAL + "{sentinel}_{graph_type}.pdf"
+                DCOHORT_VAL + "{cohort}/{sentinel}_{graph_type}.txt",
+		mediation_summary_plot=DCOHORT_VAL + "{cohort}/{sentinel}_{graph_type}_mediation.pdf",
+		graphdot=DCOHORT_VAL + "{cohort}/{sentinel}_{graph_type}_graphplot.dot",
+		graphpdf=DCOHORT_VAL + "{cohort}/{sentinel}_{graph_type}_graphplot.pdf"
         wildcard_constraints:
                 graph_type = GTYPES_CONSTR
         log:
-                "logs/validate-ggm/{sentinel}_{graph_type}.log"
+                "logs/validate_ggm/{cohort}/{sentinel}_{graph_type}.log"
         threads: 1
         benchmark:
-                "benchmarks/validate-ggm/{sentinel}_{graph_type}.bmk"
+                "benchmarks/validate_ggm/{cohort}/{sentinel}_{graph_type}.bmk"
         resources:
                 mem_mb=3000
         script:
@@ -95,7 +99,7 @@ rule validate_ggm:
 # Collect validation information in single file
 #------------------------------------------------------------------------------
 rule summarize_validation:
-        input: expand(DCOHORT_VAL + "{sentinel}_{graph_type}.txt", zip, sentinel=LISTS.sentinel, graph_type=GTYPES)
+        input: expand(DCOHORT_VAL + "{cohort}/{sentinel}_{graph_type}.txt", sentinel=LISTS.sentinel, graph_type=GTYPES, cohort=COHORTS)
         output: DCOHORT_VAL + "validation.all.txt"
         shell:
                 "cat {input} | sort -r | uniq > {output}"

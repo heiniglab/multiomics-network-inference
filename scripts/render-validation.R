@@ -162,12 +162,12 @@ ggsave(plot=grid.arrange(ggp1, ggp2, ggp3, ggp4, ncol=2),
 # Mediation summary plots
 # ------------------------------------------------------------------------------
 mediation <- tab[,c("sentinel", "cohort", "graph_type",
-                    "mediation_notselected", "mediation_selected","log10_mediation")]
+                    "mediation_min_pval_notselected", "mediation_max_pval_selected","log10_mediation_NSoverS_ratio")]
 # for now we ignore results where we didn't have SNP genes at all
-mediation <- mediation[!is.infinite(mediation$log10_mediation), ,drop=F]
+mediation <- mediation[!is.infinite(mediation$log10_mediation_NSoverS_ratio), ,drop=F]
 
 # plot the mediation results
-toplot <- mediation[order(mediation$mediation_selected),]
+toplot <- mediation[order(mediation$mediation_max_pval_selected),]
 toplot$sentinel <- factor(toplot$sentinel, levels=unique(toplot$sentinel))
 toplot <- melt(toplot, measure.vars=c(4,5), value.name = "pval")
 
@@ -179,7 +179,7 @@ gp1 <- ggplot(data=toplot, aes(x=graph_type, y=-log10(pval), fill=variable)) +
 
 # in addition we plot the log fold-change
 # sort by log_fc
-toplot <- mediation[order(mediation$log10_mediation, decreasing = T),]
+toplot <- mediation[order(mediation$log10_mediation_NSoverS_ratio, decreasing = T),]
 toplot$sentinel <- factor(toplot$sentinel, levels=unique(toplot$sentinel))
 
 toplot <- melt(toplot, measure.vars=6, value.name="log_fc")

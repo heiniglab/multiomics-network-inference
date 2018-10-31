@@ -1,0 +1,18 @@
+
+channels:
+ - r
+ - bioconda
+dependencies:
+ - bioconductor-GenomicRanges
+ - bioconductor-GenomicFeatures
+ - r-data.table
+ - bioconductor-graph
+ - bioconductor-RBGL
+ - r-Matrix
+ - bioconductor-rtracklayer
+ - bioconductor-FDb.InfiniumMethylation.hg19
+ - bioconductor-org.Hs.eg.db
+ - bioconductor-TxDb.Hsapiens.UCSC.hg19.knownGene
+ - bioconductor-AnnotationDbi
+ - bioconductor-GenomeInfoDb
+

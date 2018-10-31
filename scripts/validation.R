@@ -16,16 +16,16 @@
 #' @param snps SNP ids to be analyzed
 #' @param genes The genes to be checked
 #' @param cpgs the cpgs to be checked
-#' @param plot Flag whether to create a correlation plot for each of the genes
 #'
 #' @author Johann Hawe
 #'
 #'
-mediation <- function(data, snp, genes, cpgs, fout=NULL) {
+mediation <- function(data, snp, genes, cpgs,
+                      fout_table, fout_plot) {
   require(ggplot2)
 
   if(any(!c(snp,genes,cpgs) %in% colnames(data))){
-    stop("Some of the provided entities are not contained in data.")
+    stop("Some of the provided entities are not in the data.")
   }
   if(any(!grepl("^cg", cpgs))){
     warning("CpG ids don't look like probe ids, continuing anyway.")
@@ -61,7 +61,8 @@ mediation <- function(data, snp, genes, cpgs, fout=NULL) {
 			      snp.cpg, snp.gene, gene.cpg, snp.cpg.hat))
     }
   }
-  colnames(betas) <- c("snp", "gene", "cpg", "snp.cpg", "snp.gene", "gene.cpg", "snp.cpg.hat")
+  colnames(betas) <- c("snp", "gene", "cpg", "snp.cpg",
+                       "snp.gene", "gene.cpg", "snp.cpg.hat")
   betas <- as.data.frame(betas, stringsAsFactors=F)
   betas$snp.cpg <- as.numeric(betas$snp.cpg)
   betas$snp.gene <- as.numeric(betas$snp.gene)
@@ -69,18 +70,21 @@ mediation <- function(data, snp, genes, cpgs, fout=NULL) {
   betas$snp.cpg.hat <- as.numeric(betas$snp.cpg.hat)
 
   # plot the betas for each gene
-  if(!is.null(fout)) {
-    gp <- ggplot(data=betas, aes(x=snp.cpg, y=snp.cpg.hat)) +
-	    geom_hline(yintercept=0, colour="grey") +
-	    geom_vline(xintercept=0, colour="grey") +
-	    facet_wrap(~ gene, ncol=3) +
-  	    geom_point() +
-  	    geom_smooth(method="lm") +
-  	    ylab(expression(hat(beta)[c])) +
-  	    xlab(expression(beta[c])) +
-  	    geom_abline(slope=1, colour="orange")
-    ggsave(fout, plot=gp)
-  }
+  gp <- ggplot(data=betas, aes(x=snp.cpg, y=snp.cpg.hat)) +
+    geom_hline(yintercept=0, colour="grey") +
+    geom_vline(xintercept=0, colour="grey") +
+    facet_wrap(~ gene, ncol=3) +
+	    geom_point() +
+	    geom_smooth(method="lm") +
+	    ylab(expression(hat(beta)[c])) +
+	    xlab(expression(beta[c])) +
+	    geom_abline(slope=1, colour="orange")
+  ggsave(fout_plot, plot=gp, width=12, height=12)
+
+  # also save the list of betas
+  write.table(file=fout_table,
+              betas, col.names=T, sep="\t", quote=F,
+              row.names=F)
 
   # get the correlation results for the estimated against the
   # observed betas
@@ -139,17 +143,13 @@ mediation <- function(data, snp, genes, cpgs, fout=NULL) {
 mediation.summary <- function(med, s, s.selected, cutoff) {
   # mediation for only ggm selected snp genes
   med.selected <- med[s.selected]
-  med.selected.sign <- med.selected[unlist(lapply(med.selected,
-                                                  function(x) {
-                                                    x["pval_fisher"]<cutoff
-                                                  }))]
+  med.selected.pvals <- unlist(lapply(med.selected, "[[", "pval_fisher"))
+  med.selected.sign <- med.selected[med.selected.pvals<cutoff]
 
   # mediation for only not selected snp genes
   med.notselected <- med[setdiff(s,s.selected)]
-  med.notselected.sign <- med.notselected[unlist(lapply(med.notselected,
-                                function(x) {
-                                  x["pval_fisher"]<cutoff
-                                }))]
+  med.notselected.pvals <- unlist(lapply(med.notselected, "[[", "pval_fisher"))
+  med.notselected.sign <- med.notselected[med.notselected.pvals<cutoff]
 
   # get the best mediating gene based on the correlation
   best <- med[which.max(abs(unlist(lapply(med, "[[", "odds_ratio"))))]
@@ -160,9 +160,12 @@ mediation.summary <- function(med, s, s.selected, cutoff) {
   # selected/not selected, check assumptions first
 
   # min mediation pv for all not selected snpgenes
-  med.pv <- min(unlist(lapply(med.notselected, "[[", "pval_fisher")))
+  med.pv <- min(med.notselected.pvals)
   # max mediation pv for selected snpgenes
-  med.pv.selected <- max(unlist(lapply(med.selected, "[[", "pval_fisher")))
+  med.pv.selected <- max(med.selected.pvals)
+
+  # number of significantly mediating genes
+  med_total <- length(which(c(med.notselected.pvals,med.selected.pvals)<cutoff))
 
   cat("Mediation result summary (min/max of pvals):\n")
   cat("not selected\tselected\n")
@@ -173,20 +176,20 @@ mediation.summary <- function(med, s, s.selected, cutoff) {
   cat("Difference (log10(ns/s)): ", d, "\n")
 
   # return 'nice' result
-  return(c(length(which(unlist(med)<cutoff)),
-	   best_mediator,
-	   best_odds_ratio,
-	   length(med.notselected.sign),
-           length(med.selected.sign),
-           paste(names(med.notselected.sign), collapse=";"),
-           paste(names(med.selected.sign), collapse=";"),
-           paste(names(med.notselected), collapse=";"),
-           paste(names(med.selected), collapse=";"),
-           paste(format(med.notselected, digits=3), collapse=";"),
-           paste(format(med.selected, digits=3), collapse=";"),
-           med.pv,
-           med.pv.selected,
-           d))
+  return(c(mediation_total=med_total,
+	   mediation_best_gene=best_mediator,
+	   mediation_best_odds_ratio=best_odds_ratio,
+	   mediation_notselected_significant=length(med.notselected.sign),
+           mediation_selected_significant=length(med.selected.sign),
+           mediation_notselected_significant.list=paste(names(med.notselected.sign), collapse=";"),
+           mediation_selected_significant.list=paste(names(med.selected.sign), collapse=";"),
+           mediation_notselected.list=paste(names(med.notselected), collapse=";"),
+           mediation_selected.list=paste(names(med.selected), collapse=";"),
+           mediation_notselected_pvals=paste(format(med.notselected.pvals, digits=3), collapse=";"),
+           mediation_selected_pvals=paste(format(med.selected.pvals, digits=3), collapse=";"),
+           mediation_min_pval_notselected=med.pv,
+           mediation_max_pval_selected=med.pv.selected,
+           log10_mediation_NSoverS_ratio=d))
 }
 
 #' Creates a summary of the comparison of mediation results
@@ -251,10 +254,12 @@ compare_mediation_results <- function(sentinel,
   df <- reshape::melt(df, measure.vars=1:2, variable.name="dataset")
 
   # add plotting x-lab proxy
-  df = transform(df, dvariable = as.numeric(variable) + runif(length(variable),-0.2,0.2))
+  df = transform(df,
+                 dvariable = as.numeric(variable) + runif(length(variable),
+                                                          -0.2,
+                                                          0.2))
 
   # create the plot
-  source("scripts/lib.R")
   cols <- set_defaultcolors()
   sfm <- scale_fill_manual(values=cols)
 
@@ -271,9 +276,9 @@ validation dataset and once for the original dataset (on which models were calcu
   ggsave(file=fout,
 	       plot=gp)
 
-  # return the correlation of the mediation correlations between the two datasets
-  # and the fraction of significant mediations in validation set also significant in original
-  # dataset
+  # return the correlation of mediation correlations between the two datasets
+  # and the fraction of significant mediations in validation set also
+  # significant in original dataset
   corr <- cor(med_correlations, med_correlations2)
   df <- subset(df, variable=="correlation_validation")
   # fraction of all SNP genes significant in both datasets
@@ -281,7 +286,10 @@ validation dataset and once for the original dataset (on which models were calcu
   # fraction of validation significant SNP genes significant in original dataset
   frac2 <- length(which(df$significant=="both")) /
 	  length(which(df$significant=="both" | df$significant=="validation"))
-  return(c(corr, frac, frac2))
+
+  return(c(mediation_cross_cohort_correlation=corr, 
+           mediation_cross_cohort_fraction=frac, 
+           mediation_cross_cohort_fraction_validation_significant=frac2))
 }
 
 #' Validates the given ggm fit based on the found SNP~Gene links
@@ -332,7 +340,7 @@ validate.cpgs <- function(ggm.fit, ranges){
 #'
 #' @return The fisher.test()-pvalue for the calculated confusion table
 #'
-validate.cpggenes <- function(eqtm.genes, cg, cg.selected){
+validate_cpggenes <- function(eqtm.genes, cg, cg.selected){
 
   # create the individual values for our confusion matrix
   v1 <- sum(setdiff(cg, cg.selected) %in% eqtm.genes)
@@ -351,10 +359,9 @@ validate.cpggenes <- function(eqtm.genes, cg, cg.selected){
 
   rownames(cont) <- c("has_eQTM", "has_no_eQTM")
   colnames(cont) <- c("ggm_selected", "not_gmm_selected")
-  print(cont)
 
   # report fisher test
-  return(fisher.test(cont)$p.value)
+  return(c(bonder_cis_eQTM=fisher.test(cont)$p.value))
 }
 
 #' Validates the given ggm fit based on the found Gene~Gene links
@@ -369,7 +376,7 @@ validate.cpggenes <- function(eqtm.genes, cg, cg.selected){
 #' @return For each of the expression datasets a single (fisher) pvalues for the
 #' respective set
 #'
-validate.gene2gene <- function(expr.data, g, all.genes){
+validate_gene2gene <- function(expr.data, g, all.genes){
 
   require(BDgraph)
 
@@ -448,7 +455,7 @@ validate.gene2gene <- function(expr.data, g, all.genes){
 #' @return A vector containing enriched GOIDs, terms, their pvalues and
 #' qvalues or instead only containing NAs if no enrichments was found
 #'
-validate.geneenrichment <- function(gnodes) {
+validate_geneenrichment <- function(gnodes) {
 
   # get only gene nodes
   gn <- gnodes[!grepl("^rs|^cg",gnodes)]
@@ -489,7 +496,7 @@ validate.geneenrichment <- function(gnodes) {
 #'
 #' @return Fisher pvalues for the two contingency table tests
 #'
-validate.trans.genes <- function(teqtl, cgenes, tfs,
+validate_trans_genes <- function(teqtl, cgenes, tfs,
                                  cgenes.selected, tfs.selected) {
 
   # analyze the cpggenes, total and selected
@@ -515,7 +522,6 @@ validate.trans.genes <- function(teqtl, cgenes, tfs,
   cat("confusion matrix for cgenes:\n")
   rownames(cont) <- c("teqtl", "no teqtl")
   colnames(cont) <- c("not selected", "selected")
-  cont
   f1 <- fisher.test(cont)$p.value
 
   # create matrix for fisher test
@@ -525,11 +531,10 @@ validate.trans.genes <- function(teqtl, cgenes, tfs,
   cat("confusion matrix for TFs:\n")
   rownames(cont) <- c("teqtl", "no teqtl")
   colnames(cont) <- c("not selected", "selected")
-  cont
   f2 <- fisher.test(cont)$p.value
 
   # report fisher test results
-  return(c(f1,f2))
+  return(c(transEqtl_cgenes=f1,transEqtl_tfs=f2))
 }
 
 sigma.trace <- function(ggm.fit) {

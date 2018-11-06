@@ -46,11 +46,12 @@ rule apply_ggm_simulation:
         resources:
                 mem_mb=5000
         log:
-                "logs/simulation/apply-ggm/{sentinel}-iter{iteration}.log"
+                "logs/simulation/apply_ggm/{sentinel}-iter{iteration}.log"
         benchmark:
-                "benchmarks/simulation/apply-ggm/{sentinel}-iter{iteration}.bmk"
+                "benchmarks/simulation/apply_ggm/{sentinel}-iter{iteration}.bmk"
         script:
                 "scripts/apply-ggm-simulation.R"
+
 #------------------------------------------------------------------------------
 # Validate a simulation run
 #------------------------------------------------------------------------------
@@ -62,7 +63,7 @@ rule validate_ggm_simulation:
         params:
                 iteration="{iteration}"
         log:
-                "logs/simulation/validate-ggm/{sentinel}-iter{iteration}.log"
+                "logs/simulation/validate_ggm/{sentinel}-iter{iteration}.log"
         script:
                 "scripts/validate-ggm-simulation.R"
 

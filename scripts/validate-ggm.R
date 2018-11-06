@@ -280,7 +280,7 @@ if (length(use) > 1) {
 
   # the fraction of nodes retained in the overlap w.r.t. to the
   # total number of possible nodes
-  mcc_frac <- ncol(g_adj) / ncol(data)
+  mcc_frac <- ncol(g_adj) / ncol(data_val)
   row <- c(row, cross_cohort_mcc=mcc, cross_cohort_mcc_frac=mcc_frac)
 } else {
   row <- c(row, cross_cohort_mcc=NA, cross_cohort_mcc_frac=NA)

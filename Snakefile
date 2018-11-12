@@ -88,6 +88,19 @@ rule create_stringdb:
 	script:
 		"scripts/create-stringdb.R"
 
+
+#------------------------------------------------------------------------------
+# Preprocess biogrid PPI network
+#------------------------------------------------------------------------------
+rule create_biogrid:
+	input:
+		biogrid="data/current/biogrid/3.5.166/by_organism/BIOGRID-ORGANISM-Homo_sapiens-3.5.166.tab2.txt"
+		gtex="data/current/gtex/GTEx_Analysis_v6_RNA-seq_RNA-SeQCv1.1.8_gene_median_rpkm.gct"
+	output:
+		"results/current/biogrid.rds"
+	script:
+		"scripts/create_biogrid.R"
+
 #------------------------------------------------------------------------------
 # Preprocess stringdb PPI network
 #------------------------------------------------------------------------------

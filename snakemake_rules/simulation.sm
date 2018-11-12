@@ -7,7 +7,7 @@ rule all_sim:
 #------------------------------------------------------------------------------
 # Simulate ground truth and data for simulation study
 #------------------------------------------------------------------------------
-RUNS = 1
+RUNS = 10
 rule simulate_data:
         input:
                 data=DCOHORT_DATA + "lolipop/{sentinel}.rds",
@@ -65,13 +65,13 @@ rule validate_ggm_simulation:
         log:
                 "logs/simulation/validate_ggm/{sentinel}-iter{iteration}.log"
         script:
-                "scripts/validate-ggm-simulation.R"
+                "../scripts/validate-ggm-simulation.R"
 
 
 #------------------------------------------------------------------------------
 # Target rule to validate all simulation runs
 #------------------------------------------------------------------------------
-#TEMP = glob_wildcards(DSIM_FITS + "{sentinel}-iter{iteration}.RData")
+TEMP = glob_wildcards(DSIM_FITS + "{sentinel}-iter{iteration}.RData")
 #rule validate_subset:
 #        input: expand(DSIM_VALIDATION + "{sentinel}-iter{iter}.txt",  sentinel=TEMP.sentinel, iter=TEMP.iteration)
 
@@ -84,13 +84,11 @@ rule validate_ggm_simulation:
 #rule summarize_simulation:
 #       input:
 #               expand(DSIM_VALIDATION + "{sentinel}-iter{iter}.txt", sentinel=TEMP.sentinel, iter=TEMP.iteration)
-#       params:
-#               indir="../results/current/simulation/validation/"
 #       output:
 #               "results/current/simulation/simulation.html"
 #       log:
-#               "logs/simulation/summarize-simulation.log"
+#               "logs/simulation/summarize_simulation.log"
 #       script:
-#               "scripts/summarize-simulation.Rmd"
+#               "../scripts/summarize-simulation.Rmd"
 
 

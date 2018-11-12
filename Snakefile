@@ -13,8 +13,13 @@
 # -----------------------------------------------------------------------------
 LISTS = glob_wildcards("data/current/sentinels/{sentinel}.dummy")
 
-# available cohorts
-COHORTS = ["lolipop", "kora"]
+# general params
+COHORTS = ["lolipop", "kora"] # available cohorts
+
+# define the available PPI networks and set the active one
+PPI_DB_BIOGRID = "results/current/biogrid.rds"
+PPI_DB_STRING = "results/current/string.v9.expr.rds"
+PPI_DB = PPI_DB_BIOGIRD
 
 # output directories
 DCOHORT_VAL = "results/current/validation/"
@@ -84,7 +89,7 @@ rule create_stringdb:
 		string="data/current/string/human_gene_hgnc_symbol.links.detailed.v9.0.txt",
 		gtex="data/current/gtex/GTEx_Analysis_v6_RNA-seq_RNA-SeQCv1.1.8_gene_median_rpkm.gct"
 	output:
-		"results/current/string.v9.expr.rds"
+		PPI_DB_STRING
 	script:
 		"scripts/create-stringdb.R"
 
@@ -97,7 +102,7 @@ rule create_biogrid:
 		biogrid="data/current/biogrid/3.5.166/by_organism/BIOGRID-ORGANISM-Homo_sapiens-3.5.166.tab2.txt"
 		gtex="data/current/gtex/GTEx_Analysis_v6_RNA-seq_RNA-SeQCv1.1.8_gene_median_rpkm.gct"
 	output:
-		"results/current/biogrid.rds"
+		PPI_DB_BIOGRID
 	script:
 		"scripts/create_biogrid.R"
 
@@ -194,7 +199,7 @@ rule prepare_lolipop_data:
 rule collect_ranges:
 	input: 
 		cpgcontext="data/current/cpgs_with_chipseq_context_100.RData",
-		string="results/current/string.v9.expr.rds",
+		string=PPI_DB,
 		meqtl="data/current/meQTLs/transpairs_r02_110117_converted_1MB.txt",
 		tcosmo="results/current/trans-cosmopairs_combined_151216.rds",
 		priorization="data/current/rw_string_v9_ld_wb_prioritize_full_with_empirical_p_lte_0.05.txt"
@@ -255,7 +260,7 @@ rule collect_priors:
 		gg_priors="results/current/gtex.gg.cors.rds", 
 		eqtl_priors="results/current/gtex.eqtl.priors.rds",
 		ranges=DRANGES + "{sentinel}.rds",
-		string="results/current/string.v9.expr.rds",
+		string=PPI_DB,
 		cpg_context="data/current/cpgs_with_chipseq_context_100.RData",
 		cpg_annot="data/current/epigenetic_state_annotation_weighted_all_sentinels.txt"
 	output: 

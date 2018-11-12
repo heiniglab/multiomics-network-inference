@@ -36,7 +36,7 @@ rule apply_ggm:
                 priors=DPRIORS + "{sentinel}.rds",
                 ranges=DRANGES + "{sentinel}.rds",
                 cpg_context="data/current/cpgs_with_chipseq_context_100.RData",
-                string="results/current/string.v9.expr.rds"
+                string=PPI_DB
         output:
                 fit=DCOHORT_FITS + "{cohort}/{sentinel}.rds",
                 summary_file=DCOHORT_FITS + "{cohort}/{sentinel}.pdf",
@@ -91,7 +91,7 @@ rule validate_ggm:
         benchmark:
                 "benchmarks/validate_ggm/{cohort}/{sentinel}_{graph_type}.bmk"
         resources:
-                mem_mb=3000
+                mem_mb=7000
         script:
                 "../scripts/validate-ggm.R"
 

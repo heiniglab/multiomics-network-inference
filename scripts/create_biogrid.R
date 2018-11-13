@@ -10,10 +10,10 @@
 # ------------------------------------------------------------------------------
 print("Load libraries and source scripts")
 # ------------------------------------------------------------------------------
-library(data.table)
-library(graph)
-library(Homo.sapiens)
-library(igraph)
+suppressPackageStartupMessages(library(data.table))
+suppressPackageStartupMessages(library(graph))
+suppressPackageStartupMessages(library(Homo.sapiens))
+suppressPackageStartupMessages(library(igraph))
 
 # ------------------------------------------------------------------------------
 print("Get snakemake params.")
@@ -64,6 +64,9 @@ ig = graph_from_graphnel(g)
 cl = clusters(ig)
 keep = nodes(g)[cl$membership == which.max(cl$csize)]
 g = subGraph(keep, g)
+
+print("Largest CC in BIOGRID filtered for blood expressed genes:")
+print(g)
 
 # ------------------------------------------------------------------------------
 print("All done. Saving output.")

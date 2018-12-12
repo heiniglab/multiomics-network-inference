@@ -19,7 +19,7 @@ COHORTS = ["lolipop", "kora"] # available cohorts
 # define the available PPI networks and set the active one
 PPI_DB_BIOGRID = "results/current/biogrid.rds"
 PPI_DB_STRING = "results/current/string.v9.expr.rds"
-PPI_DB = PPI_DB_BIOGIRD
+PPI_DB = PPI_DB_STRING
 
 # output directories
 DCOHORT_VAL = "results/current/validation/"
@@ -99,7 +99,7 @@ rule create_stringdb:
 #------------------------------------------------------------------------------
 rule create_biogrid:
 	input:
-		biogrid="data/current/biogrid/3.5.166/by_organism/BIOGRID-ORGANISM-Homo_sapiens-3.5.166.tab2.txt"
+		biogrid="data/current/biogrid/3.5.166/by_organism/BIOGRID-ORGANISM-Homo_sapiens-3.5.166.tab2.txt",
 		gtex="data/current/gtex/GTEx_Analysis_v6_RNA-seq_RNA-SeQCv1.1.8_gene_median_rpkm.gct"
 	output:
 		PPI_DB_BIOGRID

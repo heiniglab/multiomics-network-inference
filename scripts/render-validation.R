@@ -348,7 +348,7 @@ temp <- lapply(names(results), function(n) {
   return(p)
 })
 theme_update(plot.title = element_text(hjust = 0.5))
-ga <- grid.arrange(temp[[1]], temp[[2]], temp[[3]], ncol=2)
+ga <- grid.arrange(temp[[1]], temp[[2]], temp[[3]], ncol=3)
 ggsave(plot=ga, file=fmediation_perc,
        width=12, height=8)
 

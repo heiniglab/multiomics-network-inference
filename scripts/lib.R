@@ -1,7 +1,7 @@
 # ------------------------------------------------------------------------------
 #' Method to quickly set a vector of default plotting colors
 #' to be used in all generated plots for consistency
-#' 
+#'
 #' TODO: parameter for number of colors to get. Then probably
 #' the palettes have to be switched accordingly
 #'
@@ -26,26 +26,26 @@ set_defaultcolors <- function() {
 #' for the cpg list probe ranges.
 #'
 #' @author Matthias Heinig
-#' 
+#'
 get.trans.cpgs <- function(sentinel, trans.meQTL, cosmo, cpgs=NULL, cosmo.idxs=F) {
-  
+
   pairs = which(trans.meQTL[,"sentinel.snp"] == sentinel)
-  
-  trans.snp.ranges = GRanges(seqnames=paste("chr", trans.meQTL[,"chr.snp"], sep=""), 
-                             ranges=IRanges(trans.meQTL[,"interval.start.snp"], 
+
+  trans.snp.ranges = GRanges(seqnames=paste("chr", trans.meQTL[,"chr.snp"], sep=""),
+                             ranges=IRanges(trans.meQTL[,"interval.start.snp"],
                                             trans.meQTL[,"interval.end.snp"]))
-  trans.cpg.ranges = GRanges(seqnames=paste("chr", trans.meQTL[,"chr.cpg"], sep=""), 
-                             ranges=IRanges(trans.meQTL[,"interval.start.cpg"], 
+  trans.cpg.ranges = GRanges(seqnames=paste("chr", trans.meQTL[,"chr.cpg"], sep=""),
+                             ranges=IRanges(trans.meQTL[,"interval.start.cpg"],
                                             trans.meQTL[,"interval.end.cpg"]))
-  
-  pair.snps = GRanges(seqnames=paste("chr", cosmo[,"snp.chr"], sep=""), 
+
+  pair.snps = GRanges(seqnames=paste("chr", cosmo[,"snp.chr"], sep=""),
                       ranges=IRanges(cosmo[,"snp.pos"], width=1))
-  pair.cpgs = GRanges(seqnames=paste("chr", cosmo[,"cpg.chr"], sep=""), 
+  pair.cpgs = GRanges(seqnames=paste("chr", cosmo[,"cpg.chr"], sep=""),
                       ranges=IRanges(cosmo[,"cpg.pos"], width=2))
-  
-  pairs = pair.snps %over% trans.snp.ranges[pairs] & 
+
+  pairs = pair.snps %over% trans.snp.ranges[pairs] &
     pair.cpgs %over% trans.cpg.ranges[pairs]
-  
+
   if(is.null(cpgs) | cosmo.idxs) {
     return(pairs)
   } else {
@@ -67,19 +67,19 @@ get.gene.annotation <- function(drop.nas=TRUE) {
   library(Homo.sapiens)
   library(TxDb.Hsapiens.UCSC.hg19.knownGene)
   txdb = TxDb.Hsapiens.UCSC.hg19.knownGene
-  ucsc2symbol = AnnotationDbi::select(Homo.sapiens, keys=keys(Homo.sapiens, keytype="GENEID"), 
+  ucsc2symbol = AnnotationDbi::select(Homo.sapiens, keys=keys(Homo.sapiens, keytype="GENEID"),
                                       keytype="GENEID", columns="SYMBOL")
-  ucsc2alias = AnnotationDbi::select(Homo.sapiens, keys=keys(Homo.sapiens, keytype="GENEID"), 
+  ucsc2alias = AnnotationDbi::select(Homo.sapiens, keys=keys(Homo.sapiens, keytype="GENEID"),
                                       keytype="GENEID", columns="ALIAS")
-  
-  #ucsc2ens = AnnotationDbi::select(Homo.sapiens, keys=keys(Homo.sapiens, keytype="GENEID"), 
+
+  #ucsc2ens = AnnotationDbi::select(Homo.sapiens, keys=keys(Homo.sapiens, keytype="GENEID"),
   #                                    keytype="GENEID", columns="ENSEMBL")
   GENE.ANNOTATION = genes(txdb)
-  GENE.ANNOTATION$SYMBOL <- ucsc2symbol[match(values(GENE.ANNOTATION)[,"gene_id"], 
+  GENE.ANNOTATION$SYMBOL <- ucsc2symbol[match(values(GENE.ANNOTATION)[,"gene_id"],
                                               ucsc2symbol[,"GENEID"]),"SYMBOL"]
-  GENE.ANNOTATION$ALIAS <- ucsc2alias[match(values(GENE.ANNOTATION)[,"gene_id"], 
+  GENE.ANNOTATION$ALIAS <- ucsc2alias[match(values(GENE.ANNOTATION)[,"gene_id"],
                                               ucsc2alias[,"GENEID"]),"ALIAS"]
-  #GENE.ANNOTATION$ENSEMBL <- ucsc2ens[match(values(GENE.ANNOTATION)[,"gene_id"], 
+  #GENE.ANNOTATION$ENSEMBL <- ucsc2ens[match(values(GENE.ANNOTATION)[,"gene_id"],
   #                                            ucsc2symbol[,"GENEID"]),"ENSEMBL"]
   if(drop.nas){
     GENE.ANNOTATION <- GENE.ANNOTATION[!is.na(GENE.ANNOTATION$SYMBOL)]
@@ -103,19 +103,19 @@ lmp <- function (modelobject) {
 }
 
 #' Gets a single snp range from the gtex snp database
-#' 
+#'
 #' @author Johann Hawe
-#' 
+#'
 get.snp.range <- function(snp){
   library(data.table)
   snps <- fread(paste0("results/current/gtex-snp-locations.txt"))
   snps <- snps[RS_ID_dbSNP142_CHG37p13 %in% snp,]
   if(nrow(snps)<1){
-    warning("SNP not found on gtex db.\n") 
+    warning("SNP not found on gtex db.\n")
     return(NULL)
   } else {
-    r <- with(snps, 
-              GRanges(paste0("chr", Chr), 
+    r <- with(snps,
+              GRanges(paste0("chr", Chr),
                       IRanges(as.integer(Pos),width=1)))
     names(r) <- snps$RS_ID_dbSNP142_CHG37p13
     return(r)
@@ -123,48 +123,61 @@ get.snp.range <- function(snp){
 }
 
 #' Gets the chip-seq context for a specific set of cpgs
-#' 
+#'
 #' @param cpgs ID of cpgs for which to get the context
 #' @param fcontext RData file containing the precomputed chipseq-context
-#' 
+#'
 #' @author Johann Hawe
-#' 
+#'
 get.chipseq.context <- function(cpgs, fcontext){
   load(fcontext)
   tfbs.ann <- tfbs.ann[rownames(tfbs.ann) %in% cpgs,,drop=F]
-  
+
   return(tfbs.ann[cpgs,,drop=F])
 }
 
 #' Creates a graphNEL object from a given bdgraph result for a defined cutoff
-#' 
+#'
 #' @param ggm.fit The bdgraph ggm fit
 #' @param ranges The ranges of the entities used for the graph fit
 #' @param annotate Flag whether to annotate the graph entities with nodeData [T]
-#' 
+#'
 #' @value graph-nel object created from the bdgraph result
 #'
 #' @author Johann Hawe
 #'
-graph_from_fit <- function(ggm.fit, 
-                           ranges, 
-                           string_db=NULL, 
-                           fcontext=NULL, 
+graph_from_fit <- function(ggm.fit,
+                           ranges,
+                           string_db=NULL,
+                           fcontext=NULL,
                            annotate=T){
-  
+
   if(annotate & is.null(fcontext)) {
     stop("Chip-seq context file must not be null for annotating graphs!")
   }
-  
+
   library(BDgraph)
   library(graph)
   library(igraph)
-  
+
   # get the graph instance from the ggm fit
-  cutoff <- 0.9
-  g.adj <- BDgraph::select(ggm.fit, cut = cutoff)
-  g <- as_graphnel(graph.adjacency(g.adj, mode="undirected", diag=F))
-  
+  cutoff <- 0.95
+  if (inherits(ggm.fit, "bdgraph")) {
+    g.adj <- BDgraph::select(ggm.fit, cut = cutoff)
+    g <-
+      as_graphnel(graph.adjacency(g.adj, mode = "undirected", diag = F))
+  } else if (inherits(ggm.fit, "irafnet")) {
+    g <- graphNEL(unique(unlist(ggm.fit)), edgemode = "undirected")
+    g <- addEdge(ggm.fit$gene1, ggm.fit$gene2, g)
+  } else if (inherits(ggm.fit, "genenet")) {
+    net <- extract.network(ggm.fit,
+                           cutoff.ggm = cutoff)
+    g <- graphNEL(unique(c(net$node1, net$node2)),
+                  edgemode = "undirected")
+    g <- addEdge(net$node1, net$node2, g)
+
+  }
+
   if(annotate) {
     # set node and edge attributes
     g <- annotate.graph(g, ranges, string_db, fcontext)
@@ -180,41 +193,41 @@ graph_from_fit <- function(ggm.fit,
 #' information on which genes are TFs, what the CpG genes are etc.
 #'
 #' @return The same graph instance as given, but annotated with specific
-#' node and edge attributes 
-#' 
+#' node and edge attributes
+#'
 #' @author Johann Hawe
-#' 
+#'
 annotate.graph <- function(g, ranges, string_db, fcontext){
   # work on all graph nodes
   gn <- nodes(g)
-  
+
   nodeDataDefaults(g,"cpg") <- F
   nodeData(g, gn, "cpg") <- grepl("^cg", gn)
-  
+
   nodeDataDefaults(g,"snp") <- F
   nodeData(g, gn, "snp") <- grepl("^rs", gn)
-  
+
   nodeDataDefaults(g,"snp.gene") <- F
   nodeData(g, gn, "snp.gene") <- gn %in% ranges$snp_genes$SYMBOL
-  
+
   nodeDataDefaults(g,"cpg.gene") <- F
   nodeData(g, gn, "cpg.gene") <- gn %in% ranges$cpg_genes$SYMBOL
-  
+
   nodeDataDefaults(g, "tf") <- F
   nodeData(g, gn, "tf") <- gn %in% ranges$tfs$SYMBOL
-  
+
   nodeDataDefaults(g, "sp.gene") <- F
   nodeData(g, gn, "sp.gene") <- gn %in% ranges$spath$SYMBOL
-  
+
   # edge data information
   edgeDataDefaults(g, "isChipSeq") <- FALSE
-  edgeDataDefaults(g, "isPPI") <- FALSE 
-  
+  edgeDataDefaults(g, "isPPI") <- FALSE
+
   # we will also set tf2cpg priors at this point, so get all TFs
   tfs <- ranges$tfs$SYMBOL
   # also get the chipseq context for our cpgs
   context <- get.chipseq.context(names(ranges$cpgs), fcontext)
-  
+
   em <- matrix(ncol=2,nrow=0)
   # for all cpgs
   for(c in rownames(context)){
@@ -229,9 +242,9 @@ annotate.graph <- function(g, ranges, string_db, fcontext){
   if(nrow(em) > 0){
     edgeData(g,em[,1], em[,2],"isChipSeq") <- T
   }
-  
+
   # ppi edgedata
-  
+
   # get subset of edges which are in our current graph
   ss <- subGraph(intersect(nodes(string_db), gn), STRING_DB)
   edges <- t(edgeMatrix(ss))
@@ -240,53 +253,53 @@ annotate.graph <- function(g, ranges, string_db, fcontext){
   if(nrow(edges) > 0){
     edgeData(g,edges[,1], edges[,2],"isPPI") <- T
   }
-  
+
   return(g)
 }
 
 #' Plot a GGM result graph
 #'
-#' Plots the a built graph (estimated from the sentinel data) using the 
+#' Plots the a built graph (estimated from the sentinel data) using the
 #' twopi-visualization. Can be used to retrieve only the plot graph/node/edge
 #' attributes when using pdf.out=NULL, dot.out=NULL and plot.on.device=F
 #'
 #' @param graph: Graph to be plotted (graphNEL)
 #'
 #' @param id The Id of the sentinel snp
-#' @param ranges The list of sentinel associated ranges (we need snp.genes 
+#' @param ranges The list of sentinel associated ranges (we need snp.genes
 #' and cpg.genes, enriched.tfs etc.)
 #' @param dot.out File to which to write the graph in dot format
-#' 
+#'
 #' @return List of plot graph attributes and the underlying graph structure
-#' 
+#'
 #' @author Johann Hawe
 #'
 plot.ggm <- function(g, id, plot.on.device=T, dot.out=NULL){
   library(graph)
   library(Rgraphviz)
   library(GenomicRanges)
-  
+
   # remove any unconnected nodes (primarily for bdgraph result, since
   # such nodes are already removed for genenet)
   if(any(graph::degree(g) == 0)){
     g <- removeNode(names(which(graph::degree(g) == 0)), g)
   }
-  
+
   # add sentinel to network if its is not in there yet or it has been removed
   if(!(id %in% nodes(g))) {
     g <- graph::addNode(c(id), g)
   }
-  
+
   n <- nodes(g)
-  
+
   # get trans and cpg gene symbols
   snp.genes <- n[unlist(nodeData(g,n,"snp.gene"))]
   cpg.genes <- n[unlist(nodeData(g,n,"cpg.gene"))]
   tfs <- n[unlist(nodeData(g,n,"tf"))]
-  
+
   # prepare plot-layout
-  attrs <- list(node=list(fixedsize=TRUE, fontsize=14, 
-                          style="filled", fontname="helvetica"), 
+  attrs <- list(node=list(fixedsize=TRUE, fontsize=14,
+                          style="filled", fontname="helvetica"),
                 graph=list(overlap="false", root=id, outputorder="edgesfirst"))
 
   shape = rep("ellipse", numNodes(g))
@@ -313,22 +326,22 @@ plot.ggm <- function(g, id, plot.on.device=T, dot.out=NULL){
   if(!is.null(tfs)){
     col[tfs] = "green"
   }
-  
+
   penwidth = rep(1, numNodes(g))
   names(penwidth) = n
   penwidth[snp.genes] = 3
   penwidth[cpg.genes] = 3
   if(!is.null(tfs)){
-    penwidth[tfs] = 3  
+    penwidth[tfs] = 3
   }
- 
+
   bordercol = rep("black", numNodes(g));
   names(bordercol) = n;
   bordercol[cpg.genes] = "#e4d7bc";
   bordercol[id] = "#fab4ad";
 
-  nAttrs = list(shape=shape, label=label, width=width, 
-                height=height, penwidth=penwidth, fillcolor=col, 
+  nAttrs = list(shape=shape, label=label, width=width,
+                height=height, penwidth=penwidth, fillcolor=col,
                 color=bordercol)
 
   # default color for edges: black
@@ -357,36 +370,36 @@ plot.ggm <- function(g, id, plot.on.device=T, dot.out=NULL){
       ecol[edge] <- "#ccebc5"
     }
   }
-  
+
   dir = rep("none", numEdges(g))
   names(dir) = edgeNames(g)
 
   eAttrs = list(color=ecol, dir=dir)
- 
+
   if(numEdges(g)>500){
     warning("Skipping plotting on device due to large amount of edges")
   } else if(plot.on.device) {
     plot(g, "twopi", nodeAttrs=nAttrs, edgeAttrs=eAttrs, attrs=attrs)
   }
-  
+
   if(!is.null(dot.out)){
     # output the dot-information
     #    toDot(graph, dot.out, nodeAttrs=nAttrs, edgeAttrs=eAttrs, attrs=attrs, subGList=sgs)
     toDot(g, dot.out, nodeAttrs=nAttrs, edgeAttrs=eAttrs, attrs=attrs)
   }
-  
-  # return the list of created plotattributes and the possibly modified graph 
+
+  # return the list of created plotattributes and the possibly modified graph
   # object
   return(list(graph=g, nodeAttrs=nAttrs, edgeAttrs=eAttrs, attrs=attrs))
 }
 
 #' Method to quickly filter an edge matrix for only those edges, which are within
 #' a specified graph
-#' 
+#'
 #' @author Johann Hawe
-#' 
+#'
 #' @date 2017/03/13
-#' 
+#'
 filter.edge.matrix <- function(g, em){
   if(!is.matrix(em)){
     stop("Provided edge matrix is not an actual matrix.")
@@ -394,7 +407,7 @@ filter.edge.matrix <- function(g, em){
   if(nrow(em)<1){
     return(em)
   }
-  
+
   e <- graph::edges(g)
   out <- matrix(ncol=2,nrow=0)
   for(i in 1:nrow(em)){
@@ -487,12 +500,12 @@ normalize.quantile <- function(x) {
 #'         with the state annotation of the range in each epigenome
 #'
 #' @export
-chromHMM.annotation <- function(cpg.ranges, 
-                                ids, 
-                                dir="data/current/roadmap/chromHMM/15state/", 
+chromHMM.annotation <- function(cpg.ranges,
+                                ids,
+                                dir="data/current/roadmap/chromHMM/15state/",
                                 suffix="_15_coreMarks_mnemonics.bed.bgz") {
   require(Rsamtools)
-  
+
   annotation = sapply(ids, function(id) {
     file = paste0(dir, id, suffix)
     avail = as.logical(seqnames(cpg.ranges) %in% seqnamesTabix(file))
@@ -509,24 +522,24 @@ chromHMM.annotation <- function(cpg.ranges,
 }
 
 #' For a set of symbols, gets the emsembl-ids of the corresponding genes from
-#' the AnnotationHub. 
+#' the AnnotationHub.
 #' Note: Currently only implemented for human genes
 #'
 #' @return A data.frame containng the SYMBOL in one column and the ensemble
 #' id in another column
-#' 
+#'
 #' @author Johann Hawe
-#' 
+#'
 #' @date 2017/03/27
-#' 
+#'
 ensembl.from.symbol <- function(symbols, na.drop=T, org="hs"){
   result <- NULL
   if("hs" %in% org){
     library(org.Hs.eg.db)
     hs <- org.Hs.eg.db
-    result <- select(hs, 
-                     keytype="SYMBOL", 
-                     keys=c(symbols), 
+    result <- select(hs,
+                     keytype="SYMBOL",
+                     keys=c(symbols),
                      columns=c("SYMBOL", "ENSEMBL"))
   } else {
     warning("Organism not supported yet: ", org)
@@ -534,29 +547,29 @@ ensembl.from.symbol <- function(symbols, na.drop=T, org="hs"){
   if(na.drop){
     result <- result[!is.na(result$ENSEMBL),,drop=F]
   }
-     
+
   return(result)
 }
 
 #' For a set of ensemble ids, gets the symbols of the corresponding genes from
-#' the AnnotationHub. 
+#' the AnnotationHub.
 #' Note: Currently only implemented for human genes
 #'
 #' @return A data.frame containng the SYMBOL in one column and the ENSEMBLE
 #' id in another column
-#' 
+#'
 #' @author Johann Hawe
-#' 
+#'
 #' @date 2017/03/28
-#' 
+#'
 symbol.from.ensembl <- function(ensemblIDs, na.drop=T, org="hs"){
   result <- NULL
   if("hs" %in% org){
     library(org.Hs.eg.db)
     hs <- org.Hs.eg.db
-    result <- AnnotationDbi::select(hs, 
-                     keytype="ENSEMBL", 
-                     keys=c(ensemblIDs), 
+    result <- AnnotationDbi::select(hs,
+                     keytype="ENSEMBL",
+                     keys=c(ensemblIDs),
                      columns=c("SYMBOL", "ENSEMBL"))
   } else {
     warning("Organism not supported yet: ", org)
@@ -578,49 +591,49 @@ symbol.from.ensembl <- function(ensemblIDs, na.drop=T, org="hs"){
 #' @param cluster Flag whether to cluster the data in the heatmap or not. default:F
 #' @param cors Flag whether correlations are contained in the input matrix x (to
 #' appropriately choose the color palette)
-#' 
+#'
 #' @return Grob object returned by pheatmap in the 4th position
 #'
 simple.heatmap <- function(x, cors=F, cannot=NA, cluster=F) {
   library(pheatmap)
   library(RColorBrewer)
-  
+
   if(cors){
     breaksList = seq(-1, 1, by = 0.1)
   } else {
     breaksList = seq(min(x), max(x), by = 0.1)
   }
-  
+
   cols <- rev(brewer.pal(n = 7, name = "RdYlBu"))
   cols <- colorRampPalette(cols)(length(breaksList))
-  
-  return(pheatmap(x, annotation_col=cannot, 
-           cluster_rows=cluster, 
-           cluster_cols=cluster, 
+
+  return(pheatmap(x, annotation_col=cannot,
+           cluster_rows=cluster,
+           cluster_cols=cluster,
            cex=0.7, color = cols, breaks = breaksList)[[4]])
 }
 
 
-#' For a list of symbols, gets all annotated array ids from the 
+#' For a list of symbols, gets all annotated array ids from the
 #' illuminaHumanV3.db
 #'
 #' @param symbols List of symbols for which to get ids
 #' @param mapping Flag whether to return a mapping ID->SYMBOL (default: F)
-#' @param as.list Flag whether to return result as list or vector in 
+#' @param as.list Flag whether to return result as list or vector in
 #' case mapping=F. (default:F)
 #'
 #' @author Johann Hawe
 #'
 probes.from.symbols <- function(symbols, mapping=F, as.list=F, annot=NULL) {
-  
+
   if(is.null(annot)) {
     library(illuminaHumanv3.db)
     annot <- as.list(illuminaHumanv3ALIAS2PROBE)
     annot <- annot[!is.na(annot)]
-  } 
-  
+  }
+
   annot <- annot[which(names(annot) %in% symbols)];
-  
+
   if(length(annot) > 0){
     if(mapping) {
       probes <- unlist(annot)
@@ -664,15 +677,15 @@ probes.from.symbols <- function(symbols, mapping=F, as.list=F, annot=NULL) {
 #'
 #' @param data The data matrix with the individuals in the rows and the measurements
 #' in the columns
-#' 
+#'
 #' @param qvalue Flag whether to return qvalues instead of pvalues in the matrix.
 #' Default: False
-#' 
+#'
 #' @return A matrix of p-values or q-values between each possible pair
 #' of data entities
 #'
 #' @author Johann Hawe
-#' 
+#'
 get.correlation.pval.matrix <- function(data, qvalue=F){
   library(reshape)
   N <- ncol(data)
@@ -707,78 +720,78 @@ get.correlation.pval.matrix <- function(data, qvalue=F){
   return(result)
 }
 
-#' From a symmetric matrix of (correlation) pvalues of measurements, 
+#' From a symmetric matrix of (correlation) pvalues of measurements,
 #' creates a a graphNEL structure for a given cutoff.
-#' 
+#'
 #' @param cor.pvals The matrix of correlation pvalues
 #' @param cutoff The pvalue cutoff to be used
-#' 
-#' @return A graphNEL object containing significant associations between the 
+#'
+#' @return A graphNEL object containing significant associations between the
 #' entities
-#' 
+#'
 #' @author Johann Hawe
-#' 
+#'
 create.correlation.network <- function(cor.pvals, cutoff) {
   library(graph)
-  
+
   if(!isSymmetric(cor.pvals)){
     stop("Matrix of correlation pvalues must be symmetric!")
   }
   edges <- matrix(ncol=3, nrow=0)
   colnames(edges) <- c("n1", "n2", "pval")
-  
+
   cn <- colnames(cor.pvals)
   N <- ncol(cor.pvals)
   for(i in 1:(N-1)){
     for(j in (i+1):N){
-      pv <- cor.pvals[i,j] 
+      pv <- cor.pvals[i,j]
       if(pv < cutoff){
         edges <- rbind(edges, c(cn[i], cn[j], pv))
       }
     }
   }
   graph <- graphNEL(union(edges[,1], edges[,2]),edgemode = "undirected")
-  graph <- addEdge(edges[,1], 
-                         edges[,2], 
+  graph <- addEdge(edges[,1],
+                         edges[,2],
                          weights=1-as.numeric(edges[,3]),
                          graph)
   return(graph)
 }
 
 #' Creates the graph at which to start the BDgraph algorithm at
-#' 
+#'
 #' Since it is an MCMC algorithm, starting with this graph will make it more
 #' likely to start not too far off of the target distribution/graph.
-#' The creation of the start graph is based on the STRING database. 
+#' The creation of the start graph is based on the STRING database.
 #' Additionally, predefined edges will be added to the graph.
 #'
 #' @param nodes All nodes to be incorporated in the graph
 #' @param ranges A set of ranges from which cpg and cpg.genes can inferred
-#' 
+#'
 #' @return An incidence matrix of size length(nodes)^2 where 1s indicated edges
 #' and 0s indicated absence of edges
-#' 
+#'
 #' @author Johann Hawe
 #'
 get.g.start <- function(nodes, ranges){
   library(graph)
-  
+
   genes <- nodes[!grepl("^cg|^rs", nodes)]
-  
+
   # create output matrix
   p <- length(nodes)
   out <- matrix(0, nrow=p, ncol=p)
   rownames(out) <- colnames(out) <- nodes
-  
+
   # add STRING connections
   STRING_SUB <- subGraph(intersect(nodes(STRING_DB), genes), STRING_DB)
   sn <- nodes(STRING_SUB)
   em <- t(edgeMatrix(STRING_SUB))
   em <- cbind(sn[em[,1]],sn[em[,2]])
-  
+
   out[em[,1],em[,2]] <- 1
   out[em[,2],em[,1]] <- 1
-  
+
   # create edge matrix for all cpg.gene-cpg edges to be added
   # to g.start
   em <- matrix(ncol=2,nrow=0)
@@ -790,13 +803,13 @@ get.g.start <- function(nodes, ranges){
     cpg <- cpgs[i]
     g <- get.nearby.ranges(cpgs[i],cpg.genes)[[1]]
     for(row in 1:length(g)){
-      em <- rbind(em, 
-                  c(names(cpg), 
-                    g[row]$SYMBOL))  
+      em <- rbind(em,
+                  c(names(cpg),
+                    g[row]$SYMBOL))
     }
-    
+
   }
-  
+
   out[em[,1],em[,2]] <- 1
   out[em[,2],em[,1]] <- 1
   return(out)
@@ -806,7 +819,7 @@ get.g.start <- function(nodes, ranges){
 #' pairs with prior>0.5 to create the g.start
 #'
 #' @param priors Matrix of prior values for all possible node edges
-#' 
+#'
 #' @author Johann Hawe
 #'
 get_gstart_from_priors <- function(priors){
@@ -831,7 +844,7 @@ normalize.expression <- function(data) {
   library(preprocessCore)
   library(peer)
 
-  # quantile normalize 
+  # quantile normalize
   scaled = normalize.quantiles(t(data))
   rownames(scaled) <- colnames(data)
   colnames(scaled) <- rownames(data)
@@ -850,20 +863,20 @@ normalize.expression <- function(data) {
 }
 
 #' Calculate peer factors for given data and covariates
-#' Then get residual data matrix 
+#' Then get residual data matrix
 #'
 #' @param data nxg matrix (n=samples, g=genes/variables)
 #' @param covariates nxc matrix (n=samples, c=covariates)
 #' @param get.residuals Flag whether to directly return the residuals
 #' calculated on the data matrix instead of the peer factors calculated
 #' @param Nk Number of factors to estimate. Default: N/4
-#' 
+#'
 #' @return Matrix of corrected expression data
-#' 
+#'
 #' @author Johann Hawe
-#' 
+#'
 #' @date 20170328
-#' 
+#'
 correct.peer <- function(data,
                              covariates=NULL,
                              Nk=ceiling(nrow(data)*0.25)) {
@@ -884,12 +897,12 @@ correct.peer <- function(data,
   PEER_setNmax_iterations(model, 5000);
 
   if(!is.null(covariates)){
-    # set matrix of known and important covariates, 
+    # set matrix of known and important covariates,
     # since we want to acknowledge their effect
     PEER_setCovariates(model, as.matrix(covariates));
   }
 
-  # learn 
+  # learn
   PEER_update(model);
 
   re <- PEER_getResiduals(model)
@@ -900,11 +913,11 @@ correct.peer <- function(data,
 
 #' Small helper for a list() function automatically setting
 #' the variable names as the names of the created list
-#' 
+#'
 #' compare: https://stackoverflow.com/a/21059868
 #'
 #' @author Johann Hawe
-#' 
+#'
 listN <- function(...){
   ln <- list(...)
   names(ln) <- as.character(substitute(list(...)))[-1]
@@ -913,39 +926,39 @@ listN <- function(...){
 
 # ------------------------------------------------------------------------------
 #' Method to quickly rewire a given graph
-#' 
+#'
 #' @param g The graphNEL object to be rewired
 #' @param p The probability with which an edge gets rewired
 #' @param ei Dataframe of class edge_info
 #'
 #' @return The rewired graph object
-#' 
+#'
 # ------------------------------------------------------------------------------
 rewire_graph <- function(g, p, ei) {
   if(!"edge_info" %in% class(ei)){
     stop("Given data.frame is not an edge info object")
   }
-  
+
   # ----------------------------------------------------------------------------
   # get node information (degrees, non_prior nodes)
   # -----------------------------------------------------------------------------
   degs <- cbind.data.frame(sort(graph::degree(g), decreasing = T))
   colnames(degs) <- c("degree")
   degs$node <- rownames(degs)
-  
+
   # number of edges to rewire
   N <- round(p * numEdges(g))
   # do nothing...
   if(N == 0) {
     return(list(gnew=g, to_switch=NULL))
   }
-  
+
   # get the 0-degree nodes which do not have any prior associated
   ei_priors <- ei[ei$keep_full,,drop=F]
   nodes <- nodes(g)
   nodes_no_priors <- nodes[!(nodes %in% ei_priors$n1) &
                              !(nodes %in% ei_priors$n2)]
-  
+
   # ----------------------------------------------------------------------------
   # select nodes to switch such that sum of node degree == N
   # ----------------------------------------------------------------------------
@@ -961,14 +974,14 @@ rewire_graph <- function(g, p, ei) {
   # in case we dont have enough prior nodes
   last <- NULL
   add_rewiring <- F
-  
+
   cnt <- 0
   while(best_diff > 0 & cnt < 500) {
     cnt <- cnt + 1
-    res <- degreesum_in_range(degs, sample(idxs), 
-                                       lo, up, 
+    res <- degreesum_in_range(degs, sample(idxs),
+                                       lo, up,
                                        g)
-    
+
     if(!is.null(res) & !is.null(res$nodes)) {
       last <- res$nodes
       s <- sum(last$degree)
@@ -985,27 +998,27 @@ rewire_graph <- function(g, p, ei) {
   # check whether we need to do additional work
   if(is.null(best)) {
     best <- last
-    add_rewiring <- F  
+    add_rewiring <- F
   }
-  
+
   # ----------------------------------------------------------------------------
   # Perform switching
   # ----------------------------------------------------------------------------
   Ns <- nrow(best)
- 
+
   if(length(nodes_no_priors) > 0) {
     # define switchings
     Nnp <- length(nodes_no_priors)
-    
-    to_switch <- cbind.data.frame(n_prior=best$node, 
+
+    to_switch <- cbind.data.frame(n_prior=best$node,
                                   n_prior_degree=best$degree,
-                                  n_noprior=sample(nodes_no_priors, 
-                                                   size = Ns, 
+                                  n_noprior=sample(nodes_no_priors,
+                                                   size = Ns,
                                                    replace = Ns>Nnp),
                                   stringsAsFactors=F)
-    
+
     gnew <- switch_nodes(g, to_switch)
-    
+
     # check whether we need to do additional rewiring
     div <- get_prior_divergence(gnew, ei, p)
     if(add_rewiring & div > 2) {
@@ -1018,21 +1031,21 @@ rewire_graph <- function(g, p, ei) {
         div <- get_prior_divergence(gnew, ei, p)
       }
     }
-   
+
   } else {
     stop("Not implemented yet: There where no nodes without priors")
   }
-  
+
   return(listN(gnew, to_switch))
 }
 
 #' Gets a percent value [0,100] of how much the observed prior edges in a graph
-#' diverge from the desired fraction of prior edges. 
+#' diverge from the desired fraction of prior edges.
 #'
 #' @param g The graph to be checked
 #' @param ei The corresponding edge_info object
 #' @param p The percentage of desired randomized graph edges
-#' 
+#'
 #' @author Johann Hawe
 get_prior_divergence <- function(g, ei, p) {
   pe <- get_percent_prioredges(g, ei) * 100
@@ -1041,20 +1054,20 @@ get_prior_divergence <- function(g, ei, p) {
 }
 
 #' Creates a graph with switched nodes as compared to a base graph
-#' 
+#'
 #' @param g_old
 #' @param to_switch
 #'
 #' @author Johann Hawe
-#' 
+#'
 switch_nodes <- function(g_old, to_switch) {
   # get the full edge matrix and switch nodes
   n <- nodes(g_old)
   em <- t(edgeMatrix(g_old))
-  em <- cbind.data.frame(n1=n[em[,1]], 
+  em <- cbind.data.frame(n1=n[em[,1]],
                          n2=n[em[,2]],
                          stringsAsFactors=F)
-  
+
   for(i in 1:nrow(to_switch)) {
     prior_node <- to_switch[i,"n_prior"]
     noprior_node <- to_switch[i,"n_noprior"]
@@ -1062,7 +1075,7 @@ switch_nodes <- function(g_old, to_switch) {
     em[em$n1 == prior_node,"n1"] <- noprior_node
     em[em$n2 == prior_node,"n2"] <- noprior_node
   }
-  
+
   g_new <- graphNEL(n)
   g_new <- addEdge(em[,1], em[,2], g_new)
   return(g_new)
@@ -1070,37 +1083,37 @@ switch_nodes <- function(g_old, to_switch) {
 
 #' Gets a set of nodes from a dataframe with annotated degree,
 #' where the sum of all degrees is within a certain window.
-#' 
+#'
 #' @param df The dataframe containing the nodes and their degrees (degree column)
 #' @param idxs Indicies of the nodes in the df to be used
 #' @param lo Lower bound for the sum
 #' @param up Upper bound for the sum
 #' @param g The graph from which the nodes originate. If given, it is ensured
 #' that nodes in the final collection of nodes are not neighbours within the graph
-#' 
+#'
 #' @return Set of nodes for which the sum of degrees is between lo and up
-#' 
+#'
 #' @author Johann Hawe
-#' 
+#'
 degreesum_in_range <- function(df, idxs, lo, up, g) {
-  
+
   # get the  center value for exact matching
   total <- (lo+up)/2
-  
+
   # check special cases
   if(total == 0) {
     return(NULL)
-  } 
-  
+  }
+
   rand <- c()
   # counter for total running sum of degrees we added
   running_sum <- 0
   # counter of substracted information, i.e. whenever we find a new node has
   # neighbours within our collection, we reduce the total amount of degrees found
-  # by the respective number of neighbours. We need this information for 
+  # by the respective number of neighbours. We need this information for
   # the evaluation of the found set of nodes
   total_subst <- 0
-  
+
   for(i in idxs) {
     pi <- df[i,,drop=F]
     pi <- cbind(pi, idx=i)
@@ -1152,43 +1165,43 @@ degreesum_in_range <- function(df, idxs, lo, up, g) {
       }
     }
   }
-  
+
   return(list(nodes=rand, adjustment=total_subst))
 }
 
 #' Helper method calculating the percentage of edges in the given graph object
 #' which have a prior according to the given prior matrix
-#' 
+#'
 #' @param g The graph for which to check the edges
 #' @param ei An edge_info object containing all prior information
-#' 
+#'
 #' @return Percentage of edges in the graph which have a prior
 #'
 get_percent_prioredges <- function(g, ei) {
   library(graph)
-  
+
   # get prior edges
   prior_edges <- ei[ei$keep_full,,drop=F]
   ei_nodes <- unique(c(ei$n1, ei$n2))
   prior_nodes <- unique(c(prior_edges$n1, prior_edges$n2))
-  
+
   # ----------------------------------------------------------------------------
   # get the edgematrix with nodes
   # ----------------------------------------------------------------------------
   n <- graph::nodes(g)
-  
+
   # sanity check
   if(!all(n %in% ei_nodes)) {
     warning("Not all nodes present in edge_info.")
     return(NULL)
   }
-  
+
   # get the edge information from the graph
   em <- t(edgeMatrix(g))
-  
+
   if(nrow(em) > 0) {
     count <- 0
-    em <- cbind.data.frame(n[em[,1]], 
+    em <- cbind.data.frame(n[em[,1]],
                            n[em[,2]],
                            stringsAsFactors=F)
     # --------------------------------------------------------------------------
@@ -1197,11 +1210,11 @@ get_percent_prioredges <- function(g, ei) {
     for(i in 1:nrow(em)) {
       gn1 <- em[i,1]
       gn2 <- em[i,2]
-      
+
       # check in edge_info prior object
-      temp <- any((prior_edges$n1 %in% gn1 & prior_edges$n2 %in% gn2) | 
+      temp <- any((prior_edges$n1 %in% gn1 & prior_edges$n2 %in% gn2) |
             (prior_edges$n1 %in% gn2 & prior_edges$n2 %in% gn1))
-      
+
       if(temp) count <- count + 1
     }
     return(count/nrow(em))
@@ -1221,25 +1234,25 @@ remove_unconnected_nodes <- function(g) {
 #' Samples a graph from the given prior matrix
 #' Uses the colnames of the (symmetric) given prior
 #' matrix to determine graph nodes
-#' 
+#'
 #' @param priors The prior matrix
 #'
 #' @author Johann Hawe
-#' 
+#'
 sample_prior_graph <- function(priors, sentinel) {
-  
+
   library(reshape2)
-  
+
   # assume pseudo.prior as min-value (should always be
   # the case)
   pseudo.prior <- min(priors)
-  
+
   # the nodes we want to operate on
   nodes <- colnames(priors)
-  
+
   # create base graph
   g <- graphNEL(nodes, edgemode = "undirected")
-  
+
   # iterate over each combination of nodes
   temp <- priors
   temp[upper.tri(temp, T)] <- NA
@@ -1247,13 +1260,13 @@ sample_prior_graph <- function(priors, sentinel) {
   colnames(ee) <- c("n1", "n2", "prior")
   ee$n1 <- as.character(ee$n1)
   ee$n2 <- as.character(ee$n2)
-  
+
   # create names
   rownames(ee) <- paste(ee$n1, ee$n2, sep="_")
-  
+
   # flag for sampling
   ee$keep <- F
-  
+
   # iterate over each pair and determine whether to add
   # the pair as an 'true' edge
   for(i in 1:nrow(ee)) {
@@ -1266,11 +1279,11 @@ sample_prior_graph <- function(priors, sentinel) {
       }
     }
   }
-  
+
   # create a full graph for comparison
   ee$keep_full <- ee$prior > pseudo.prior
   gfull <- addEdge(ee[ee$keep_full,1], ee[ee$keep_full,2], g)
-  
+
   # keep only relevent edges and add to graph
   to_add <- ee[ee$keep,,drop=F]
   if(nrow(to_add)>0) {
@@ -1287,26 +1300,26 @@ sample_prior_graph <- function(priors, sentinel) {
         to_switch <- sample(1:nrow(to_add),1)
         old <- to_add[to_switch,]
         old["keep"] <- F
-        
+
         to_add[to_switch,] <- c(sentinel, temp2, priors[sentinel,temp2], T, T)
-        rownames(to_add)[to_switch] <- paste0(sort(c(sentinel, temp2)), 
+        rownames(to_add)[to_switch] <- paste0(sort(c(sentinel, temp2)),
                                               collapse="_")
         ee[ee$n1 == old$n1 & ee$n2 == old$n2,] <- old
       }
     }
   } else {
     # none of the edges made it
-    # for now add at least the edges which got any prior so that we do not 
+    # for now add at least the edges which got any prior so that we do not
     # get an empty graph here; add random SNP edge to have the SNP available
     warning("Creating full graph as observed graph.")
     ee[ee$prior>pseudo.prior,"keep"] <- T
     ee[which(grepl("^rs", ee$n1) | grepl("^rs", ee$n2))[1], "keep"] <- T
     to_add <- ee[ee$keep,,drop=F]
   }
-  
+
   g <- addEdge(to_add[,1], to_add[,2], g)
   class(ee) <- c(class(ee), "edge_info")
-  return(list(sample_graph=g, full_graph=gfull, 
+  return(list(sample_graph=g, full_graph=gfull,
               edge_info=ee, sentinel=sentinel))
 }
 
@@ -1326,64 +1339,64 @@ sample_prior_graph <- function(priors, sentinel) {
 #' @return list of graph objects with the nodes and edges added
 #'
 #' @author Matthias Heinig
-#' 
+#'
 #' @imports reshape
 #' @imports graph
 #' @export
 add.to.graphs <- function(graphs, sentinel, trans.genes, trans.cpgs, tfbs.ann) {
   require(reshape)
   require(graph)
-  
+
   tf.edges = melt(tfbs.ann[trans.cpgs,])
   colnames(tf.edges) = c("cpg", "condition", "adjacent")
   tf.edges = tf.edges[tf.edges[,"adjacent"],]
   for (i in 1:2) {
     tf.edges[,i] = as.character(tf.edges[,i])
   }
-  tf = as.character(sapply(strsplit(tf.edges[,"condition"], ".", fixed=T), 
+  tf = as.character(sapply(strsplit(tf.edges[,"condition"], ".", fixed=T),
                            "[", 1))
   tf.edges = data.frame(tf.edges, tf, stringsAsFactors=F)
   tf.edges = tf.edges[!duplicated(paste(tf.edges[,"tf"], tf.edges[,"cpg"])),]
-  
+
   ## put together the graphs
   out = list()
-  
+
   for (graph.idx in 1:length(graphs)) {
     locus.graph = graphs[[graph.idx]]
-    
+
     ## filter for TFs that are in the graph already
     use.tf.edges = tf.edges[tf.edges[,"tf"] %in% nodes(locus.graph),]
-    
-    new.nodes = unique(c(use.tf.edges[,"tf"], trans.cpgs, 
+
+    new.nodes = unique(c(use.tf.edges[,"tf"], trans.cpgs,
                          sentinel, trans.genes))
     new.nodes = setdiff(new.nodes, nodes(locus.graph))
-    
+
     locus.graph = graph::addNode(new.nodes, locus.graph)
-    
+
     ## also add some meta data (the type of nodes)
     nodeDataDefaults(locus.graph, "tf") = FALSE
     nodeData(locus.graph, unique(use.tf.edges[,"tf"]), "tf") = TRUE
-    
+
     nodeDataDefaults(locus.graph, "cpg") = FALSE
     nodeData(locus.graph, trans.cpgs, "cpg") = TRUE
-    
+
     nodeDataDefaults(locus.graph, "snp") = FALSE
     nodeData(locus.graph, sentinel, "snp") = TRUE
-    
+
     nodeDataDefaults(locus.graph, "trans.gene") = FALSE
     nodeData(locus.graph, trans.genes, "trans.gene") = TRUE
-    
+
     ## add edges for the tfbs
-    locus.graph = addEdge(use.tf.edges[,"tf"], 
+    locus.graph = addEdge(use.tf.edges[,"tf"],
                           use.tf.edges[,"cpg"], locus.graph)
-    
+
     ## add edges for the connection of the locus and its genes
-    locus.graph = addEdge(rep(sentinel, length(trans.genes)), 
+    locus.graph = addEdge(rep(sentinel, length(trans.genes)),
                           trans.genes, locus.graph)
-    
+
     out[[graph.idx]] = locus.graph
   }
-  
+
   return(out)
 }
 
@@ -1399,26 +1412,26 @@ eig.decomp <- function(M, n.eigs, sym) {
     ar$vectors <- Re(ar$vectors)
     ar$values  <- Re(ar$values)
   }
-  
+
   ## check for negative values and flip signs
   neg = which(ar$values < 0)
   for (n in neg) {
     ar$values[n] = -ar$values[n]
     ar$vectors[,n] = -ar$vectors[,n]
   }
-  
+
   return(ar)
 }
 
 graph2sparseMatrix <- function(g) {
   em = edgeMatrix(g)
-  Asparse = sparseMatrix(em[1,], em[2,], x=1, dims=rep(numNodes(g), 2), 
+  Asparse = sparseMatrix(em[1,], em[2,], x=1, dims=rep(numNodes(g), 2),
                          dimnames=list(nodes(g), nodes(g)))
-  
+
   ## make symmetric
   Asparse = Asparse + t(Asparse)
   Asparse[Asparse > 1] = 1
-  
+
   return(Asparse)
 }
 
@@ -1441,11 +1454,11 @@ propagation <- function(Asparse, n.eigs=20, from=NULL, to=NULL, sum="none") {
   require(Matrix)
   ## transition matrix
   ## transition = Asparse / rowSums(Asparse)
-  
+
   ## symmetric transition matrix
   D.root = Diagonal(nrow(Asparse), 1 / sqrt(Matrix::rowSums(Asparse)))
   Psym = D.root %*% Asparse %*% D.root
-  
+
   if (is.null(from)) {
     from = 1:nrow(Asparse)
   }
@@ -1466,7 +1479,7 @@ propagation <- function(Asparse, n.eigs=20, from=NULL, to=NULL, sum="none") {
   if (is.character(to)) {
     to = match(to, colnames(Asparse))
   }
-  
+
   ## setup different ways of summarizing the propagation matrix
   if (sum == "from") {
     transform = rowSums
@@ -1477,25 +1490,25 @@ propagation <- function(Asparse, n.eigs=20, from=NULL, to=NULL, sum="none") {
     propagation = double(0, length(from))
     names(propagation) = dnames[[1]]
   } else if (sum == "both") {
-    propagation = matrix(0, nrow=nrow(Asparse), ncol=2, 
+    propagation = matrix(0, nrow=nrow(Asparse), ncol=2,
                          dimnames=list(rownames(Asparse), c("from", "to")))
   } else if (sum == "none") {
     transform = function(x) {return(x)}
     propagation = matrix(0, nrow=length(from), ncol=length(to), dimnames=dnames)
   }
-  
+
   if (n.eigs > 0) {
     ## approximate using the eigen vectors
-    
+
     if (n.eigs < nrow(Psym)) {
       ## just use a subset of eigen vectors
       eig.M <- eig.decomp(Psym, n.eigs, TRUE)
-      
+
     } else {
       ## use all eigen vectors (only for small matrices)
       eig.M <- eigen(Psym)
     }
-    
+
     ## for both computations we discard the first eigenvector as it
     ## represents the stationary distribution
     if (sum %in% c("none", "from", "to")) {
@@ -1504,7 +1517,7 @@ propagation <- function(Asparse, n.eigs=20, from=NULL, to=NULL, sum="none") {
           eig.M$vectors[from,i] %*% t(eig.M$vectors[to,i])
         propagation = propagation + transform(increment)
       }
-      
+
     } else {
       ## when sum is "both" we iterate over the "from" and "to" nodes and add
       ## the from and to vectors incrementally to save memory
@@ -1522,7 +1535,7 @@ propagation <- function(Asparse, n.eigs=20, from=NULL, to=NULL, sum="none") {
     }
   } else {
     ## compute using the pseudo inverse
-    
+
     ## the first eigenvector corresponds to stationary distribution defined
     ## by the degrees of the nodes
     ## Attention: this is actually the first eigenvector of the asymmetric
@@ -1530,16 +1543,16 @@ propagation <- function(Asparse, n.eigs=20, from=NULL, to=NULL, sum="none") {
     d = rowSums(Asparse)
     v = sum(d)
     phi0 = d / v
-    
+
     ## there is an equivalence of the eigenvectors of the symmetric and
     ## asymetric matrix:
     ## EV(sym) = D^-0.5 EV(asym)
     phi0 =  phi0 / sqrt(d)
-    
+
     ## in the dtp package there is a length normalization step that matches
     ## the vectors exactly (normalizing to unit length vectors)
     phi0 = phi0 / sqrt(sum(phi0^2))
-    
+
     n <- nrow(Psym)
     inv <- solve(Diagonal(n) - Psym + phi0 %*% t(phi0))
     propagation = inv - Diagonal(n)
@@ -1574,16 +1587,16 @@ propagation <- function(Asparse, n.eigs=20, from=NULL, to=NULL, sum="none") {
 ## the i-th component of the "to sum" represents the average hitting time
 ## going from any "from" nodes to node i
 hitting.time <- function(Asparse, n.eigs=20, from=NULL, to=NULL, sum="none") {
-  
+
   ## we need the number of edges and the number of nodes and the degree of nodes
   numEdges = sum(Asparse) / 2 + sum(diag(Asparse))
   numNodes = nrow(Asparse)
   deg = rowSums(Asparse)
-  
+
   ## symmetric transition matrix
   D.root = Diagonal(nrow(Asparse), 1 / sqrt(rowSums(Asparse)))
   Psym = D.root %*% Asparse %*% D.root
-  
+
   if (is.null(from)) {
     from = 1:numNodes
   }
@@ -1604,7 +1617,7 @@ hitting.time <- function(Asparse, n.eigs=20, from=NULL, to=NULL, sum="none") {
   if (is.character(to)) {
     to = match(to, colnames(Asparse))
   }
-  
+
   ## setup different ways of summarizing the hitting.time matrix
   if (sum == "from") {
     transform = rowMeans
@@ -1620,21 +1633,21 @@ hitting.time <- function(Asparse, n.eigs=20, from=NULL, to=NULL, sum="none") {
     transform = function(x) {return(x)}
     hitting.time = matrix(0, nrow=length(from), ncol=length(to), dimnames=dnames)
   }
-  
+
   ## approximate using the eigen vectors
-  
+
   if (n.eigs < nrow(Psym)) {
     ## just use a subset of eigen vectors
     eig.M <- eig.decomp(Psym, n.eigs, TRUE)
-    
+
   } else {
     ## use all eigen vectors (only for small matrices)
     eig.M <- eigen(Psym)
   }
-  
+
   ## Hitting time computed according to Theorem 3.1 from
   ## Lovász, L. (1993). Random walks on graphs. Combinatorics.
-  
+
   compute.hitting.time <- function(from.nodes, to.nodes) {
     sapply(to.nodes, function(tt)
       sapply(from.nodes, function (ff) {
@@ -1646,27 +1659,27 @@ hitting.time <- function(Asparse, n.eigs=20, from=NULL, to=NULL, sum="none") {
         }))
       }))
   }
-  
+
   if (sum %in% c("none", "from", "to")) {
     for (i in 2:n.eigs) {
       increment = compute.hitting.time(from, to)
       hitting.time = hitting.time + transform(increment)
     }
-    
+
   } else {
     ## increment the "from" sum vector
     for (tt in to) {
       hitting.time[,1] = hitting.time[,1] + compute.hitting.time(1:numNodes, tt)
     }
     hitting.time[,1] = hitting.time[,1] / length(to)
-    
+
     ## increment the "to" sum vector
     for (ff in from) {
       hitting.time[,2] = hitting.time[,2] + compute.hitting.time(ff, 1:numNodes)
     }
     hitting.time[,2] = hitting.time[,2] / length(from)
   }
-  
+
   return(hitting.time)
 }
 
@@ -1675,25 +1688,25 @@ hitting.time <- function(Asparse, n.eigs=20, from=NULL, to=NULL, sum="none") {
 min.node.weight.path <- function(g, weights, from, to) {
   ## the problem can be transformed into a directed graph problem where all
   ## incoming edges are assigned the node weight
-  
+
   require(graph)
   require(RBGL)
-  
+
   h = graphNEL(nodes(g), edgemode="directed")
   em = edgeMatrix(g)
   h = addEdge(nodes(g)[em[1,]], nodes(g)[em[2,]], h, weights[em[2,]])
   h = addEdge(nodes(g)[em[2,]], nodes(g)[em[1,]], h, weights[em[1,]])
-  
+
   return(sp.between(h, from, to))
 }
 
 #' Get gene symbols for the given (array) probe ids
-#' 
+#'
 #' @param ids List of probe ids for which to get the symbols
 #' @param mapping Whether to return a mapping (probe->symbol); default: F
-#' 
+#'
 #' @author Johann Hawe
-#' 
+#'
 #' @return If mapping=F: All symbols referenced by the given probe ids. Otherwise
 #' a mapping of all probeids to the corresponding symbols (a data.frame)
 #'
@@ -1702,9 +1715,9 @@ symbols.from.probeids <- function(ids, mapping=F){
   annot <- illuminaHumanv3SYMBOLREANNOTATED
   avail <- mappedkeys(annot)
   ids.avail <- ids[which(ids %in% avail)]
-  
+
   symbols <- unlist(as.list(annot[ids.avail]))
-  
+
   if(mapping) {
     return(data.frame(id=ids.avail,symbol=symbols))
   } else {

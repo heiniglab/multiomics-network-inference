@@ -19,7 +19,8 @@ output:
 ```{r}
 library(ggplot2)
 library(wesanderson)
-pal_cols <- wes_palette(n=4, "Moonrise2")
+source("../scripts/lib.R")
+cols <- set_defaultcolors()
 ```
 
 This document summarizes the simulation study for the bayesian Gaussian Graphical Modelling approach.
@@ -28,17 +29,17 @@ approach) we generated data and applied the bdgraph algorithm.
 
 ```{r}
 # get all results into a single large table
-#indir <- snakemake@params$indir
-indir <- "../results/current/simulation/validation/"
-print(indir)
-files <- list.files(indir, "*.txt", full.names = T)
+finput <- unlist(snakemake@input)
+#finput <- unlist(list.files("../results/current/simulation/validation/", 
+#                            "*.txt", 
+#                            full.names = T))
 print("Number of files being processed:")
-print(length(files))
+print(length(finput))
 
-get_table <- function(files) {
+get_table <- function(finput) {
   tab <- c()
-  for(i in 1:length(files)) {
-    f <- read.table(files[i], sep="\t", header=T, row.names = 1)
+  for(i in 1:length(finput)) {
+    f <- read.table(finput[i], sep="\t", header=T, row.names = 1)
     
     # we dont need the comparison to the true graph for now
     f <- f[f$comparison != "true",]
@@ -52,14 +53,14 @@ get_table <- function(files) {
   return(tab)
 }
 
-tab <- get_table(files)
+tab <- get_table(finput)
 head(tab)
 
 # add sentinel column
 tab$sentinel <- gsub("_.*","", rownames(tab))
 ```
 
-Overall we are looking at `r nrow(tab)/2` sentinels for we which we have calculated GGM fits with and without prior information, depicted in the plots below as 'ggm.type'. We show summary plots for the individual ggm.types for some standard performance measures (specificity, sensitivity, F1.score) as well as he Matthew's Correlation Coefficient (MCC) which is a correlation measure which can be applied if the individual classes differe largely in size.
+Overall we are looking at `r length(unique(tab$snp))` sentinels for we which we have calculated GGM fits using different models, depicted in the plots below as 'ggm.type'. We show summary plots for the individual ggm.types for some standard performance measures (specificity, sensitivity, F1.score) as well as he Matthew's Correlation Coefficient (MCC) which is a correlation measure which can be applied if the individual classes differe largely in size.
 ```{r}
 # prepare ggplot
 theme_set(theme_bw())
@@ -67,37 +68,47 @@ theme_update(plot.title = element_text(hjust = 0.5),
              plot.subtitle = element_text(hjust = 0.5))
 
 # create the two needed layers
-gg <- geom_violin(draw_quantiles=c(.25,.5,.75), position = position_dodge(0.7) )
+gg <- geom_boxplot(draw_quantiles=c(.25,.5,.75), 
+                   position = position_dodge(0.7),
+                   outlier.shape = NA)
 sfm <- scale_fill_manual(name="model", values=cols)
 
 # number of samples
 N <- length(unique(tab$snp))
-
+I <- max(tab$iteration)
+stitle <- paste0("(N = ", N, ", I = ", I, ")")
 pdf("results/current/simulation/simulation_validation.pdf", width=10, height=7)
+
 
 # these is the main plot for the main text of the paper
 ggplot(tab, aes(y=MCC,x=R,fill=comparison)) + 
 	gg + sfm + 
-	ggtitle("MCC", subtitle = paste0("(N = ", N, ")"))
+	ggtitle("MCC", subtitle = stitle)
 
 # likely supplement plots
 ggplot(tab, aes(y=specificity,x=R,fill=comparison)) +
 	gg + sfm +
-	ggtitle("Specificity", subtitle = paste0("(N = ", N, ")"))
+	ggtitle("Specificity", subtitle = stitle)
 
 ggplot(tab, aes(y=sensitivity,x=R,fill=comparison)) + 
 	gg + sfm + 
-	ggtitle("Sensitivity", subtitle = paste0("(N = ", N, ")"))
+	ggtitle("Sensitivity", subtitle = stitle)
 
 ggplot(tab, aes(y=F1.score,x=R,fill=comparison)) + 
 	gg + sfm + 
-	ggtitle("F1.score", subtitle = paste0("(N = ", N, ")"))
+	ggtitle("F1.score", subtitle = stitle)
+
+ggplot(tab, aes(y=MCC,x=R,fill=comparison)) + 
+	gg + sfm + 
+	ggtitle("MCC", subtitle = stitle)
+
 
 # also do the additional, more fine grained plot.rather for the supplement.
 # uses two distinct layers for plottin the different models
 
 # remove the rbinom results for now (should be added in an extra step)
-tab2 <- tab[!grepl("rbinom", rownames(tab),]
+tab2 <- tab[!grepl("rbinom", rownames(tab)),]
+tab2 <- tab
 tab_ggm <- tab2[tab2$comparison == "ggm_fit",]
 tab_ggm_no_priors <- tab2[tab2$comparison == "ggm_fit_no_priors",]
 
@@ -117,6 +128,7 @@ gp4 <- gp3 + scale_colour_manual(name = 'model',
 gp5 <- gp4 + ggtitle("Performance of model fits (MCC)", 
 		     "Shown is the median value of the MCC for each sentinel over all iterations.")
 gp5
+
 dev.off()
 
 ```

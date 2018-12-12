@@ -6,8 +6,7 @@
 #' @autor Johann Hawe
 #'
 # ------------------------------------------------------------------------------
-log <- file(snakemake@log[[1]], open = "wt")
-sink(log)
+sink(snakemake@log[[1]], type = "output", split = T)
 
 # define easy concatenation operator
 `%+%` = paste0
@@ -81,11 +80,11 @@ geo <- fread(fgeo,
 colnames(geo)[1] <- "symbol"
 setkey(geo, symbol)
 
-print("Loading KORA eQTL.")
-kora_ceqtl <- fread(fciseqtl_kora, sep = "\t",
-                    header = T)
-kora_teqtl <- fread(ftranseqtl_kora, sep = "\t",
-                    header = T)
+#print("Loading KORA eQTL.")
+#kora_ceqtl <- fread(fciseqtl_kora, sep = "\t",
+#                    header = T)
+#kora_teqtl <- fread(ftranseqtl_kora, sep = "\t",
+#                    header = T)
 
 print("Loading Joehanes eQTL.")
 # load cis-eQTL data

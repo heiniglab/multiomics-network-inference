@@ -8,7 +8,7 @@
 #' @author Johann Hawe
 # ------------------------------------------------------------------------------
 set_defaultcolors <- function() {
-  library(wesanderson)
+  suppressPackageStartupMessages(library(wesanderson))
   cols <- wes_palette(n=5, "FantasticFox1")
   return(cols)
 }
@@ -1646,7 +1646,7 @@ hitting.time <- function(Asparse, n.eigs=20, from=NULL, to=NULL, sum="none") {
   }
 
   ## Hitting time computed according to Theorem 3.1 from
-  ## Lovász, L. (1993). Random walks on graphs. Combinatorics.
+  ## Lov??sz, L. (1993). Random walks on graphs. Combinatorics.
 
   compute.hitting.time <- function(from.nodes, to.nodes) {
     sapply(to.nodes, function(tt)

@@ -7,7 +7,7 @@ rule all_sim:
 #------------------------------------------------------------------------------
 # Simulate ground truth and data for simulation study
 #------------------------------------------------------------------------------
-RUNS = 10
+RUNS = 100
 rule simulate_data:
         input:
                 data=DCOHORT_DATA + "lolipop/{sentinel}.rds",
@@ -26,7 +26,7 @@ rule simulate_data:
         benchmark:
                 "benchmarks/simulation/simulate-data/{sentinel}.bmk"
         script:
-                "scripts/simulate-data.R"
+                "../scripts/simulate-data.R"
 
 #------------------------------------------------------------------------------
 # Apply ggm on simulated data
@@ -50,7 +50,7 @@ rule apply_ggm_simulation:
         benchmark:
                 "benchmarks/simulation/apply_ggm/{sentinel}-iter{iteration}.bmk"
         script:
-                "scripts/apply-ggm-simulation.R"
+                "../scripts/apply-ggm-simulation.R"
 
 #------------------------------------------------------------------------------
 # Validate a simulation run

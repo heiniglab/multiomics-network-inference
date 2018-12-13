@@ -1,24 +1,26 @@
 #' Script based on snakemake input/output vars to simulate
 #' data for individual sentinels
-#' 
+#'
 #' @author Johann Hawe
-#' 
+#'
 
 
 # ------------------------------------------------------------------------------
-# Prep libraries and source scripts
+print("Prep libraries and source scripts.")
 # ------------------------------------------------------------------------------
-#define colors
-tropical <- c("darkorange", "dodgerblue", "hotpink", "limegreen", "yellow")
-palette(tropical)
 
 # load needed packages
-library(graph)
-library(BDgraph, lib="/storage/groups/groups_epigenereg/packages/2017/R/3.4/")
+suppressPackageStartupMessages(library(graph))
+suppressPackageStartupMessages(library(BDgraph,
+                                       lib="/storage/groups/epigenereg01/tools/2017/R/3.4/"))
 
 # source needed scripts
 source("scripts/priors.R")
 source("scripts/lib.R")
+
+#define colors
+cols <- set_defaultcolors()
+palette(cols)
 
 # ------------------------------------------------------------------------------
 # Define methods
@@ -27,20 +29,20 @@ source("scripts/lib.R")
 #' Creates a graph based on the available priors
 #' for a sentinel locus
 #'
-#' @param priors The (symmetric) prior matrix for the 
+#' @param priors The (symmetric) prior matrix for the
 #' sentinel locus
 #' @param rand_steps Vector of randomization rates. Used to randomize
 #' prior information with individual difficulty.
-#'  
+#'
 #' @return Returns the graph-structure as a graphNEL object
-#' based on the priors given as parameters (retaining nodes 
+#' based on the priors given as parameters (retaining nodes
 #' for which there was no edge)
-#' 
+#'
 #' @author Johann Hawe
 #'
 create_prior_graphs <- function(priors, sentinel,
                                 rand_steps=seq(0, 1, by=0.1)) {
-  
+
   # ----------------------------------------------------------------------------
   # Create distinct randomized graphs
   # ----------------------------------------------------------------------------
@@ -48,7 +50,7 @@ create_prior_graphs <- function(priors, sentinel,
     graphs <-list()
     n <- length(rand_steps)
     for(i in 1:n) {
-      
+
       # sample prior graph
       samp <- sample_prior_graph(priors, sentinel)
       gsamp <- samp$sample_graph
@@ -57,17 +59,17 @@ create_prior_graphs <- function(priors, sentinel,
 
       # randomize graph
       rd <- rand_steps[i]
-      
+
       grand <- rewire_graph(gsamp, rd, ei)
       pe <- get_percent_prioredges(grand$gnew, ei) * 100
       div <- abs((100-pe)-rd*100)
-      
+
       # report for debug
       #print(paste0("Desired/observed randomization: ", rd*100, "/", 100-pe))
 
       # check for more than 2 percent divergence in randomization
       if(div >= 2) warning(paste0("Large divergence in randomization: ", div))
-      
+
       # save graph
       id <- paste0(sentinel, "_rd", rd)
       graphs[[id]] <- list(graph.full=gfull,
@@ -76,11 +78,11 @@ create_prior_graphs <- function(priors, sentinel,
                            rdegree=rd,
                            snp=sentinel)
     }
-    
+
     # --------------------------------------------------------------------------
     # Now we create a random binomial prior matrix based on graph size
     # --------------------------------------------------------------------------
-    
+
     # create random binomial pseudo prior for the full graph
     # get a full graph as basis
     gfull <- graphs[[1]]$graph.full
@@ -89,27 +91,27 @@ create_prior_graphs <- function(priors, sentinel,
     all_sizes <- unlist(lapply(graphs, function(gr) {
       numEdges(gr$graph.sampled)
     }))
-    
+
     n <- ncol(priors)
     E <- (n*(n-1))/2
-    
+
     # use MLE estimator
     prob <- max(sum(all_sizes) / (length(all_sizes) * E), min(priors))
-      
+
     prbinom <- matrix(prob, ncol=ncol(priors), nrow=nrow(priors))
     colnames(prbinom) <- colnames(priors)
     rownames(prbinom) <- rownames(priors)
-    
+
     # save graph with prior matrix
     id <- paste0(sentinel, "_rbinom")
-    graphs[[id]] <- list(graph.full=gfull, 
+    graphs[[id]] <- list(graph.full=gfull,
                          graph.observed=gfull,
                          rdegree=rd,
                          snp=sentinel, priors=prbinom)
     return(graphs)
-    
+
   } else {
-    return(list(graph.full=g, graph.observed=g, 
+    return(list(graph.full=g, graph.observed=g,
                 rd = 0,
                 snp=sentinel, priors=priors))
   }
@@ -122,18 +124,18 @@ create_prior_graphs <- function(priors, sentinel,
 #' @param graphs List of graph objects
 #' @param ggm.data A data matrix containing data for all entities
 #' in the graphs from a specific cohrt (lolipop/kora)
-#' 
+#'
 #' @return A list of data simulation objects, one for each of the
 #' graphs in the input list
-#' 
+#'
 #' @author Johann Hawe
 #'
 simulate_data <- function(graphs, sentinel, data, nodes) {
-  
+
   d <- lapply(graphs, function(g) {
     gr <- g$graph.observed
     s <- sentinel
-    
+
     # create adjacency matrix from our graph
     g_adj <- igraph::as_adj(igraph::igraph.from.graphNEL(gr), sparse = F)
     snp_available <- T
@@ -147,10 +149,10 @@ simulate_data <- function(graphs, sentinel, data, nodes) {
       warning("Number of nodes of collected ggm data and simulated graph differ.")
     }
     p <- ncol(g_adj)
-    
+
     data.sim <- bdgraph.sim(p, graph=g_adj, N, mean = 0)
     colnames(data.sim$data) <- colnames(g_adj)
-    
+
     # check whether our SNP data should be available in the simulated
     # data
     if(snp_available) {
@@ -161,14 +163,14 @@ simulate_data <- function(graphs, sentinel, data, nodes) {
       gd <- sort(gd/sum(gd))
       # define needed intervals
       gdi <- c(gd[1], gd[1]+gd[2], 1)
-      
+
       # transform data into genotypes
       temp <- data.sim$data[,s]
       qs <- (quantile(temp, gdi))
       names(qs) <- names(gd)
-      data.sim$data[,s] <- as.numeric(as.character(cut(temp,c(min(temp), qs), 
-                                                       right = T, 
-                                                       labels=c("2","1","0"), 
+      data.sim$data[,s] <- as.numeric(as.character(cut(temp,c(min(temp), qs),
+                                                       right = T,
+                                                       labels=c("2","1","0"),
                                                        include.lowest = T)))
     }
     g$data.sim <- data.sim
@@ -194,15 +196,17 @@ fpriors <- snakemake@input[["priors"]]
 #franges <- paste0("results/current/ranges/", sentinel, ".rds")
 #fpriors <- paste0("results/current/priors/", sentinel, ".rds")
 
+# ------------------------------------------------------------------------------
+print("Getting snakemake params.")
+# ------------------------------------------------------------------------------
 fout <- snakemake@output[[1]]
 sentinel <- snakemake@params$sentinel
 threads <- snakemake@threads
 runs <- 1:as.numeric(snakemake@params$runs)
 
 # ------------------------------------------------------------------------------
-# load data
-# ------------------------------------------------------------------------------
 print("Loading data.")
+# ------------------------------------------------------------------------------
 data <- readRDS(fdata)
 nodes <- colnames(data)
 ranges <- readRDS(franges)
@@ -211,26 +215,24 @@ priors <- readRDS(fpriors)
 priors <- priors[rownames(priors) %in% nodes, colnames(priors) %in% nodes]
 
 # ------------------------------------------------------------------------------
-# Run simulations
+print(paste0("Running ", length(runs), " simulations."))
 # ------------------------------------------------------------------------------
-print(paste0("Running ", length(runs), " iterations."))
 simulations <- mclapply(runs, function(x) {
   set.seed(x)
-  
+
   # create the hidden and observed graphs
   graphs <- create_prior_graphs(priors, sentinel)
-  
+
   # simulate data for ggm
   simulated_data <- simulate_data(graphs, sentinel, data, nodes)
-  
+
   simulated_data
 }, mc.cores = threads)
 
 names(simulations) <- paste0("run_", runs)
 
 # ------------------------------------------------------------------------------
-# write out the results
-# ------------------------------------------------------------------------------
 print("Saving results.")
-save(file=fout, simulations, priors, ranges, nodes, data, 
+# ------------------------------------------------------------------------------
+save(file=fout, simulations, priors, ranges, nodes, data,
      runs, fdata, franges, fpriors)

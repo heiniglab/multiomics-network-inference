@@ -1,0 +1,32 @@
+#------------------------------------------------------------------------------
+# Collect range information per sentinel snp (snp genes, connecting genes, 
+# eqtl genesetc)
+#------------------------------------------------------------------------------
+rule collect_ranges_egen:
+        input:
+                trans_eqtl="data/current/eqtl_gen/trans-eQTL_significant_20181017.txt.gz",
+                string=PPI_DB
+        output:
+                DRANGES + "{sentinel}_eqtlgen.rds"
+        log:
+                "logs/collect_ranges_egen/{sentinel}.log"
+        benchmark:
+                "benchmarks/collect_ranges_egen/{sentinel}.bmk"
+        threads: 1
+        resources:
+                mem_mb=2300
+        script:
+                "../scripts/collect_ranges_eqtl.R"
+
+# -----------------------------------------------------------------------------
+# Annotate TSS with TFBS information
+# -----------------------------------------------------------------------------
+rule annotate_tss_with_tf:
+        input:
+                tfbs_remap="data/current/tfbs/filPeaks_public.bed",
+                tfbs_encode="data/current/tfbs/wgEncodeRegTfbsClusteredWithCellsV3.bed"
+        output:
+                tfbs_annot="results/current/tfbs-tss-annot.rds"
+        script:
+                "../scripts/annotate_tss_with_tf.R"
+

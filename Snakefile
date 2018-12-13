@@ -48,6 +48,7 @@ localrules:
 # ------------------------------------------------------------------------------
 include: "snakemake_rules/cohort_data.sm"
 include: "snakemake_rules/simulation.sm"
+include: "snakemake_rules/eqtlgen.sm"
 
 
 ################################################################################

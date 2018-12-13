@@ -147,13 +147,13 @@ get.chipseq.context <- function(cpgs, fcontext){
 #' @author Johann Hawe
 #'
 graph_from_fit <- function(ggm.fit,
-                           ranges,
+                           ranges = NULL,
                            string_db=NULL,
                            fcontext=NULL,
                            annotate=T){
 
-  if(annotate & is.null(fcontext)) {
-    stop("Chip-seq context file must not be null for annotating graphs!")
+  if(annotate & (is.null(fcontext) | is.null(ranges))) {
+    stop("Chip-seq context and ranges must not be null for annotating graphs!")
   }
 
   library(BDgraph)

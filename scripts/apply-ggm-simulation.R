@@ -17,11 +17,16 @@ source("scripts/reg_net.R")
 fdata <- snakemake@input[[1]]
 fout <- snakemake@output[[1]]
 threads <- snakemake@threads
-nriter <- as.numeric(snakemake@params$nriter)
-burnin <- as.numeric(snakemake@params$burnin)
+
+# number of simulation iterations performed
 iter <- as.numeric(snakemake@params$iteration)
-ntrees <- 1000
-npermut <- 5
+
+# currently not in used!
+#nriter <- as.numeric(snakemake@params$nriter)
+#burnin <- as.numeric(snakemake@params$burnin)
+
+#ntrees <- 1000
+#npermut <- 5
 
 # contains: simulations, ranges, priors, nodes, data, run
 load(fdata)
@@ -43,9 +48,6 @@ result <- lapply(names(simulated_data), function(n) {
   # sentinel name and simulated data
   s <- sim$snp
   d <- sim$data.sim$data
-  # number of predictors to be sampled at each node  for the random forest model
-  #(we take the suggestion from the package manual for now)
-  ntry <- round(sqrt(ncol(d)-1))
 
   # in case of rbinom simulation, we get adjusted priors
   if(grepl("_rbinom", n)) {

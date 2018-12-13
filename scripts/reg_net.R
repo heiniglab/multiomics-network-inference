@@ -23,15 +23,17 @@ reg_net.models <- function() {
 #' graph for the algorithm.
 #' @param model The model to be used. One of `reg_net.models()`
 #' @param threads optional. Number of threads to be used (if applicable)
-#' @param use_gstart optional. Flag whether to use prior based start configuration
-#' in case of BDgraph Default: TRUE
+#' @param use_gstart optional. Flag whether to use prior based start
+#' configuration in case of BDgraph Default: TRUE
 #' @param iter optional. Number of iterations to be performed for BDgraph
 #' @param burnin optional. Number of burnin iterations for BDgraph
 #' @param ntrees optional. Number of trees to build per variable in iRafNet
-#' @param mtry optional. Number of variables to select from forests in iRafNet. Default:
-#' round(sqrt(ncol(data)-1))
-#' @param npermut optional. Number of permutations to perform for iRafNet background
-#' @param irafnet.fdr optional. FDR cutoff for edges in final iRafNet graph, Default:0.05
+#' @param mtry optional. Number of variables to select from forests in iRafNet.
+#' Default: round(sqrt(ncol(data)-1))
+#' @param npermut optional. Number of permutations to perform for
+#' iRafNet background
+#' @param irafnet.fdr optional. FDR cutoff for edges in final iRafNet graph.
+#' Default: 0.05
 #'
 #' @return Returns a list containing bot the final model fit as well as the
 #' graphNEL object extracted from that model fit.
@@ -43,7 +45,6 @@ reg_net <- function(data, priors, model, threads=1,
                     use_gstart=T, gstart=NULL, iter=10000, burnin=2500,
                     ntrees=1000, mtry=round(sqrt(ncol(data)-1)), npermut=5,
                     irafnet.fdr=0.05) {
-  source("lib.R")
 
   # get available models
   ms <- reg_net.models()
@@ -108,4 +109,56 @@ reg_net <- function(data, priors, model, threads=1,
   return(list(graph=g, fit=fit))
 }
 
+# ------------------------------------------------------------------------------
+#' Creates a graphNEL object from a given bdgraph result for a defined cutoff
+#'
+#' @param ggm.fit The bdgraph ggm fit
+#' @param ranges The ranges of the entities used for the graph fit
+#' @param string_db
+#' @param fcontext
+#' @param annotate Flag whether to annotate the graph entities with nodeData.
+#' Default: T
+#'
+#' @value graph-nel object created from the bdgraph result
+#'
+#' @author Johann Hawe
+#'
+# ------------------------------------------------------------------------------
+graph_from_fit <- function(ggm.fit,
+                           ranges = NULL,
+                           string_db=NULL,
+                           fcontext=NULL,
+                           annotate=T){
 
+  if(annotate & (is.null(fcontext) | is.null(ranges))) {
+    stop("Chip-seq context and ranges must not be null for annotating graphs!")
+  }
+
+  suppressPackageStartupMessages(library(BDgraph))
+  suppressPackageStartupMessages(library(graph))
+  suppressPackageStartupMessages(library(igraph))
+
+  # get the graph instance from the ggm fit
+  cutoff <- 0.95
+  if (inherits(ggm.fit, "bdgraph")) {
+    g.adj <- BDgraph::select(ggm.fit, cut = cutoff)
+    g <-
+      as_graphnel(graph.adjacency(g.adj, mode = "undirected", diag = F))
+  } else if (inherits(ggm.fit, "irafnet")) {
+    g <- graphNEL(unique(unlist(ggm.fit)), edgemode = "undirected")
+    g <- addEdge(ggm.fit$gene1, ggm.fit$gene2, g)
+  } else if (inherits(ggm.fit, "genenet")) {
+    net <- extract.network(ggm.fit,
+                           cutoff.ggm = cutoff)
+    g <- graphNEL(unique(c(net$node1, net$node2)),
+                  edgemode = "undirected")
+    g <- addEdge(net$node1, net$node2, g)
+
+  }
+
+  if(annotate) {
+    # set node and edge attributes
+    g <- annotate.graph(g, ranges, string_db, fcontext)
+  }
+  return(g)
+}

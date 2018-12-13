@@ -136,55 +136,6 @@ get.chipseq.context <- function(cpgs, fcontext){
   return(tfbs.ann[cpgs,,drop=F])
 }
 
-#' Creates a graphNEL object from a given bdgraph result for a defined cutoff
-#'
-#' @param ggm.fit The bdgraph ggm fit
-#' @param ranges The ranges of the entities used for the graph fit
-#' @param annotate Flag whether to annotate the graph entities with nodeData [T]
-#'
-#' @value graph-nel object created from the bdgraph result
-#'
-#' @author Johann Hawe
-#'
-graph_from_fit <- function(ggm.fit,
-                           ranges = NULL,
-                           string_db=NULL,
-                           fcontext=NULL,
-                           annotate=T){
-
-  if(annotate & (is.null(fcontext) | is.null(ranges))) {
-    stop("Chip-seq context and ranges must not be null for annotating graphs!")
-  }
-
-  library(BDgraph)
-  library(graph)
-  library(igraph)
-
-  # get the graph instance from the ggm fit
-  cutoff <- 0.95
-  if (inherits(ggm.fit, "bdgraph")) {
-    g.adj <- BDgraph::select(ggm.fit, cut = cutoff)
-    g <-
-      as_graphnel(graph.adjacency(g.adj, mode = "undirected", diag = F))
-  } else if (inherits(ggm.fit, "irafnet")) {
-    g <- graphNEL(unique(unlist(ggm.fit)), edgemode = "undirected")
-    g <- addEdge(ggm.fit$gene1, ggm.fit$gene2, g)
-  } else if (inherits(ggm.fit, "genenet")) {
-    net <- extract.network(ggm.fit,
-                           cutoff.ggm = cutoff)
-    g <- graphNEL(unique(c(net$node1, net$node2)),
-                  edgemode = "undirected")
-    g <- addEdge(net$node1, net$node2, g)
-
-  }
-
-  if(annotate) {
-    # set node and edge attributes
-    g <- annotate.graph(g, ranges, string_db, fcontext)
-  }
-  return(g)
-}
-
 #' Annotates a regulatory graph with appropriate node and
 #' edge attributes
 #'

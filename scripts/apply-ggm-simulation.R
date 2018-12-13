@@ -15,7 +15,7 @@ source("scripts/bdgraph-supplement.R")
 # ------------------------------------------------------------------------------
 fdata <- snakemake@input[[1]]
 fout <- snakemake@output[[1]]
-cores <- snakemake@threads
+threads <- snakemake@threads
 nriter <- as.numeric(snakemake@params$nriter)
 burnin <- as.numeric(snakemake@params$burnin)
 iter <- as.numeric(snakemake@params$iteration)

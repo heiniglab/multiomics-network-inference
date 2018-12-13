@@ -104,7 +104,7 @@ reg_net <- function(data, priors, model, threads=1,
   }
 
   # now get the graph object
-  g <- graph_from_fit(fit)
+  g <- graph_from_fit(fit, annotate = F)
 
   return(list(graph=g, fit=fit))
 }

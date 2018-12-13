@@ -9,6 +9,7 @@ suppressPackageStartupMessages(library(GeneNet))
 
 source("scripts/lib.R")
 source("scripts/bdgraph-supplement.R")
+source("scripts/reg_net.R")
 
 # ------------------------------------------------------------------------------
 # Get snakemake input and load data
@@ -51,57 +52,49 @@ result <- lapply(names(simulated_data), function(n) {
     priors <- sim$priors
   }
 
-  # Start from observed/hidden graph state?
+  # obtain a start graph
   gstart <- get_gstart_from_priors(priors)
 
   # ----------------------------------------------------------------------------
   # Get model fits
   # ----------------------------------------------------------------------------
   print("Fitting model using priors.")
-  ggm_fit <- bdgraph(d, method = "gcgm",
-                     iter = nriter, burnin = burnin,
-                     g.prior = priors, g.start = gstart,
-                     save.all=T, cores=threads)
-  print("Fitting model without priors")
-  ggm_fit_no_priors <- bdgraph(d, method = "gcgm",
-                               iter = nriter, burnin = burnin,
-                               g.start = gstart,
-                               save.all=T, cores=threads)
+  bdgraph <- reg_net(d, priors, "bdgraph", threads=threads)
+
+  print("Fitting model without priors without start graph")
+  bdgraph_empty <- reg_net(d, priors, "bdgraph",
+                               use_gstart = F, threads=threads)
+
+  print("Fitting model without priors with start graph")
+  bdgraph_no_priors <- reg_net(d, NULL, "bdgraph",
+                               gstart = gstart, threads=threads)
+
   print("Fitting model without priors using empty start graph.")
-  ggm_fit_no_priors_empty <- bdgraph(d, method = "gcgm",
-                                           iter = nriter, burnin = burnin,
-                                           g.start = "empty",
-                                           save.all=T, cores=threads)
+  bdgraph_no_priors_empty <- reg_net(d, NULL, "bdgraph",
+                                     use_gstart = F, threads=threads)
+
   print("Fitting model using iRafNet.")
-  irn_out <- iRafNet(d, priors, ntrees, ntry, colnames(d), threads=threads)
-  irn_perm_out <- Run_permutation(d, priors,
-                                  ntrees, ntry, colnames(d), npermut, threads=threads)
-  irn_fit <- iRafNet_network(irn_out, irn_perm_out, TH = 0.05)
-  class(irn_fit) <- c(class(irn_fit), "irafnet")
+  irafnet <- reg_net(d, priors, "irafnet", threads=threads)
 
   print("Fitting model using GeneNet.")
-  gn_data <- d[,apply(d, 2, function(x) !anyNA(x))]
-  pcors <- ggm.estimate.pcor(gn_data)
-  genenet_fit <- network.test.edges(pcors, plot = F)
-  genenet_fit$node1 <- colnames(gn_data)[genenet_fit$node1]
-  genenet_fit$node2 <- colnames(gn_data)[genenet_fit$node2]
-  class(genenet_fit) <- c(class(genenet_fit), "genenet")
+  genenet <- reg_net(d, priors, "genenet", threads=threads)
 
-  # ----------------------------------------------------------------------------
-  # Extract graphs and create result lists
-  # ----------------------------------------------------------------------------
+  # create result list
+  result <- list(ggm_fit = bdgraph$fit,
+                 ggm_fit_empty = bdgraph_empty$fit,
+                 ggm_fit_no_priors = bdgraph_no_priors$fit,
+                 ggm_fit_no_priors_empty = bdgraph_no_priors_empty$fit,
+                 irn_fit = irafnet$fit,
+                 genenet_fit = genenet$fit,
+                 ggm_graph = bdgraph$graph,
+                 ggm_graph_empty = bdgraph_empty$graph,
+                 ggm_graph_no_priors = bdgraph_no_priors$graph,
+                 ggm_graph_no_priors_empty = bdgraph_no_priors_empty$graph,
+                 irn_graph = irafnet$graph,
+                 genenet_graph = genenet$graph)
 
-  # get the result graphs
-  ggm_graph <- graph_from_fit(ggm_fit, ranges, annotate=F)
-  ggm_graph_no_priors <- graph_from_fit(ggm_fit_no_priors, ranges, annotate=F)
-  ggm_graph_no_priors_empty <- graph_from_fit(ggm_fit_no_priors_empty,
-                                              ranges, annotate=F)
-  irn_graph <- graph_from_fit(irn_fit, ranges, annotate=F)
-  genenet_graph <- graph_from_fit(genenet_fit, ranges, annotate=F)
+  sim$fits <- result
 
-  # new entry in our data collection
-  sim$fits <- listN(ggm_fit, ggm_fit_no_priors, ggm_fit_no_priors_empty, irn_fit, genenet_fit,
-                    ggm_graph, ggm_graph_no_priors, ggm_graph_no_priors_empty, irn_graph, genenet_graph)
   sim
 })
 

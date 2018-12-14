@@ -20,7 +20,6 @@ suppressPackageStartupMessages(library(GenomicRanges))
 library(data.table)
 library(graph)
 source("scripts/lib.R")
-source("scripts/biomaRt.R")
 
 # ------------------------------------------------------------------------------
 # Define needed methods
@@ -119,12 +118,14 @@ print("Collecting SNP and gene ranges.")
 # ------------------------------------------------------------------------------
 
 # get sentinel region + extended region in which to look for genes
-spos <- get_snpPos_biomart(sentinel)
-if(nrow(spos)<1) stop("Couldn't get SNP pos from biomaRt.")
+spos <- eqtl[1, c("SNPChr", "SNPPos")]
+if(nrow(spos)<1) {
+  stop("Couldn't get SNP pos.")
+}
 
 sentinel_range <- with(spos,
-                       GRanges(paste0("chr", chr), IRanges(start, width=1),
-                               id=snp))
+                       GRanges(paste0("chr", SNPChr),
+                               IRanges(SNPPos, width=1)))
 sentinel_extrange <- resize(sentinel_range, 1e6, fix="center")
 names(sentinel_range) <- names(sentinel_extrange) <- sentinel
 

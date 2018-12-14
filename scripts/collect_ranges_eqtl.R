@@ -119,7 +119,10 @@ print("Collecting SNP and gene ranges.")
 # ------------------------------------------------------------------------------
 
 # get sentinel region + extended region in which to look for genes
-sentinel_range <- with(get_snpPos_biomart(sentinel),
+spos <- get_snpPos_biomart(sentinel)
+if(nrow(spos)<1) stop("Couldn't get SNP pos from biomaRt.")
+
+sentinel_range <- with(spos,
                        GRanges(paste0("chr", chr), IRanges(start, width=1),
                                id=snp))
 sentinel_extrange <- resize(sentinel_range, 1e6, fix="center")

@@ -30,11 +30,16 @@ rule collect_ranges_egen:
                 "../scripts/collect_ranges_eqtl.R"
 
 # -----------------------------------------------------------------------------
-# Target rule to generate all hotspot ranges collections for eqtl gen
+# Target rule to generate all hotspot ranges collections for eqtl gen and to 
+# create a summary plot.
 # -----------------------------------------------------------------------------
-rule all_egen_ranges:
+rule eqtlGen_locus_summary:
 	input:
 		expand(DRANGES + "{sentinel}_eqtlgen.rds", sentinel=HOTSPOTS)
+	output:
+		"results/current/ranges/eqtlgen_summary.pdf"
+	script:
+		"../scripts/create_locus_summary_eqtlGen.R"
 
 # -----------------------------------------------------------------------------
 # Annotate TSS with TFBS information

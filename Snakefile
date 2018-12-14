@@ -91,6 +91,10 @@ rule create_stringdb:
 		gtex="data/current/gtex/GTEx_Analysis_v6_RNA-seq_RNA-SeQCv1.1.8_gene_median_rpkm.gct"
 	output:
 		PPI_DB_STRING
+	log:
+		"logs/create_stringdb.log"
+	benchmark:
+		"benchmarks/create_stringdb.bmk"
 	script:
 		"scripts/create-stringdb.R"
 

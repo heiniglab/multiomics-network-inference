@@ -1,11 +1,22 @@
+# Helper method to get list of eQTL gen hotspot snps
+def get_hotspots(file):
+	dict = {}
+	with open(file, "r") as f:
+		for line in f:
+			dict[line.strip()] = line.strip()
+	return(dict)
+
+HOTSPOTS = get_hotspots("data/current/eqtl_gen/trans_hotspots.txt")
+
 #------------------------------------------------------------------------------
 # Collect range information per sentinel snp (snp genes, connecting genes, 
-# eqtl genesetc)
+# eqtl genes etc)
 #------------------------------------------------------------------------------
 rule collect_ranges_egen:
         input:
-                trans_eqtl="data/current/eqtl_gen/trans-eQTL_significant_20181017.txt.gz",
-                string=PPI_DB
+                eqtl="data/current/eqtl_gen/trans-eQTL_significant_20181017.txt.gz",
+                ppi=PPI_DB,
+                tfbs_annot="results/current/tfbs_tss_annot.rds"
         output:
                 DRANGES + "{sentinel}_eqtlgen.rds"
         log:
@@ -19,6 +30,13 @@ rule collect_ranges_egen:
                 "../scripts/collect_ranges_eqtl.R"
 
 # -----------------------------------------------------------------------------
+# Target rule to generate all hotspot ranges collections for eqtl gen
+# -----------------------------------------------------------------------------
+rule all_egen_ranges:
+	input:
+		expand(DRANGES + "{sentinel}_eqtlgen.rds", sentinel=HOTSPOTS)
+
+# -----------------------------------------------------------------------------
 # Annotate TSS with TFBS information
 # -----------------------------------------------------------------------------
 rule annotate_tss_with_tf:
@@ -26,7 +44,7 @@ rule annotate_tss_with_tf:
                 tfbs_remap="data/current/tfbs/filPeaks_public.bed",
                 tfbs_encode="data/current/tfbs/wgEncodeRegTfbsClusteredWithCellsV3.bed"
         output:
-                tfbs_annot="results/current/tfbs-tss-annot.rds"
+                tfbs_annot="results/current/tfbs_tss_annot.rds"
         script:
                 "../scripts/annotate_tss_with_tf.R"
 

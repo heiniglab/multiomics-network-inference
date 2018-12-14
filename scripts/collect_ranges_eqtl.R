@@ -145,6 +145,10 @@ print("Collecting TFs and shortest path genes.")
 # load all TFBS we have available in our data and connect with trans-genes
 tfbs <- tfbs[trans_genes$SYMBOL,,drop=F]
 
+# init
+tfs <- NULL
+sp <- NULL
+
 # get TFs and map their corresponding trans gene
 tfs_by_transGene <- c()
 for(i in 1:length(trans_genes)){

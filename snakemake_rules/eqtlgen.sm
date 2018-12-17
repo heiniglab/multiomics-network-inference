@@ -43,7 +43,7 @@ rule eqtlGen_locus_summary:
 	input:
 		expand(DRANGES + "{sentinel}_eqtlgen.rds", sentinel=HOTSPOTS)
 	output:
-		"results/current/ranges/eqtlgen_summary.pdf"
+		DRANGES + "eqtlgen_summary.pdf"
 	script:
 		"../scripts/create_locus_summary_eqtlGen.R"
 

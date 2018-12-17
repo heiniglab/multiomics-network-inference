@@ -19,20 +19,28 @@ COHORTS = ["lolipop", "kora"] # available cohorts
 # define the available PPI networks and set the active one
 PPI_DB_BIOGRID = "results/current/biogrid.rds"
 PPI_DB_STRING = "results/current/string.v9.expr.rds"
-PPI_DB = PPI_DB_STRING
+
+
+# -----------------------------------------------------------------------------
+# most files depend on the type of PPI db used. 
+# so we define a nice name in accordance to the used
+# DB to be added to our directory definitions below
+PPI_DB = PPI_DB_STRING # the file containing the prepared PPI network
+PPI_NAME = "string" # alternative: biogrid
+# -----------------------------------------------------------------------------
 
 # output directories
-DCOHORT_VAL = "results/current/validation/"
-DPRIORS = "results/current/priors/"
-DRANGES = "results/current/ranges/"
-DCOHORT_DATA = "results/current/cohort-data/"
-DCOHORT_FITS = "results/current/fits/"
-DMEDIATION = "results/current/mediation/"
+DCOHORT_VAL = "results/current/" + PPI_NAME + "/validation/"
+DPRIORS = "results/current/" + PPI_NAME + "/priors/"
+DRANGES = "results/current/" + PPI_NAME + "/ranges/"
+DCOHORT_DATA = "results/current/" + PPI_NAME + "/cohort_data/"
+DCOHORT_FITS = "results/current/" + PPI_NAME + "/fits/"
+DMEDIATION = "results/current/" + PPI_NAME + "/mediation/"
 
 # simulation study specific output directories
-DSIM_DATA = "results/current/simulation/data/"
-DSIM_VALIDATION = "results/current/simulation/validation/"
-DSIM_FITS = "results/current/simulation/fits/"
+DSIM_DATA = "results/current/" + PPI_NAME + "/simulation/data/"
+DSIM_VALIDATION = "results/current/" + PPI_NAME + "/simulation/validation/"
+DSIM_FITS = "results/current/" + PPI_NAME + "/simulation/fits/"
 
 # set global wildcard constraints
 wildcard_constraints:

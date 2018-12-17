@@ -75,6 +75,18 @@ gp
 gp1
 gp2
 gp3
+
+# finally, plot the number of entities per locus
+sum_per_locus <- tapply(melted$count, melted$locus, sum)
+sum_per_locus <- cbind.data.frame(locus=names(sum_per_locus),
+                       count=sum_per_locus, stringsAsFactors=F)
+gp4 <- ggplot(aes(y=count, x="all loci", fill="all loci"),data = sum_per_locus) +
+  geom_violin(draw_quantiles = c(0.25, 0.5, 0.75)) +
+  xlab("") + ylab("Number of entities") +
+  ggtitle("Total number of entities for all available loci.") +
+  scale_fill_manual(values=cols, guide=F)
+gp4
+
 dev.off()
 
 # ------------------------------------------------------------------------------

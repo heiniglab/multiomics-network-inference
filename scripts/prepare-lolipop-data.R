@@ -1,19 +1,19 @@
 # -------------------------------------------------------------------------------
-#' Script to collect and preprocess needed lolipop data  for all subsequent 
-#' analysis 
+#' Script to collect and preprocess needed lolipop data  for all subsequent
+#' analysis
 #'
 #' @author Johann Hawe
 #'
 # -------------------------------------------------------------------------------
 
 # -------------------------------------------------------------------------------
-# Get snakemake params
+print("Get snakemake params.")
 # -------------------------------------------------------------------------------
 fdata <- snakemake@input[["lolipop"]]
 fout <- snakemake@output[[1]]
 
 # -------------------------------------------------------------------------------
-# Load and prepare data
+print("Load and prepare data.")
 # -------------------------------------------------------------------------------
 load(fdata)
 
@@ -44,6 +44,6 @@ covars[,"batch1"] <- factor(covars[,"batch1"])
 covars[,"batch2"] <- factor(covars[,"batch2"])
 
 # ------------------------------------------------------------------------------
-# All done, save.
+print("Saving data.")
 # ------------------------------------------------------------------------------
 save(file=fout, expr, meth, geno, covars)

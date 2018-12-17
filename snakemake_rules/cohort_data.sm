@@ -36,7 +36,7 @@ rule apply_ggm:
                 priors=DPRIORS + "{sentinel}.rds",
                 ranges=DRANGES + "{sentinel}.rds",
                 cpg_context="data/current/cpgs_with_chipseq_context_100.RData",
-                string=PPI_DB
+                ppi_db=PPI_DB
         output:
                 fit=DCOHORT_FITS + "{cohort}/{sentinel}.rds",
                 summary_file=DCOHORT_FITS + "{cohort}/{sentinel}.pdf",

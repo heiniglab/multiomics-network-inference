@@ -1,116 +1,118 @@
 #!/usr/bin/env Rscript
+# ------------------------------------------------------------------------------
+#' Apply graphical model inference on data collected for a specific sentinel.
+#'
+#' @author Johann Hawe <johann.hawe@helmholtz-muenchen.de>
+# ------------------------------------------------------------------------------
 
 log <- file(snakemake@log[[1]], open="wt")
 sink(log)
 sink(log, type="message")
 
 # ------------------------------------------------------------------------------
-# Prepare libraries and source scripts
+print("Prepare libraries and source scripts.")
 # ------------------------------------------------------------------------------
 # first load the custom BDgraph library plus others
-library(BDgraph, lib.loc = "/home/icb/johann.hawe/R/x86_64-redhat-linux-gnu-library/3.4")
+library(BDgraph,
+        lib.loc = "/home/icb/johann.hawe/R/x86_64-redhat-linux-gnu-library/3.4")
 library(pheatmap)
-library(GenomicRanges)
-library(igraph)
-library(graph)
+suppressPackageStartupMessages(library(GenomicRanges))
+suppressPackageStartupMessages(library(igraph))
+suppressPackageStartupMessages(library(graph))
 library(GeneNet)
 source("scripts/lib.R")
+source("scripts/reg_net.R")
 
 # ------------------------------------------------------------------------------
-# get snakemake parameters
+print("Get snakemake parameters.")
 # ------------------------------------------------------------------------------
+
+#input
 franges <- snakemake@input[["ranges"]]
 fdata <- snakemake@input[["data"]]
-fstring <- snakemake@input[["string"]]
+fppi_db <- snakemake@input[["ppi_db"]]
 fpriors <- snakemake@input[["priors"]]
 fcontext <- snakemake@input[["cpg_context"]]
+
+# output
 fout <- snakemake@output$fit
 fsummary_plot <- snakemake@output$summary_file
 fgstart_plot <- snakemake@output$gstart_file
 
+# params
 cores <- snakemake@threads
 nriter <- snakemake@params$nriter
 burnin <- snakemake@params$burnin
 
 # ------------------------------------------------------------------------------
-# Load and prepare data
+print("Load and prepare data.")
 # ------------------------------------------------------------------------------
 data <- readRDS(fdata)
 priors <- readRDS(fpriors)
+
 # filter for available data in priros
 priors <- priors[colnames(data), colnames(data)]
 ranges <- readRDS(franges)
 
-# load string DB
-STRING_DB <- readRDS(fstring)
-  
+# load PPI DB
+ppi_db <- readRDS(fppi_db)
+
 # create the start graph for the GGM algorithm
 gstart <- get_gstart_from_priors(priors)
 
 # ------------------------------------------------------------------------------
 # for catching the genenet summary plots, we open the pdf connection here
 # ------------------------------------------------------------------------------
-pdf(fsummary_plot)  
+pdf(fsummary_plot)
 
 # ------------------------------------------------------------------------------
-# create the fits, learn our models using BDgraph with and without priors
+print("Infer regulatory networks.")
 # ------------------------------------------------------------------------------
-ggm_fit <- bdgraph(data, 
-                   method="gcgm", 
-                   iter=nriter, 
-                   burnin=burnin,
-                   save.all=T, 
-                   g.start = gstart,
-                   g.prior = priors, 
-                   cores=cores)
-ggm_fit_no_priors <- bdgraph(data, 
-                             method="gcgm", 
-                             iter=nriter, 
-                             burnin=burnin,
-                             save.all=T, 
-                             g.start = gstart,
-                             cores=cores)
+print("Fitting model using priors.")
+bdgraph <- reg_net(d, priors, "bdgraph", threads=threads)
+
+#print("Fitting model with priors without start graph")
+#bdgraph_empty <- reg_net(d, priors, "bdgraph",
+#                         use_gstart = F, threads=threads)
+
+#print("Fitting model without priors with start graph")
+#bdgraph_no_priors <- reg_net(d, NULL, "bdgraph",
+#                             gstart = gstart, threads=threads)
+
+print("Fitting model without priors using empty start graph.")
+bdgraph_no_priors_empty <- reg_net(d, NULL, "bdgraph",
+                                   use_gstart = F, threads=threads)
+
+print("Fitting model using iRafNet.")
+irafnet <- reg_net(d, priors, "irafnet", threads=threads)
+
+print("Fitting model using GeneNet.")
+genenet <- reg_net(d, priors, "genenet", threads=threads)
 
 # ------------------------------------------------------------------------------
-# Learn model using the MGM approach, with and without priors
+print("Add custom annotations for the graphs.")
 # ------------------------------------------------------------------------------
-if(F) {
-# TODO: implement MGM calls
-}
-# ------------------------------------------------------------------------------
-# estimate using genenet, remove NAs beforehand
-# ------------------------------------------------------------------------------
-gn_data <- data[,apply(data, 2, function(x) !anyNA(x))]
-
-pcors <- ggm.estimate.pcor(gn_data)
-ggm_fit_genenet <- network.test.edges(pcors)
-network_genenet <- extract.network(ggm_fit_genenet, 
-                                   cutoff.ggm=0.8)
-
-# get the graphs from the ggm fits
-graph <- graph_from_fit(ggm_fit, ranges, 
-                        string_db=STRING_DB, fcontext=fcontext)
-graph_no_priors <- graph_from_fit(ggm_fit_no_priors, ranges, 
-                                  string_db=STRING_DB, fcontext=fcontext)
-
-# create the genenet graph
-n <- colnames(gn_data)
-gn <- with(network_genenet, graphNEL(unique(c(n[node1], n[node2])), 
-                                     edgemode = "undirected"))
-graph_genenet <- with(network_genenet, addEdge(n[node1], n[node2], gn))
-graph_genenet <- annotate.graph(graph_genenet, ranges, STRING_DB, fcontext)
+bdgraph$graph <- annotate.graph(bdgraph$graph, ranges, ppi_db, fcontext)
+bdgraph_no_priors_empty$graph <- annotate.graph(bdgraph_no_priors_empty$graph,
+                                                ranges, ppi_db, fcontext)
+irafnet$graph <- annotate.graph(irafnet$graph, ranges, ppi_db, fcontext)
+genenet$graph <- annotate.graph(genenet$graph, ranges, ppi_db, fcontext)
 
 # ------------------------------------------------------------------------------
-# All done, finalize everything
+print("Create result list.")
 # ------------------------------------------------------------------------------
+result <- list(ggm_fit = bdgraph$fit,
+               ggm_fit_no_priors_empty = bdgraph_no_priors_empty$fit,
+               irn_fit = irafnet$fit,
+               genenet_fit = genenet$fit,
+               ggm_graph = bdgraph$graph,
+               ggm_graph_no_priors_empty = bdgraph_no_priors_empty$graph,
+               irn_graph = irafnet$graph,
+               genenet_graph = genenet$graph)
 
-# report some stats
-print("Prior-graph:")
-print(graph)
-print("No-Prior-graph:")
-print(graph_no_priors)
-print("GeneNet-graph:")
-print(graph_genenet)
+# ------------------------------------------------------------------------------
+print("Done with model fitting. Plotting some information.")
+# ------------------------------------------------------------------------------
 
 # plot convergence info
 ggm_summary <- summary(ggm_fit)
@@ -119,21 +121,20 @@ plotcoda(ggm_fit)
 ggm_summary_no_priors <- summary(ggm_fit_no_priors)
 traceplot(ggm_fit_no_priors)
 plotcoda(ggm_fit_no_priors)
+
 # plot the start graph as a matrix
 pheatmap(gstart, cex=0.7, main="start graph",
          filename=fgstart_plot,
          cex=0.7)
 
-# ------------------------------------------------------------------------------
-# close the pdf connection from above (opened before fitting the graphs)
-# ------------------------------------------------------------------------------
 dev.off()
 
 # ------------------------------------------------------------------------------
-# Save results
+print("Plotting done. Saving results.")
 # ------------------------------------------------------------------------------
-result <- listN(ggm_fit, ggm_fit_no_priors, ggm_fit_genenet, 
-                graph, graph_no_priors, graph_genenet,
-                gstart, ggm_summary, ggm_summary_no_priors)
-
 saveRDS(file=fout, result)
+
+# ------------------------------------------------------------------------------
+print("Session info:")
+# ------------------------------------------------------------------------------
+sessionInfo()

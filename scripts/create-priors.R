@@ -1,5 +1,5 @@
 # -------------------------------------------------------------------------------
-#' Script to create the GTEX priros (gene-gene and snp-gene priors)
+#' Script to create the GTEX priors (gene-gene and snp-gene priors)
 #'
 #' @author Johann Hawe
 # -------------------------------------------------------------------------------
@@ -50,7 +50,7 @@ print("Loading string db.")
 string_db <- readRDS(fstring)
 
 # simply delegate
-create.priors(feqtl, fsnpinfo, frpkm, fsampleDS, fphenotypeDS, dplots, string_db, 
+create.priors(feqtl, fsnpinfo, frpkm, fsampleDS, fphenotypeDS, dplots, string_db,
 	      fout_gene_priors, fout_eqtl_priors)
 
 # ------------------------------------------------------------------------------
@@ -64,8 +64,8 @@ cpgs <- features(FDb.InfiniumMethylation.hg19)
 cpgs <- cpgs[rownames(meth)]
 
 # expression data
-expr <- read.table("data/current/banovich-2017/xun_lan/allTFexp.withHeader", 
-                   header=T, 
+expr <- read.table("data/current/banovich-2017/xun_lan/allTFexp.withHeader",
+                   header=T,
                    sep="\t",
                    stringsAsFactors=F)
 
@@ -87,20 +87,20 @@ tfbs_ann <- get.chipseq.context(names(cpgs), fcpgcontext)
 # For each TF, get the correlation to each of the CpGs it is bound nearby
 # -------------------------------------------------------------------------------
 pairs <- lapply(colnames(expr), function(tf) {
-  # get columns for tf 
+  # get columns for tf
   sub <- tfbs_ann[,grepl(tf, colnames(tfbs_ann), ignore.case = T), drop=F]
   rs <- rowSums(sub)
   bound_cpgs <- names(rs[rs>0])
-  
+
   assoc <- unlist(mclapply(bound_cpgs, function(c) {
-                         cor.test(expr[,tf], 
-                             meth[,c], 
+                         cor.test(expr[,tf],
+                             meth[,c],
                              method="pearson")$p.value
     }, mc.cores=threads))
-  
-  cbind.data.frame(TF=rep(tf, length(assoc)), 
-                   CpG=bound_cpgs, 
-                   rho=assoc, 
+
+  cbind.data.frame(TF=rep(tf, length(assoc)),
+                   CpG=bound_cpgs,
+                   rho=assoc,
                    stringsAsFactors=F)
 })
 

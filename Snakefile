@@ -34,6 +34,10 @@ DSIM_DATA = "results/current/simulation/data/"
 DSIM_VALIDATION = "results/current/simulation/validation/"
 DSIM_FITS = "results/current/simulation/fits/"
 
+# set global wildcard constraints
+wildcard_constraints:
+    sentinel="rs\d+"
+
 # -----------------------------------------------------------------------------
 # Define rules which should only be executed locally
 # -----------------------------------------------------------------------------
@@ -80,7 +84,7 @@ rule create_priors:
 	resources:
 		mem_mb=45000
 	script:
-		"R/create-priors.R"
+		"scripts/create-priors.R"
 
 #------------------------------------------------------------------------------
 # Preprocess stringdb PPI network
@@ -129,15 +133,15 @@ rule create_cosmo_splits:
 #------------------------------------------------------------------------------
 rule get_snp_locations:
 	input: 
-		"data/current/kora/KORAF4-cis-eqtls_schramm_journal.pone.0093844.s005.csv",
+		"data/current/kora/eqtl/kora-cis-eqtls.csv",
 		"data/current/gtex/GTEx_Analysis_v6_OMNI_genot_1KG_imputed_var_chr1to22_info4_maf01_CR95_CHR_POSb37_ID_REF_ALT.txt"
 	output:
 		"results/current/cis-eqtl-snp-locations.txt"
 	shell:
 		"""
-		cut -f 1 -d ";" data/current/kora/KORAF4-cis-eqtls_schramm_journal.pone.0093844.s005.csv  | sort | uniq > results/current/cis-eqtl-snps.txt
-	        cut -f 1,2,7 data/current/gtex/GTEx_Analysis_v6_OMNI_genot_1KG_imputed_var_chr1to22_info4_maf01_CR95_CHR_POSb37_ID_REF_ALT.txt > results/current/gtex-snp-locations.txt
-	        fgrep -w -f results/current/cis-eqtl-snps.txt results/current/gtex-snp-locations.txt > results/current/cis-eqtl-snp-locations.txt
+		cut -f 1 -d ";" {input[0]}  | sort | uniq > results/current/cis-eqtl-snps.txt
+	        cut -f 1,2,7 {input[1]} > results/current/gtex-snp-locations.txt
+	        fgrep -w -f results/current/cis-eqtl-snps.txt results/current/gtex-snp-locations.txt > {output[0]}
 		rm results/current/cis-eqtl-snps.txt results/current/gtex-snp-locations.txt
 		"""
 

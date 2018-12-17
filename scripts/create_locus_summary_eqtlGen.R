@@ -64,7 +64,8 @@ gt <- ggtitle(paste0("Overview over all entities gathered for\n",
 gp <- ggplot(aes(y=count, x=entity, fill=entity), data=melted) +
 	geom_violin(draw_quantiles = c(0.25, 0.5, 0.75)) +
 	sfm + gt
-gp1 <- gp + geom_jitter(height = 0, width = 0.1, size=0.1)
+gp1 <- gp + geom_jitter(aes(color=entity),height = 0, width = 0.1, size=0.1) +
+  scale_color_manual(values=cols)
 gp2 <- gp + geom_line(aes(group=locus))
 # histograms of individual entity types
 gp3 <- ggplot(aes(x=count, fill=entity), data=melted) +

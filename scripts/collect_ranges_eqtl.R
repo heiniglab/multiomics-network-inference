@@ -130,8 +130,18 @@ sentinel_extrange <- resize(sentinel_range, 1e6, fix="center")
 names(sentinel_range) <- names(sentinel_extrange) <- sentinel
 
 # get the regions of the associated trans genes
+# we dont have the end position/length of the respective genes in the eqtl
+# table, so we use our own annotation
 trans_genes <- eqtl$GeneSymbol
 trans_genes <- gene_annot[gene_annot$SYMBOL %in% trans_genes]
+
+# could be some are missing. in that case we very likely cannot do anything
+# aboutit, since we also won't have any probe ids. if there are too few left,
+# we have to abort and report an error
+if(length(trans_genes) < 5) {
+  stop("Too many trans genes missing in our annotation. Will not collect
+       ranges.")
+}
 
 # ------------------------------------------------------------------------------
 print("Retrieving SNP genes.")

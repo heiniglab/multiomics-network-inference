@@ -129,23 +129,6 @@ rule create_cosmo_splits:
 		"scripts/create-cosmo-splits.R"
 
 #------------------------------------------------------------------------------
-# Creates a list of cis-eqtl snp locations for the gtex and kora eqtls
-#------------------------------------------------------------------------------
-rule get_snp_locations:
-	input: 
-		"data/current/kora/eqtl/kora-cis-eqtls.csv",
-		"data/current/gtex/GTEx_Analysis_v6_OMNI_genot_1KG_imputed_var_chr1to22_info4_maf01_CR95_CHR_POSb37_ID_REF_ALT.txt"
-	output:
-		"results/current/cis-eqtl-snp-locations.txt"
-	shell:
-		"""
-		cut -f 1 -d ";" {input[0]}  | sort | uniq > results/current/cis-eqtl-snps.txt
-	        cut -f 1,2,7 {input[1]} > results/current/gtex-snp-locations.txt
-	        fgrep -w -f results/current/cis-eqtl-snps.txt results/current/gtex-snp-locations.txt > {output[0]}
-		rm results/current/cis-eqtl-snps.txt results/current/gtex-snp-locations.txt
-		"""
-
-#------------------------------------------------------------------------------
 # Preprocess the sample-mapping sheet for kora
 #------------------------------------------------------------------------------
 rule preprocess_kora_individuals:
@@ -172,7 +155,7 @@ rule prepare_kora_data:
 		impute_indiv="data/current/kora/imputation_individuals",
 		trans_meqtl="data/current/meQTLs/transpairs_r02_110117_converted_1MB.txt",
 		houseman="data/current/kora/methylation/Houseman/KF4_QN_estimated_cell_distribution_meanimpute473_lessThanOneTRUE.csv",
-		ceqtl_locations="results/current/cis-eqtl-snp-locations.txt",
+		kora_ceqtl="data/current/kora/eqtl/kora-cis-eqtls.csv",
 		ccosmo="results/current/cis-cosmopairs_combined_151216.rds"
 	output:
 		"results/current/ggmdata_kora.RData"

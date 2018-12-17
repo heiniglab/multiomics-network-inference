@@ -1689,3 +1689,67 @@ get_largest_cc <- function(g) {
   g2 <- graph::subGraph(keep, g)
   return(g2)
 }
+
+# ------------------------------------------------------------------------------
+#'
+#' Method to get gene level estimates from expression probes
+#' (=rowMeans on respective probe.ids/gene)
+#'
+#' @param m The expression matrix with probe ids in columns
+#' @param symbols The gene symbols to be used for the summarization.
+#' Only probe ids belonging to a gene symbol in this list are used. Rest of
+#' probes are dropped.
+#'
+#' @value Matrix of summarized probe values (per gene probe levels)
+#'
+#' @author Johann Hawe
+#'
+#' @date 02/06/2017
+#'
+#' @export
+#'
+# ------------------------------------------------------------------------------
+summarize <- function(m, symbols){
+  # prepare annotation
+  library(illuminaHumanv3.db)
+  annot <- as.list(illuminaHumanv3ALIAS2PROBE)
+  annot <- annot[!is.na(annot)]
+  n <- lapply(symbols, function(sym) {
+    gid <- probes.from.symbols(sym, annot=annot)
+    # for LST1 symbol (and possibly others) there is a probe which should likely
+    # be only appointed to the NFKBIL1 gene (according to UCSC genome browser).
+    # Might be an error in annotation. Remove probe for LST1 manually for now
+    if(sym=="LST1"){
+      gid <- gid[which(!(gid %in% "ILMN_2046344"))]
+    }
+    if(is.null(gid)){
+      return(NULL)
+    }
+    if(length(gid)>0){
+      if(!all(gid %in% colnames(m))){
+        gid <- gid[which(gid %in% colnames(m))]
+        if(length(gid)<1){
+          warning("None of the probeids for ",
+                  sym,
+                  " where available in expression data.")
+          return(NULL)
+        } else {
+          warning("Some probes where not available in expression data.")
+        }
+      }
+
+      g <- m[,gid,drop=F]
+      s <- as.matrix(rowMeans(g), ncol=1)
+      colnames(s) <- sym
+      return(s)
+    }
+    return(NULL)
+  })
+  names(n) <- symbols
+  n <- n[!sapply(n,is.null)]
+  result <- matrix(unlist(n), ncol=length(n), byrow=F)
+  colnames(result) <- names(n)
+  rownames(result) <- rownames(m)
+  return(result)
+}
+

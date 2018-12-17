@@ -59,3 +59,30 @@ rule annotate_tss_with_tf:
         script:
                 "../scripts/annotate_tss_with_tf.R"
 
+
+#------------------------------------------------------------------------------
+# Collect cohort data for a single sentinel locus
+#------------------------------------------------------------------------------
+rule collect_data_eqtls:
+        input:
+                ranges=DRANGES + "{sentinel}_eqtlgen.rds",
+                kora="results/current/ggmdata_kora.RData",
+                lolipop="results/current/ggmdata_lolipop.RData",
+                ceqtl="data/current/kora/eqtl/kora-cis-eqtls.csv"
+        output:
+                DCOHORT_DATA + "{cohort}/{sentinel}_eqtlgen.rds",
+                DCOHORT_DATA + "{cohort}/{sentinel}_raw_eqtlgen.rds"
+        threads: 1
+        params:
+                cohort="{cohort}",
+                sentinel="{sentinel}"
+        log:
+                "logs/collect_data_eqtls/{cohort}/{sentinel}.log"
+        benchmark:
+                "benchmarks/collect_data_eqtls/{cohort}/{sentinel}.bmk"
+        resources:
+                mem_mb=20000
+        script:
+                "scripts/collect_data_eqtl.R"
+
+

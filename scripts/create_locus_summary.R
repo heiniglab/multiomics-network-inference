@@ -29,7 +29,7 @@ data <- lapply(finputs, function(fin) {
   ranges <- readRDS(fin)
 
   # get sentinel name
-  sentinel <- names(ranges$sentinel_range)
+  sentinel <- names(ranges$sentinel)
   # get number of entities
   cpgs <- length(ranges$cpgs)
   sg <- length(ranges$snp_genes)

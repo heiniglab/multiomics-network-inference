@@ -185,7 +185,7 @@ if(length(tfs)<1){
 } else {
   # add any TFs, trans genes and their binding information to the PPI db
   toadd <- setdiff(tfs$SYMBOL, ppi_genes)
-  toadd <- c(toadd, setdiff(trans_genes$SYMBOL, ppi_genes))
+  toadd <- unique(c(toadd, setdiff(trans_genes$SYMBOL, ppi_genes)))
   ppi_db_mod <- addNode(toadd, ppi_db)
   for(i in 1:length(tfs_by_transGene)) {
     tf_sub <- tfs_by_transGene[[i]]

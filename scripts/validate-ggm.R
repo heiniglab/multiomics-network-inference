@@ -197,7 +197,7 @@ print("Defining entity sets (selected / not selected)")
 gnodes <- gnodes[gnodes %in% dnodes]
 
 # get names of all entities, total and selected by ggm
-snp <- names(ranges$sentinel_range)
+snp <- sentinel
 data_val[, snp] <- as.integer(as.character(data_val[, snp]))
 data_fit[, snp] <- as.integer(as.character(data_fit[, snp]))
 cpgs <- intersect(dnodes, names(ranges$cpgs))

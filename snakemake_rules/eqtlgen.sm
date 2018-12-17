@@ -4,6 +4,11 @@ def get_hotspots(file):
 	with open(file, "r") as f:
 		for line in f:
 			dict[line.strip()] = line.strip()
+	# remove some loci for which trans genes are not 
+	# available in our data
+	dict.pop("rs3130573", None)
+	dict.pop("rs114105355", None)
+	dict.pop("rs114905291", None)
 	return(dict)
 
 HOTSPOTS = get_hotspots("data/current/eqtl_gen/trans_hotspots.txt")

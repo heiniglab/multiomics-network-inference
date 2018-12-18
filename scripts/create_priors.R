@@ -1,30 +1,30 @@
-# -------------------------------------------------------------------------------
+# ------------------------------------------------------------------------------
 #' Script to create the GTEX priors (gene-gene and snp-gene priors)
 #'
 #' @author Johann Hawe
-# -------------------------------------------------------------------------------
+# ------------------------------------------------------------------------------
 
 log <- file(snakemake@log[[1]], open="wt")
 sink(log)
 sink(log, type="message")
 
-# -------------------------------------------------------------------------------
+# ------------------------------------------------------------------------------
 # Load libraries and source scripts
-# -------------------------------------------------------------------------------
-library(qvalue)
-library(data.table)
-library(graph)
-library(parallel)
-library(fdrtool)
-library(Homo.sapiens)
-library(rtracklayer)
-library(FDb.InfiniumMethylation.hg19)
+# ------------------------------------------------------------------------------
+suppressPackageStartupMessages(library(qvalue))
+suppressPackageStartupMessages(library(data.table))
+suppressPackageStartupMessages(library(graph))
+suppressPackageStartupMessages(library(parallel))
+suppressPackageStartupMessages(library(fdrtool))
+suppressPackageStartupMessages(library(Homo.sapiens))
+suppressPackageStartupMessages(library(rtracklayer))
+suppressPackageStartupMessages(library(FDb.InfiniumMethylation.hg19))
 source("scripts/lib.R")
 source("scripts/priors.R")
 
-# -------------------------------------------------------------------------------
+# ------------------------------------------------------------------------------
 # Get snakemake params
-# -------------------------------------------------------------------------------
+# ------------------------------------------------------------------------------
 
 # inputs
 feqtl <- snakemake@input[["eqtl"]]
@@ -42,9 +42,9 @@ fout_eqtl_priors <- snakemake@output$eqtl_priors
 # params
 threads <- snakemake@threads
 
-# -------------------------------------------------------------------------------
+# ------------------------------------------------------------------------------
 # Start processing
-# -------------------------------------------------------------------------------
+# ------------------------------------------------------------------------------
 
 print("Loading PPI db.")
 ppi_db <- readRDS(fppi)
@@ -53,11 +53,13 @@ ppi_db <- readRDS(fppi)
 create_priors(feqtl, fsnpinfo, fexpr, fsampleinfo, fpheno, dplots, ppi_db,
 	      fout_gene_priors, fout_eqtl_priors)
 
+
 # ------------------------------------------------------------------------------
-# prepare the Banovich based priors, i.e. TF-CpG priors
+print("Prepare the Banovich based priors, i.e. TF-CpG priors.")
 # ------------------------------------------------------------------------------
 # methylation data
-meth <- fread("data/current/banovich-2017/methylation/full_matrix.txt", data.table=F)
+meth <- fread("data/current/banovich-2017/methylation/full_matrix.txt",
+              data.table=F)
 rownames(meth) <- meth$V1
 meth$V1 <- NULL
 cpgs <- features(FDb.InfiniumMethylation.hg19)
@@ -78,14 +80,14 @@ samples <- intersect(colnames(expr), colnames(meth))
 expr <- t(expr[,samples])
 meth <- t(meth[,samples])
 
-# -------------------------------------------------------------------------------
-# get (our) chip-seq context for the cpgs
-# -------------------------------------------------------------------------------
+# ------------------------------------------------------------------------------
+print("Get (our) chip-seq context for the cpgs.")
+# ------------------------------------------------------------------------------
 tfbs_ann <- get.chipseq.context(names(cpgs), fcpgcontext)
 
-# -------------------------------------------------------------------------------
-# For each TF, get the correlation to each of the CpGs it is bound nearby
-# -------------------------------------------------------------------------------
+# ------------------------------------------------------------------------------
+print("For each TF, get the correlation to each of the CpGs it is bound nearby")
+# ------------------------------------------------------------------------------
 pairs <- lapply(colnames(expr), function(tf) {
   # get columns for tf
   sub <- tfbs_ann[,grepl(tf, colnames(tfbs_ann), ignore.case = T), drop=F]
@@ -104,9 +106,9 @@ pairs <- lapply(colnames(expr), function(tf) {
                    stringsAsFactors=F)
 })
 
-# -------------------------------------------------------------------------------
-# Collect and finalize results.
-# -------------------------------------------------------------------------------
+# ------------------------------------------------------------------------------
+print("Collect and finalize results.")
+# ------------------------------------------------------------------------------
 tab <- do.call(rbind, pairs)
 colnames(tab) <- c("TF", "CpG", "pval")
 tab$qval <- qvalue(tab$pval)$lfdr
@@ -116,3 +118,7 @@ write.table(file="results/current/tf-cpg-prior.txt", sep="\t", col.names=NA,
             row.names=T,
             quote=F, tab)
 
+# ------------------------------------------------------------------------------
+print("Session info:")
+# ------------------------------------------------------------------------------
+sessionInfo()

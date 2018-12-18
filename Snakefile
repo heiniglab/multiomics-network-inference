@@ -233,7 +233,7 @@ rule collect_priors:
 		gg_priors="results/current/gtex.gg.cors.rds", 
 		eqtl_priors="results/current/gtex.eqtl.priors.rds",
 		ranges=DRANGES + "{sentinel}_{seed}.rds",
-		string=PPI_DB,
+		ppi=PPI_DB,
 		cpg_context="data/current/cpgs_with_chipseq_context_100.RData",
 		cpg_annot="data/current/epigenetic_state_annotation_weighted_all_sentinels.txt"
 	output: 
@@ -242,8 +242,6 @@ rule collect_priors:
 	log:
 		"logs/collect_priors/{sentinel}_{seed}.log"
 	threads: 1
-	params:
-		plot_file=DPRIORS + "{sentinel}_{seed}.pdf"
 	benchmark:
 		"benchmarks/collect_priors/{sentinel}_{seed}.bmk"
 	resources:

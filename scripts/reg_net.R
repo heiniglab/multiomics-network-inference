@@ -53,7 +53,7 @@ reg_net <- function(data, priors, model, threads=1,
   # check which model to build
   if("genenet" %in% model){
     # for genenet, remove NAs
-    gn_data <- data[,apply(d, 2, function(x) !anyNA(x))]
+    gn_data <- data[,apply(data, 2, function(x) !anyNA(x))]
     pcors <- ggm.estimate.pcor(gn_data)
     fit <- network.test.edges(pcors, plot = F)
     fit$node1 <- colnames(gn_data)[fit$node1]

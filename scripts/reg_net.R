@@ -57,14 +57,15 @@ reg_net <- function(data, priors, model, threads=1,
   ms <- reg_net.models()
   if(!(model %in% ms)) stop(paste0("Model not supported: ", model))
 
+  # for genenet and iRafNet, remove NAs
+  data_no_nas <- data[,apply(data, 2, function(x) !anyNA(x))]
+
   # check which model to build
   if("genenet" %in% model){
-    # for genenet, remove NAs
-    gn_data <- data[,apply(data, 2, function(x) !anyNA(x))]
-    pcors <- ggm.estimate.pcor(gn_data)
+    pcors <- ggm.estimate.pcor(data_no_nas)
     fit <- network.test.edges(pcors, plot = F)
-    fit$node1 <- colnames(gn_data)[fit$node1]
-    fit$node2 <- colnames(gn_data)[fit$node2]
+    fit$node1 <- colnames(data_no_nas)[fit$node1]
+    fit$node2 <- colnames(data_no_nas)[fit$node2]
     class(fit) <- c(class(fit), "genenet")
   } else if("bdgraph" %in% model) {
     # do we have priors?
@@ -100,15 +101,15 @@ reg_net <- function(data, priors, model, threads=1,
     }
 
     # plot convergence info for any case
-    ggm_summary <- BDgraph::summary(fit)
+    ggm_summary <- summary(fit)
     traceplot(fit)
     plotcoda(fit)
 
   } else if("irafnet" %in% model) {
-    irn_out <- iRafNet(data, priors, ntrees, mtry, colnames(data),
+    irn_out <- iRafNet(data_no_nas, priors, ntrees, mtry, colnames(data_no_nas),
                        threads=threads)
-    irn_perm_out <- Run_permutation(data, priors,
-                                    ntrees, mtry, colnames(data),
+    irn_perm_out <- Run_permutation(data_no_nas, priors,
+                                    ntrees, mtry, colnames(data_no_nas),
                                     npermut, threads=threads)
     fit <- iRafNet_network(irn_out, irn_perm_out, TH = irafnet.fdr)
     class(fit) <- c(class(fit), "irafnet")

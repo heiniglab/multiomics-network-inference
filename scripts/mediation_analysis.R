@@ -8,6 +8,11 @@
 #' -----------------------------------------------------------------------------
 sink(snakemake@log[[1]], append = F, type = "output")
 
+#######
+## TODO adjust this script to handle eQTL seeded ranges (mediation w.r.t. trans
+# eQTLs rather than meQTLs)
+#######
+
 # ------------------------------------------------------------------------------
 print("Load libraries and source scripts")
 # ------------------------------------------------------------------------------

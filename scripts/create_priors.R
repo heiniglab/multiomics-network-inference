@@ -32,7 +32,7 @@ fsnpinfo <- snakemake@input[["snpinfo"]]
 fexpr <- snakemake@input[["expr"]]
 fsampleinfo <- snakemake@input[["sampleinfo"]]
 fpheno <- snakemake@input[["pheno"]]
-fstring <- snakemake@input[["string"]]
+fppi <- snakemake@input[["ppi"]]
 dplots <- snakemake@params$plot_dir
 
 # outputs
@@ -46,11 +46,11 @@ threads <- snakemake@threads
 # Start processing
 # -------------------------------------------------------------------------------
 
-print("Loading string db.")
-string_db <- readRDS(fstring)
+print("Loading PPI db.")
+ppi_db <- readRDS(fppi)
 
 # simply delegate
-create.priors(feqtl, fsnpinfo, frpkm, fsampleDS, fphenotypeDS, dplots, string_db,
+create_priors(feqtl, fsnpinfo, fexpr, fsampleinfo, fpheno, dplots, ppi_db,
 	      fout_gene_priors, fout_eqtl_priors)
 
 # ------------------------------------------------------------------------------

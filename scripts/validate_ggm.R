@@ -11,6 +11,11 @@ sink(snakemake@log[[1]], type = "output", split = T)
 # define easy concatenation operator
 `%+%` = paste0
 
+#######
+## TODO adjust this script to handle eQTL seeded ranges (mediation w.r.t. trans
+# eQTLs rather than meQTLs)
+#######
+
 # ------------------------------------------------------------------------------
 print("Load libraries and source scripts.")
 # ------------------------------------------------------------------------------

@@ -222,6 +222,9 @@ if(!is.null(tfs)){
   result$tfs_by_transGene <- tfs_by_transGene
 }
 
+# set seed name
+result$seed <- "eqtlgen"
+
 saveRDS(file=fout, result)
 
 # ------------------------------------------------------------------------------

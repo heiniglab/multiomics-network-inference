@@ -9,42 +9,14 @@
 # ------------------------------------------------------------------------------
 
 # -----------------------------------------------------------------------------
-# Define global vars
+# Insert global vars
 # -----------------------------------------------------------------------------
-LISTS = glob_wildcards("data/current/sentinels/{sentinel}.dummy")
-
-# general params
-COHORTS = ["lolipop", "kora"] # available cohorts
-
-# define the available PPI networks and set the active one
-PPI_DB_BIOGRID = "results/current/biogrid.rds"
-PPI_DB_STRING = "results/current/string.v9.expr.rds"
-
-
-# -----------------------------------------------------------------------------
-# most files depend on the type of PPI db used. 
-# so we define a nice name in accordance to the used
-# DB to be added to our directory definitions below
-PPI_DB = PPI_DB_STRING # the file containing the prepared PPI network
-PPI_NAME = "string" # alternative: biogrid
-# -----------------------------------------------------------------------------
-
-# output directories
-DCOHORT_VAL = "results/current/" + PPI_NAME + "/validation/"
-DPRIORS = "results/current/" + PPI_NAME + "/priors/"
-DRANGES = "results/current/" + PPI_NAME + "/ranges/"
-DCOHORT_DATA = "results/current/" + PPI_NAME + "/cohort_data/"
-DCOHORT_FITS = "results/current/" + PPI_NAME + "/fits/"
-DMEDIATION = "results/current/" + PPI_NAME + "/mediation/"
-
-# simulation study specific output directories
-DSIM_DATA = "results/current/" + PPI_NAME + "/simulation/data/"
-DSIM_VALIDATION = "results/current/" + PPI_NAME + "/simulation/validation/"
-DSIM_FITS = "results/current/" + PPI_NAME + "/simulation/fits/"
+include: "snakemake_rules/glob_variables.py"
 
 # set global wildcard constraints
 wildcard_constraints:
-    sentinel="rs\d+"
+    sentinel="rs\d+",
+    seed="eqtlgen|meqtl"
 
 # -----------------------------------------------------------------------------
 # Define rules which should only be executed locally
@@ -56,12 +28,12 @@ localrules:
         create_stringdb, create_cosmo_splits
 
 # ------------------------------------------------------------------------------
-# Include the rule-sets for the two individual analyses (cohort, simulation)
+# Include the rule-sets for the two individual analyses (cohort, simulation) and
+# some eQTLgen specific rules
 # ------------------------------------------------------------------------------
 include: "snakemake_rules/cohort_data.sm"
 include: "snakemake_rules/simulation.sm"
 include: "snakemake_rules/eqtlgen.sm"
-
 
 ################################################################################
 # General rules used in both simulation and cohort studies
@@ -78,7 +50,8 @@ rule create_priors:
 		snpinfo="data/current/gtex/GTEx_Analysis_v6_OMNI_genot_1KG_imputed_var_chr1to22_info4_maf01_CR95_CHR_POSb37_ID_REF_ALT.txt",
 		expr="data/current/gtex/GTEx_Analysis_v6_RNA-seq_RNA-SeQCv1.1.8_gene_rpkm.gct.gz",
 		sampleinfo="data/current/gtex/GTEx_Data_V6_Annotations_SampleAttributesDS.txt",
-		pheno="data/current/gtex/GTEx_Data_V6_Annotations_SubjectPhenotypesDS.txt"
+		pheno="data/current/gtex/GTEx_Data_V6_Annotations_SubjectPhenotypesDS.txt",
+		ppi=PPI_DB
 	output:	
 		gene_priors=protected("results/current/gtex.gg.cors.rds"),
 		eqtl_priors=protected("results/current/gtex.eqtl.priors.rds")
@@ -86,13 +59,13 @@ rule create_priors:
 	params:
 		plot_dir = "results/current/plots/"
 	log:
-		"logs/create-priors.log"
+		"logs/create_priors.log"
 	benchmark:
-		"benchmarks/create-priors.bmk"
+		"benchmarks/create_priors.bmk"
 	resources:
 		mem_mb=45000
 	script:
-		"scripts/create-priors.R"
+		"scripts/create_priors.R"
 
 #------------------------------------------------------------------------------
 # Preprocess stringdb PPI network
@@ -204,25 +177,25 @@ rule collect_ranges:
 		tcosmo="results/current/trans-cosmopairs_combined_151216.rds",
 		priorization="data/current/rw_string_v9_ld_wb_prioritize_full_with_empirical_p_lte_0.05.txt"
 	output: 
-		DRANGES + "{sentinel}.rds"
+		DRANGES + "{sentinel}_meqtl.rds"
 	log: 
-		"logs/collect-ranges/{sentinel}.log"
+		"logs/collect_ranges/{sentinel}_meqtl.log"
 	benchmark: 
-		"benchmarks/collect-ranges/{sentinel}.bmk"
+		"benchmarks/collect_ranges/{sentinel}_meqtl.bmk"
 	threads: 1
 	resources:
 		mem_mb=2300
 	script:
-		"scripts/collect-ranges.R"
+		"scripts/collect_ranges.R"
 
 #------------------------------------------------------------------------------
 # Meta rule to collect ranges for all sentinels and plot some information
 #------------------------------------------------------------------------------
 rule ranges_overview:
 	input:
-		expand(DRANGES + "{sentinel}.rds", zip, sentinel=LISTS.sentinel)
+		expand(DRANGES + "{sentinel}_meqtl.rds", zip, sentinel=MEQTL.sentinel)
 	output:
-		DRANGES + "overview.pdf"
+		DRANGES + "overview_{seed}.pdf"
 	script:
 		"scripts/create_locus_summary.R"
 
@@ -231,26 +204,26 @@ rule ranges_overview:
 #------------------------------------------------------------------------------
 rule collect_data:
 	input: 
-		ranges=DRANGES + "{sentinel}.rds",
+		ranges=DRANGES + "{sentinel}_{seed}.rds",
 		kora="results/current/ggmdata_kora.RData",
 		lolipop="results/current/ggmdata_lolipop.RData",
 		ceqtl="data/current/kora/eqtl/kora-cis-eqtls.csv",
 		ccosmo="results/current/cis-cosmopairs_combined_151216.rds"
 	output:
-		DCOHORT_DATA + "{cohort}/{sentinel}.rds",
-		DCOHORT_DATA + "{cohort}/{sentinel}_raw.rds"
+		DCOHORT_DATA + "{cohort}/{sentinel}_{seed}.rds",
+		DCOHORT_DATA + "{cohort}/{sentinel}_raw_{seed}.rds"
 	threads: 1
 	params:
 		cohort="{cohort}",
 		sentinel="{sentinel}"
 	log:
-		"logs/collect-data/{cohort}/{sentinel}.log"
+		"logs/collect_data/{cohort}/{sentinel}_{seed}.log"
 	benchmark:
-		"benchmarks/collect-data/{cohort}/{sentinel}.log"
+		"benchmarks/collect_data/{cohort}/{sentinel}_{seed}.bmk"
 	resources:
 		mem_mb=20000
 	script:
-		"scripts/collect-data.R"
+		"scripts/collect_data.R"
 
 #------------------------------------------------------------------------------
 # Collect prior information for a sentinel locus
@@ -259,28 +232,28 @@ rule collect_priors:
 	input:
 		gg_priors="results/current/gtex.gg.cors.rds", 
 		eqtl_priors="results/current/gtex.eqtl.priors.rds",
-		ranges=DRANGES + "{sentinel}.rds",
+		ranges=DRANGES + "{sentinel}_{seed}.rds",
 		string=PPI_DB,
 		cpg_context="data/current/cpgs_with_chipseq_context_100.RData",
 		cpg_annot="data/current/epigenetic_state_annotation_weighted_all_sentinels.txt"
 	output: 
-		DPRIORS + "{sentinel}.rds",
-		DPRIORS + "{sentinel}.pdf"
+		DPRIORS + "{sentinel}_{seed}.rds",
+		DPRIORS + "{sentinel}_{seed}.pdf"
 	log:
-		"logs/collect-priors/{sentinel}.log"
+		"logs/collect_priors/{sentinel}_{seed}.log"
 	threads: 1
 	params:
-		plot_file=DPRIORS + "{sentinel}.pdf"
+		plot_file=DPRIORS + "{sentinel}_{seed}.pdf"
 	benchmark:
-		"benchmarks/collect-priors/{sentinel}.bmk"
+		"benchmarks/collect_priors/{sentinel}_{seed}.bmk"
 	resources:
 		mem_mb=9000
 	script:
-		"scripts/collect-priors.R"
+		"scripts/collect_priors.R"
 
 #------------------------------------------------------------------------------
 # Meta rule to get priors for all sentinels
 #------------------------------------------------------------------------------
 rule all_priors:
 	input: 
-		expand(DPRIORS + "{sentinel}.pdf", sentinel=LISTS.sentinel)
+		expand(DPRIORS + "{sentinel}.pdf", sentinel=MEQTL.sentinel)

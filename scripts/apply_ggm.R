@@ -40,9 +40,7 @@ fsummary_plot <- snakemake@output$summary_file
 fgstart_plot <- snakemake@output$gstart_file
 
 # params
-cores <- snakemake@threads
-nriter <- snakemake@params$nriter
-burnin <- snakemake@params$burnin
+threads <- snakemake@threads
 
 # ------------------------------------------------------------------------------
 print("Load and prepare data.")
@@ -101,14 +99,14 @@ genenet$graph <- annotate.graph(genenet$graph, ranges, ppi_db, fcontext)
 # ------------------------------------------------------------------------------
 print("Create result list.")
 # ------------------------------------------------------------------------------
-result <- list(ggm_fit = bdgraph$fit,
-               ggm_fit_no_priors_empty = bdgraph_no_priors_empty$fit,
+result <- list(bdgraph_fit = bdgraph$fit,
+               bdgraph_fit_no_priors_empty = bdgraph_no_priors_empty$fit,
                irn_fit = irafnet$fit,
                genenet_fit = genenet$fit,
-               ggm_graph = bdgraph$graph,
-               ggm_graph_no_priors_empty = bdgraph_no_priors_empty$graph,
-               irn_graph = irafnet$graph,
-               genenet_graph = genenet$graph)
+               bdgraph = bdgraph$graph,
+               bdgraph_no_priors_empty = bdgraph_no_priors_empty$graph,
+               irafnet = irafnet$graph,
+               genenet = genenet$graph)
 
 # ------------------------------------------------------------------------------
 print("Done with model fitting. Plotting some information.")

@@ -261,5 +261,7 @@ if(!is.null(sp)){
 if(!is.null(tfs)){
   result$tfs <- tfs
 }
+# set seed name
+result$seed <- "meqtl"
 
 saveRDS(file=ofile, result)

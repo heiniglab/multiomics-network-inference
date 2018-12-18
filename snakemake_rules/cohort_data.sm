@@ -3,27 +3,29 @@
 # -----------------------------------------------------------------------------
 rule all:
         input:
-                DCOHORT_VAL + "stat_overview.pdf",
-                DRANGES + "overview.pdf"
+                DCOHORT_VAL + "stat_overview_meqtl.pdf",
+                DRANGES + "overview_meqtl.pdf",
+                DCOHORT_VAL + "stat_overview_eqtlgen.pdf",
+                DRANGES + "overview_eqtlgen.pdf"
 
 #------------------------------------------------------------------------------
 # Mediation analysis. This part can be performed indepdent of the graph fits
 #------------------------------------------------------------------------------
 rule mediation_analysis:
 	input:
-		data=DCOHORT_DATA + "{cohort}/{sentinel}.rds",
-		ranges=DRANGES + "{sentinel}.rds"
+		data=DCOHORT_DATA + "{cohort}/{sentinel}_{seed}.rds",
+		ranges=DRANGES + "{sentinel}_{seed}.rds"
 	output:
-		mediation=DMEDIATION + "{cohort}/{sentinel}.rds",
-		betas_per_gene=DMEDIATION + "{cohort}/{sentinel}_betas_per_gene.pdf",
-		beta_table=DMEDIATION + "{cohort}/{sentinel}_betas.txt",
+		mediation=DMEDIATION + "{cohort}/{sentinel}_{seed}.rds",
+		betas_per_gene=DMEDIATION + "{cohort}/{sentinel}_{seed}_betas_per_gene.pdf",
+		beta_table=DMEDIATION + "{cohort}/{sentinel}_{seed}_betas.txt",
 	threads: 1
 	resources:
 		mem_mb=600
 	log:
-		"logs/mediation_analysis/{cohort}/{sentinel}.log"
+		"logs/mediation_analysis/{cohort}/{sentinel}_{seed}.log"
 	benchmark:
-		"benchmarks/mediation_analysis/{cohort}/{sentinel}.bmk"
+		"benchmarks/mediation_analysis/{cohort}/{sentinel}_{seed}.bmk"
 	script:
 		"../scripts/mediation_analysis.R"
 
@@ -32,37 +34,34 @@ rule mediation_analysis:
 #------------------------------------------------------------------------------
 rule apply_ggm:
         input:
-                data=DCOHORT_DATA + "{cohort}/{sentinel}.rds",
-                priors=DPRIORS + "{sentinel}.rds",
-                ranges=DRANGES + "{sentinel}.rds",
+                data=DCOHORT_DATA + "{cohort}/{sentinel}_{seed}.rds",
+                priors=DPRIORS + "{sentinel}_{seed}.rds",
+                ranges=DRANGES + "{sentinel}_{seed}.rds",
                 cpg_context="data/current/cpgs_with_chipseq_context_100.RData",
                 ppi_db=PPI_DB
         output:
-                fit=DCOHORT_FITS + "{cohort}/{sentinel}.rds",
-                summary_file=DCOHORT_FITS + "{cohort}/{sentinel}.pdf",
-                gstart_file=DCOHORT_FITS + "{cohort}/{sentinel}-gstart.pdf"
+                fit=DCOHORT_FITS + "{cohort}/{sentinel}_{seed}.rds",
+                summary_file=DCOHORT_FITS + "{cohort}/{sentinel}_{seed}.pdf",
+                gstart_file=DCOHORT_FITS + "{cohort}/{sentinel}_{seed}-gstart.pdf"
         threads: 8
-        params:
-                nriter=20000,
-                burnin=5000
         resources:
                 mem_mb=1000
         benchmark:
-                "benchmarks/apply_ggm/{sentinel}_{cohort}.bmk"
+                "benchmarks/apply_ggm/{sentinel}_{cohort}_{seed}.bmk"
         log:
-                "logs/apply_ggm/{sentinel}_{cohort}.log"
+                "logs/apply_ggm/{sentinel}_{cohort}_{seed}.log"
         script:
-                "../scripts/apply-ggm.R"
+                "../scripts/apply_ggm.R"
 
 #------------------------------------------------------------------------------
 # Validate calculated ggms
 #------------------------------------------------------------------------------
 # define graph types
-GTYPES = ["graph", "graph_genenet", "graph_no_priors"]
+GTYPES = ["bdgraph", "bdgraph_no_priors", "genenet", "irafnet"]
 GTYPES_CONSTR = "|".join(GTYPES)
 rule validate_ggm:
         input:
-                ranges=DRANGES + "{sentinel}.rds",
+                ranges=DRANGES + "{sentinel}_{seed}.rds",
                 gtex="data/current/geuvadis/GD660.GeneQuantRPKM.tsv",
                 geo="data/current/archs4/whole_blood/expression_matrix_norm_peer.tsv",
                 cis_kora="data/current/kora/eqtl/cis-full.tsv",
@@ -70,37 +69,43 @@ rule validate_ggm:
                 cis_joehanes="data/current/joehanes-2017/eqtls/eqtl-gene-annot_cis-only_logFDR2.txt.gz",
                 trans_joehanes="data/current/joehanes-2017/eqtls/eqtl-gene-annot_trans-only_logFDR10.txt.gz",
                 bonder_eqtm="data/current/bonder-et-al-2017/2015_09_02_cis_eQTMsFDR0.05-CpGLevel.txt",
-                kora_data=DCOHORT_DATA + "kora/{sentinel}.rds",
-                lolipop_data=DCOHORT_DATA + "lolipop/{sentinel}.rds",
-                kora_fit=DCOHORT_FITS + "kora/{sentinel}.rds",
-                lolipop_fit=DCOHORT_FITS + "lolipop/{sentinel}.rds",
-		mediation_kora=DMEDIATION + "kora/{sentinel}.rds",
-		mediation_lolipop=DMEDIATION + "lolipop/{sentinel}.rds"
+                kora_data=DCOHORT_DATA + "kora/{sentinel}_{seed}.rds",
+                lolipop_data=DCOHORT_DATA + "lolipop/{sentinel}_{seed}.rds",
+                kora_fit=DCOHORT_FITS + "kora/{sentinel}_{seed}.rds",
+                lolipop_fit=DCOHORT_FITS + "lolipop/{sentinel}_{seed}.rds",
+		mediation_kora=DMEDIATION + "kora/{sentinel}_{seed}.rds",
+		mediation_lolipop=DMEDIATION + "lolipop/{sentinel}_{seed}.rds"
         params:
                 mediation_cutoff=0.05
         output:
-                DCOHORT_VAL + "{cohort}/{sentinel}_{graph_type}.txt",
-		mediation_summary_plot=DCOHORT_VAL + "{cohort}/{sentinel}_{graph_type}_mediation.pdf",
-		graphdot=DCOHORT_VAL + "{cohort}/{sentinel}_{graph_type}_graphplot.dot",
-		graphpdf=DCOHORT_VAL + "{cohort}/{sentinel}_{graph_type}_graphplot.pdf"
+                DCOHORT_VAL + "{cohort}/{sentinel}_{graph_type}_{seed}.txt",
+		mediation_summary_plot=DCOHORT_VAL + "{cohort}/{sentinel}_{graph_type}_{seed}_mediation.pdf",
+		graphdot=DCOHORT_VAL + "{cohort}/{sentinel}_{graph_type}_{seed}_graphplot.dot",
+		graphpdf=DCOHORT_VAL + "{cohort}/{sentinel}_{graph_type}_{seed}_graphplot.pdf"
         wildcard_constraints:
                 graph_type = GTYPES_CONSTR
         log:
-                "logs/validate_ggm/{cohort}/{sentinel}_{graph_type}.log"
+                "logs/validate_ggm/{cohort}/{sentinel}_{graph_type}_{seed}.log"
         threads: 1
         benchmark:
-                "benchmarks/validate_ggm/{cohort}/{sentinel}_{graph_type}.bmk"
+                "benchmarks/validate_ggm/{cohort}/{sentinel}_{graph_type}_{seed}.bmk"
         resources:
                 mem_mb=7000
         script:
                 "../scripts/validate-ggm.R"
 
 #------------------------------------------------------------------------------
-# Collect validation information in single file
+# Collect validation information in single file for different seeds
 #------------------------------------------------------------------------------
-rule summarize_validation:
-        input: expand(DCOHORT_VAL + "{cohort}/{sentinel}_{graph_type}.txt", sentinel=LISTS.sentinel, graph_type=GTYPES, cohort=COHORTS)
-        output: DCOHORT_VAL + "validation.all.txt"
+rule summarize_validation_meqtl:
+        input: expand(DCOHORT_VAL + "{cohort}/{sentinel}_{graph_type}_meqtl.txt", sentinel=MEQTL.sentinel, graph_type=GTYPES, cohort=COHORTS)
+        output: DCOHORT_VAL + "validation_all_meqtl.txt"
+        shell:
+                "cat {input} | sort -r | uniq > {output}"
+
+rule summarize_validation_eqtlgen:
+        input: expand(DCOHORT_VAL + "{cohort}/{sentinel}_{graph_type}_eqtlgen.txt", sentinel=EQTLGEN["sentinel"], graph_type=GTYPES, cohort=COHORTS)
+        output: DCOHORT_VAL + "validation_all_eqtlgen.txt"
         shell:
                 "cat {input} | sort -r | uniq > {output}"
 
@@ -109,18 +114,18 @@ rule summarize_validation:
 #------------------------------------------------------------------------------
 rule render_validation:
         input:
-                DCOHORT_VAL + "validation.all.txt"
+                DCOHORT_VAL + "validation_all_{seed}.txt"
         output:
-                stats=DCOHORT_VAL + "stat_overview.pdf",
-                cratios=DCOHORT_VAL + "cluster_ratios.pdf",
-                expr=DCOHORT_VAL + "gene_expression.pdf",
-                gene_types=DCOHORT_VAL + "gene_types.pdf",
-                mediation=DCOHORT_VAL + "mediation.pdf",
-                mediation_perc=DCOHORT_VAL + "mediation_percentages.pdf",
-                mediation_distr=DCOHORT_VAL + "mediation_distributions.pdf",
-                perf=DCOHORT_VAL + "performance.pdf"
+                stats=DCOHORT_VAL + "stat_overview_{seed}.pdf",
+                cratios=DCOHORT_VAL + "cluster_ratios_{seed}.pdf",
+                expr=DCOHORT_VAL + "gene_expression_{seed}.pdf",
+                gene_types=DCOHORT_VAL + "gene_types_{seed}.pdf",
+                mediation=DCOHORT_VAL + "mediation_{seed}.pdf",
+                mediation_perc=DCOHORT_VAL + "mediation_percentages_{seed}.pdf",
+                mediation_distr=DCOHORT_VAL + "mediation_distributions_{seed}.pdf",
+                perf=DCOHORT_VAL + "performance_{seed}.pdf"
         log:
-                "logs/validation.log"
+                "logs/validation_{seed}.log"
         script:
                 "../scripts/render-validation.R"
 

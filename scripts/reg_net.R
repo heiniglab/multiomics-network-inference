@@ -46,6 +46,13 @@ reg_net <- function(data, priors, model, threads=1,
                     ntrees=1000, mtry=round(sqrt(ncol(data)-1)), npermut=5,
                     irafnet.fdr=0.05) {
 
+  # load inference methods
+  suppressPackageStartupMessages(library(GeneNet))
+  suppressPackageStartupMessages(library(BDgraph,
+          lib.loc = "/home/icb/johann.hawe/R/x86_64-redhat-linux-gnu-library/3.4"))
+  suppressPackageStartupMessages(library(iRafNet))
+
+
   # get available models
   ms <- reg_net.models()
   if(!(model %in% ms)) stop(paste0("Model not supported: ", model))
@@ -91,6 +98,12 @@ reg_net <- function(data, priors, model, threads=1,
                        save.all=T, cores=threads)
       }
     }
+
+    # plot convergence info for any case
+    ggm_summary <- BDgraph::summary(fit)
+    traceplot(fit)
+    plotcoda(fit)
+
   } else if("irafnet" %in% model) {
     irn_out <- iRafNet(data, priors, ntrees, mtry, colnames(data),
                        threads=threads)

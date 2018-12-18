@@ -12,14 +12,10 @@ sink(log, type="message")
 # ------------------------------------------------------------------------------
 print("Prepare libraries and source scripts.")
 # ------------------------------------------------------------------------------
-# first load the custom BDgraph library plus others
-library(BDgraph,
-        lib.loc = "/home/icb/johann.hawe/R/x86_64-redhat-linux-gnu-library/3.4")
 library(pheatmap)
 suppressPackageStartupMessages(library(GenomicRanges))
 suppressPackageStartupMessages(library(igraph))
 suppressPackageStartupMessages(library(graph))
-library(GeneNet)
 source("scripts/lib.R")
 source("scripts/reg_net.R")
 
@@ -67,7 +63,7 @@ pdf(fsummary_plot)
 print("Infer regulatory networks.")
 # ------------------------------------------------------------------------------
 print("Fitting model using priors.")
-bdgraph <- reg_net(d, priors, "bdgraph", threads=threads)
+bdgraph <- reg_net(data, priors, "bdgraph", threads=threads)
 
 #print("Fitting model with priors without start graph")
 #bdgraph_empty <- reg_net(d, priors, "bdgraph",
@@ -78,14 +74,14 @@ bdgraph <- reg_net(d, priors, "bdgraph", threads=threads)
 #                             gstart = gstart, threads=threads)
 
 print("Fitting model without priors using empty start graph.")
-bdgraph_no_priors_empty <- reg_net(d, NULL, "bdgraph",
+bdgraph_no_priors_empty <- reg_net(data, NULL, "bdgraph",
                                    use_gstart = F, threads=threads)
 
 print("Fitting model using iRafNet.")
-irafnet <- reg_net(d, priors, "irafnet", threads=threads)
+irafnet <- reg_net(data, priors, "irafnet", threads=threads)
 
 print("Fitting model using GeneNet.")
-genenet <- reg_net(d, priors, "genenet", threads=threads)
+genenet <- reg_net(data, priors, "genenet", threads=threads)
 
 # ------------------------------------------------------------------------------
 print("Add custom annotations for the graphs.")
@@ -109,16 +105,8 @@ result <- list(bdgraph_fit = bdgraph$fit,
                genenet = genenet$graph)
 
 # ------------------------------------------------------------------------------
-print("Done with model fitting. Plotting some information.")
+print("Done with model fitting. Finishing up.")
 # ------------------------------------------------------------------------------
-
-# plot convergence info
-ggm_summary <- summary(ggm_fit)
-traceplot(ggm_fit)
-plotcoda(ggm_fit)
-ggm_summary_no_priors <- summary(ggm_fit_no_priors)
-traceplot(ggm_fit_no_priors)
-plotcoda(ggm_fit_no_priors)
 
 # plot the start graph as a matrix
 pheatmap(gstart, cex=0.7, main="start graph",

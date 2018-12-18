@@ -12,6 +12,8 @@ PPI_DB_STRING = "results/current/string.v9.expr.rds"
 # DB to be added to our directory definitions below
 PPI_DB = PPI_DB_STRING # the file containing the prepared PPI network
 PPI_NAME = "string" # alternative: biogrid
+#PPI_DB = PPI_DB_BIOGRID # the file containing the prepared PPI network
+#PPI_NAME = "biogrid" # alternative: biogrid
 # -----------------------------------------------------------------------------
 
 # output directories

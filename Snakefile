@@ -137,7 +137,8 @@ rule prepare_kora_data:
 		trans_meqtl="data/current/meQTLs/transpairs_r02_110117_converted_1MB.txt",
 		houseman="data/current/kora/methylation/Houseman/KF4_QN_estimated_cell_distribution_meanimpute473_lessThanOneTRUE.csv",
 		kora_ceqtl="data/current/kora/eqtl/kora-cis-eqtls.csv",
-		ccosmo="results/current/cis-cosmopairs_combined_151216.rds"
+		ccosmo="results/current/cis-cosmopairs_combined_151216.rds",
+		eqtl_gen="data/current/eqtl_gen/trans-eQTL_significant_20181017.txt.gz"
 	output:
 		"results/current/ggmdata_kora.RData"
 	resources:

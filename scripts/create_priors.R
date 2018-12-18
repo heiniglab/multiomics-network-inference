@@ -4,9 +4,9 @@
 #' @author Johann Hawe
 # ------------------------------------------------------------------------------
 
-log <- file(snakemake@log[[1]], open="wt")
+log <- file(snakemake@log[[1]], open = "wt")
 sink(log)
-sink(log, type="message")
+sink(log, type = "message")
 
 # ------------------------------------------------------------------------------
 # Load libraries and source scripts
@@ -50,74 +50,95 @@ print("Loading PPI db.")
 ppi_db <- readRDS(fppi)
 
 # simply delegate
-create_priors(feqtl, fsnpinfo, fexpr, fsampleinfo, fpheno, dplots, ppi_db,
-	      fout_gene_priors, fout_eqtl_priors)
+create_priors(
+  feqtl,
+  fsnpinfo,
+  fexpr,
+  fsampleinfo,
+  fpheno,
+  dplots,
+  ppi_db,
+  fout_gene_priors,
+  fout_eqtl_priors
+)
 
+if (FALSE) {
+  # ------------------------------------------------------------------------------
+  print("Prepare the Banovich based priors, i.e. TF-CpG priors.")
+  # ------------------------------------------------------------------------------
+  # methylation data
+  meth <-
+    fread("data/current/banovich-2017/methylation/full_matrix.txt",
+          data.table = F)
+  rownames(meth) <- meth$V1
+  meth$V1 <- NULL
+  cpgs <- features(FDb.InfiniumMethylation.hg19)
+  cpgs <- cpgs[rownames(meth)]
 
-# ------------------------------------------------------------------------------
-print("Prepare the Banovich based priors, i.e. TF-CpG priors.")
-# ------------------------------------------------------------------------------
-# methylation data
-meth <- fread("data/current/banovich-2017/methylation/full_matrix.txt",
-              data.table=F)
-rownames(meth) <- meth$V1
-meth$V1 <- NULL
-cpgs <- features(FDb.InfiniumMethylation.hg19)
-cpgs <- cpgs[rownames(meth)]
+  # expression data
+  expr <-
+    read.table(
+      "data/current/banovich-2017/xun_lan/allTFexp.withHeader",
+      header = T,
+      sep = "\t",
+      stringsAsFactors = F
+    )
 
-# expression data
-expr <- read.table("data/current/banovich-2017/xun_lan/allTFexp.withHeader",
-                   header=T,
-                   sep="\t",
-                   stringsAsFactors=F)
+  # apparently the table contains duplicated entries, remove them
+  expr <- expr[!duplicated(expr), ]
+  rownames(expr) <- unique(expr[, 1])
 
-# apparently the table contains duplicated entries, remove them
-expr <- expr[!duplicated(expr),]
-rownames(expr) <- unique(expr[,1])
+  samples <- intersect(colnames(expr), colnames(meth))
 
-samples <- intersect(colnames(expr), colnames(meth))
+  expr <- t(expr[, samples])
+  meth <- t(meth[, samples])
 
-expr <- t(expr[,samples])
-meth <- t(meth[,samples])
+  # ------------------------------------------------------------------------------
+  print("Get (our) chip-seq context for the cpgs.")
+  # ------------------------------------------------------------------------------
+  tfbs_ann <- get.chipseq.context(names(cpgs), fcpgcontext)
 
-# ------------------------------------------------------------------------------
-print("Get (our) chip-seq context for the cpgs.")
-# ------------------------------------------------------------------------------
-tfbs_ann <- get.chipseq.context(names(cpgs), fcpgcontext)
+  # ------------------------------------------------------------------------------
+  print("For each TF, get the correlation to each of the CpGs it is bound nearby")
+  # ------------------------------------------------------------------------------
+  pairs <- lapply(colnames(expr), function(tf) {
+    # get columns for tf
+    sub <-
+      tfbs_ann[, grepl(tf, colnames(tfbs_ann), ignore.case = T), drop = F]
+    rs <- rowSums(sub)
+    bound_cpgs <- names(rs[rs > 0])
 
-# ------------------------------------------------------------------------------
-print("For each TF, get the correlation to each of the CpGs it is bound nearby")
-# ------------------------------------------------------------------------------
-pairs <- lapply(colnames(expr), function(tf) {
-  # get columns for tf
-  sub <- tfbs_ann[,grepl(tf, colnames(tfbs_ann), ignore.case = T), drop=F]
-  rs <- rowSums(sub)
-  bound_cpgs <- names(rs[rs>0])
+    assoc <- unlist(mclapply(bound_cpgs, function(c) {
+      cor.test(expr[, tf],
+               meth[, c],
+               method = "pearson")$p.value
+    }, mc.cores = threads))
 
-  assoc <- unlist(mclapply(bound_cpgs, function(c) {
-                         cor.test(expr[,tf],
-                             meth[,c],
-                             method="pearson")$p.value
-    }, mc.cores=threads))
+    cbind.data.frame(
+      TF = rep(tf, length(assoc)),
+      CpG = bound_cpgs,
+      rho = assoc,
+      stringsAsFactors = F
+    )
+  })
 
-  cbind.data.frame(TF=rep(tf, length(assoc)),
-                   CpG=bound_cpgs,
-                   rho=assoc,
-                   stringsAsFactors=F)
-})
-
-# ------------------------------------------------------------------------------
-print("Collect and finalize results.")
-# ------------------------------------------------------------------------------
-tab <- do.call(rbind, pairs)
-colnames(tab) <- c("TF", "CpG", "pval")
-tab$qval <- qvalue(tab$pval)$lfdr
-tab$prior <- 1-tab$qval
-head(tab)
-write.table(file="results/current/tf-cpg-prior.txt", sep="\t", col.names=NA,
-            row.names=T,
-            quote=F, tab)
-
+  # ------------------------------------------------------------------------------
+  print("Collect and finalize results.")
+  # ------------------------------------------------------------------------------
+  tab <- do.call(rbind, pairs)
+  colnames(tab) <- c("TF", "CpG", "pval")
+  tab$qval <- qvalue(tab$pval)$lfdr
+  tab$prior <- 1 - tab$qval
+  head(tab)
+  write.table(
+    file = "results/current/tf-cpg-prior.txt",
+    sep = "\t",
+    col.names = NA,
+    row.names = T,
+    quote = F,
+    tab
+  )
+}
 # ------------------------------------------------------------------------------
 print("Session info:")
 # ------------------------------------------------------------------------------

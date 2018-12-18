@@ -17,6 +17,7 @@ library(fdrtool)
 library(Homo.sapiens)
 library(pheatmap)
 
+source("scripts/lib.R")
 source("scripts/priors.R")
 
 # ------------------------------------------------------------------------------

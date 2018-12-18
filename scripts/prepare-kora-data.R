@@ -135,6 +135,8 @@ scan_snps <- function(ranges, dosage_file, individuals) {
 # ------------------------------------------------------------------------------
 print("Get snakemake params.")
 # ------------------------------------------------------------------------------
+
+# inputs
 fdosage <- snakemake@input[["genotypes"]]
 findividual_mapping <- snakemake@input[["individuals"]]
 fexpression <- snakemake@input[["expression"]]
@@ -145,6 +147,9 @@ ftrans_meqtl <- snakemake@input[["trans_meqtl"]]
 fhouseman <- snakemake@input[["houseman"]]
 fccosmo <- snakemake@input[["ccosmo"]]
 fceqtl <- snakemake@input[["kora_ceqtl"]]
+feqtlgen <- snakemake@input[["eqtl_gen"]]
+
+# params
 threads <- snakemake@threads
 
 # ------------------------------------------------------------------------------
@@ -166,6 +171,12 @@ ceqtl <- get_snpPos_biomart(ceqtl[,1])
 ranges <- unique(c(ranges, with(ceqtl,
                                 GRanges(paste0("chr", chr),
                                         IRanges(start, width=1)))))
+
+eqtlgen <- fread(paste0("zcat ", feqtlgen))
+eqtlgen <- unique(with(eqtlgen, GRanges(paste0("chr", SNPChr),
+                                        IRanges(SNPPos, width=1))))
+ranges <- unique(c(ranges, eqtlgen))
+
 cosmo <- readRDS(fccosmo)
 ranges <- unique(c(ranges, with(cosmo,
                                 GRanges(paste0("chr", snp.chr),
@@ -224,7 +235,7 @@ print(paste0("Genotype dimensions: ", paste(dim(geno), collapse=",")))
 gc()
 
 # ------------------------------------------------------------------------------
-print("Load and process expression and methylation data incl covariates.")
+print("Load and process expression and methylation data incl. covariates.")
 # ------------------------------------------------------------------------------
 load(fexpression)
 load(fmethylation)

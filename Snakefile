@@ -25,7 +25,7 @@ localrules:
         all, preprocess_kora_individuals, summarize_validation,
         all_sim, validate_ggm_simulation, create_priors,
         summarize_simulation, render_validation,
-        create_stringdb, create_cosmo_splits
+        create_stringdb, create_cosmo_splits, convert_cpg_context
 
 # ------------------------------------------------------------------------------
 # Include the rule-sets for the two individual analyses (cohort, simulation) and
@@ -40,10 +40,22 @@ include: "snakemake_rules/eqtlgen.sm"
 ################################################################################
 
 #-------------------------------------------------------------------------------
+# Convert the precalculated cpg context to RDS
+# TODO: calculate it on our own
+#-------------------------------------------------------------------------------
+rule convert_cpg_context:
+	input:
+		"data/current/cpgs_with_chipseq_context_100.RData"
+	output:
+		"results/current/chipseq_context.rds"
+	script:
+		"scripts/convert_cpg_context.R"
+
+#-------------------------------------------------------------------------------
 # Create the GTeX based prior information
 # The 45gb mem requirement is not a joke, unfortunately.
 # we should try and reduce this somehow...
-#------------------------------------------------------------------------------
+#-------------------------------------------------------------------------------
 rule create_priors:
 	input:	
 		eqtl="data/current/gtex/Whole_Blood_Analysis.v6p.all_snpgene_pairs.txt.gz",

@@ -210,7 +210,7 @@ snp_genes <- unique(genes_sroi$SYMBOL)
 # modify string_db to contain our CpGs
 
 # load the cpg-tf context
-tfbs_ann <- get.chipseq.context(names(croi), fcpgcontext)
+tfbs_ann <- get_tfbs_context(names(croi), fcpgcontext)
 cpgs_with_tfbs <- cpgs[cpgs %in% rownames(tfbs_ann[rowSums(tfbs_ann)>0,])]
 snp_genes_in_string <- snp_genes[snp_genes %in% nodes(string_db)]
 

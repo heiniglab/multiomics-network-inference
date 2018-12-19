@@ -91,7 +91,7 @@ get_link_priors <- function(ranges, nodes, ppi_db, fcpgcontext, fcpg_annot) {
     # get all TFs
     tfs <- ranges$tfs$SYMBOL
     # also get the chipseq context for our cpgs
-    context <- get.chipseq.context(names(ranges$cpgs), fcpgcontext)
+    context <- get_tfbs_context(names(ranges$cpgs), fcpgcontext)
 
     # for all cpgs
     for(c in rownames(context)){

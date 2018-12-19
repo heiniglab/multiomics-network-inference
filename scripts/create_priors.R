@@ -96,7 +96,7 @@ if (FALSE) {
   # ------------------------------------------------------------------------------
   print("Get (our) chip-seq context for the cpgs.")
   # ------------------------------------------------------------------------------
-  tfbs_ann <- get.chipseq.context(names(cpgs), fcpgcontext)
+  tfbs_ann <- get_tfbs_context(names(cpgs), fcpgcontext)
 
   # ------------------------------------------------------------------------------
   print("For each TF, get the correlation to each of the CpGs it is bound nearby")

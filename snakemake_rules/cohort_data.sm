@@ -37,7 +37,8 @@ rule apply_ggm:
                 data=DCOHORT_DATA + "{cohort}/{sentinel}_{seed}.rds",
                 priors=DPRIORS + "{sentinel}_{seed}.rds",
                 ranges=DRANGES + "{sentinel}_{seed}.rds",
-                cpg_context="data/current/cpgs_with_chipseq_context_100.RData",
+                cpg_context="results/current/chipseq_context.rds",
+                tss_context="results/current/tfbs_tss_annot.rds",
                 ppi_db=PPI_DB
         output:
                 fit=DCOHORT_FITS + "{cohort}/{sentinel}_{seed}.rds",

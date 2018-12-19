@@ -122,19 +122,6 @@ get.snp.range <- function(snp){
   }
 }
 
-#' Gets the chip-seq context for a specific set of cpgs
-#'
-#' @param cpgs ID of cpgs for which to get the context
-#' @param fcontext RData file containing the precomputed chipseq-context
-#'
-#' @author Johann Hawe
-#'
-get.chipseq.context <- function(cpgs, fcontext){
-  load(fcontext)
-  tfbs.ann <- tfbs.ann[rownames(tfbs.ann) %in% cpgs,,drop=F]
-  return(tfbs.ann[cpgs,,drop=F])
-}
-
 #' -----------------------------------------------------------------------------
 #' General method to handle either CpG or TSS TFBS context
 #'
@@ -146,8 +133,8 @@ get.chipseq.context <- function(cpgs, fcontext){
 #'
 #' -----------------------------------------------------------------------------
 get_tfbs_context <- function(entities, fcontext) {
-  load(fcontext)
-  tfbs_ann <- tfbs.ann[rownames(tfbs.ann) %in% entities,,drop=F]
+  cont <- readRDS(fcontext)
+  tfbs_ann <- cont[rownames(cont) %in% entities,,drop=F]
   return(tfbs_ann[entities,,drop=F])
 }
 

@@ -6,7 +6,7 @@
 #' @version 20170803
 #'
 
-
+#' -----------------------------------------------------------------------------
 #' Performs mediation analysis for a given set of SNPs, Genes
 #' and CpGs.
 #'
@@ -14,63 +14,62 @@
 #' SNPs, CpGs and Gene entries in the columns
 #'
 #' @param snps SNP ids to be analyzed
-#' @param genes The genes to be checked
-#' @param cpgs the cpgs to be checked
+#' @param cis_genes The cis/snp genes to be checked
+#' @param trans_assoc the trans associated entities to be checked. Either CpG
+#' IDs or gene symbols
 #'
-#' @author Johann Hawe
+#' @author Johann Hawe <johann.hawe@helmholtz-muenchen.de>
 #'
-#'
-mediation <- function(data, snp, genes, cpgs,
+#' -----------------------------------------------------------------------------
+mediation <- function(data, snp, cis_genes, trans_assoc,
                       fout_table, fout_plot) {
   require(ggplot2)
 
-  if(any(!c(snp,genes,cpgs) %in% colnames(data))){
+  if(any(!c(snp,cis_genes,trans_assoc) %in% colnames(data))){
     stop("Some of the provided entities are not in the data.")
   }
-  if(any(!grepl("^cg", cpgs))){
-    warning("CpG ids don't look like probe ids, continuing anyway.")
-  }
 
-  d <- data[,c(snp,genes,cpgs),drop=F]
+  d <- data[,c(snp,cis_genes,trans_assoc),drop=F]
 
   # get large matrix of all coefficients for all combinations
   betas <- c()
-  for(g in genes) {
+  for(g in cis_genes) {
     if(grepl("-", g)){
       g <- paste0("`",g,"`")
     }
 
     # snp-gene
-    snp.gene <- lm(paste0(g, "~",snp), data=d)
-    snp.gene <- coefficients(snp.gene)[snp]
+    snp.cis_gene <- lm(paste0(g, "~",snp), data=d)
+    snp.cis_gene <- coefficients(snp.cis_gene)[snp]
 
-    # snp-cpg and gene-cpg
-    for(c in cpgs) {
+    # snp-trans_assoc and cis_gene-trans_assoc
+    for(ta in trans_assoc) {
 
-      snp.cpg <- lm(paste0(c,"~",snp), data=d)
-      snp.cpg <- coefficients(snp.cpg)[snp]
+      snp.trans_assoc <- lm(paste0(ta,"~",snp), data=d)
+      snp.trans_assoc <- coefficients(snp.trans_assoc)[snp]
 
-      gene.cpg <- lm(paste0(c, "~", g), data=d)
-      gene.cpg <- coefficients(gene.cpg)[g]
+      cis_gene.trans_assoc <- lm(paste0(ta, "~", g), data=d)
+      cis_gene.trans_assoc <- coefficients(cis_gene.trans_assoc)[g]
 
       # snp-cpg hat
-      snp.cpg.hat <- snp.gene * gene.cpg
+      snp.trans_assoc.hat <- snp.cis_gene * cis_gene.trans_assoc
 
       # save result
-      betas <- rbind(betas, c(snp, g, c,
-			      snp.cpg, snp.gene, gene.cpg, snp.cpg.hat))
+      betas <- rbind(betas,
+                     c(snp, g, ta, snp.trans_assoc, snp.cis_gene,
+                       cis_gene.trans_assoc, snp.trans_assoc.hat))
     }
   }
-  colnames(betas) <- c("snp", "gene", "cpg", "snp.cpg",
-                       "snp.gene", "gene.cpg", "snp.cpg.hat")
+  colnames(betas) <- c("snp", "cis_gene", "trans_assoc", "snp.trans_assoc",
+                       "snp.cis_gene", "cis_gene.trans_assoc", "snp.trans_assoc.hat")
   betas <- as.data.frame(betas, stringsAsFactors=F)
-  betas$snp.cpg <- as.numeric(betas$snp.cpg)
-  betas$snp.gene <- as.numeric(betas$snp.gene)
-  betas$gene.cpg <- as.numeric(betas$gene.cpg)
-  betas$snp.cpg.hat <- as.numeric(betas$snp.cpg.hat)
+  betas$snp.trans_assoc <- as.numeric(betas$snp.trans_assoc)
+  betas$snp.cis_gene <- as.numeric(betas$snp.cis_gene)
+  betas$cis_gene.trans_assoc <- as.numeric(betas$cis_gene.trans_assoc)
+  betas$snp.trans_assoc.hat <- as.numeric(betas$snp.trans_assoc.hat)
 
   # plot the betas for each gene
-  gp <- ggplot(data=betas, aes(x=snp.cpg, y=snp.cpg.hat)) +
+  gp <- ggplot(data=betas, aes(x=snp.trans_assoc, y=snp.trans_assoc.hat)) +
     geom_hline(yintercept=0, colour="grey") +
     geom_vline(xintercept=0, colour="grey") +
     facet_wrap(~ gene, ncol=3) +
@@ -88,15 +87,15 @@ mediation <- function(data, snp, genes, cpgs,
 
   # get the correlation results for the estimated against the
   # observed betas
-  result <- lapply(genes, function(g){
+  result <- lapply(cis_genes, function(g){
     if(grepl("-", g)){
       g <- paste0("`",g,"`")
     }
 
-    d <- betas[betas$gene == g,]
+    d <- betas[betas$cis_gene == g,]
 
-    d1 <- d[,"snp.cpg"]
-    d2 <- d[,"snp.cpg.hat"]
+    d1 <- d[,"snp.trans_assoc"]
+    d2 <- d[,"snp.trans_assoc.hat"]
 
     fit <- lm(d2~d1)
     r <- cor.test(d1, d2)
@@ -107,8 +106,8 @@ mediation <- function(data, snp, genes, cpgs,
     # of the individual beta coefficients for each CpG and test the association
     tab <- matrix(0,ncol=2,nrow=2)
     for(i in 1:nrow(d)) {
-       obs <- d[i,"snp.cpg"]
-       pred <- d[i,"snp.cpg.hat"]
+       obs <- d[i,"snp.trans_assoc"]
+       pred <- d[i,"snp.trans_assoc.hat"]
        if(obs<0&pred<0) tab[2,2] <- tab[2,2] + 1
        if(obs<0&pred>0) tab[1,2] <- tab[1,2] + 1
        if(obs>0&pred<0) tab[2,1] <- tab[2,1] + 1
@@ -123,10 +122,11 @@ mediation <- function(data, snp, genes, cpgs,
       odds_ratio=unname(or),
       pval_fisher=pv_fisher)
   })
-  names(result) <- genes
+  names(result) <- cis_genes
   return(result)
 }
 
+#' -----------------------------------------------------------------------------
 #' Creates a summary of the mediation results
 #'
 #' Given mediation results for a SNP and it's SNP-genes together
@@ -140,6 +140,7 @@ mediation <- function(data, snp, genes, cpgs,
 #'
 #' @author Johann Hawe
 #'
+#' -----------------------------------------------------------------------------
 mediation.summary <- function(med, s, s.selected, cutoff) {
   # mediation for only ggm selected snp genes
   med.selected <- med[s.selected]
@@ -192,6 +193,7 @@ mediation.summary <- function(med, s, s.selected, cutoff) {
            log10_mediation_NSoverS_ratio=d))
 }
 
+#' -----------------------------------------------------------------------------
 #' Creates a summary of the comparison of mediation results
 #' from two different datasets
 #'
@@ -208,6 +210,7 @@ mediation.summary <- function(med, s, s.selected, cutoff) {
 #'
 #' @author Johann Hawe
 #'
+#' -----------------------------------------------------------------------------
 compare_mediation_results <- function(sentinel,
 				      mediation,
 				      mediation2,
@@ -287,8 +290,8 @@ validation dataset and once for the original dataset (on which models were calcu
   frac2 <- length(which(df$significant=="both")) /
 	  length(which(df$significant=="both" | df$significant=="validation"))
 
-  return(c(mediation_cross_cohort_correlation=corr, 
-           mediation_cross_cohort_fraction=frac, 
+  return(c(mediation_cross_cohort_correlation=corr,
+           mediation_cross_cohort_fraction=frac,
            mediation_cross_cohort_fraction_validation_significant=frac2))
 }
 

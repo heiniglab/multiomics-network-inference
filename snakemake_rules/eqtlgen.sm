@@ -30,7 +30,7 @@ rule eqtlgen_locus_summary:
 	output:
 		DRANGES + "eqtlgen_summary.pdf"
 	script:
-		"../scripts/create_locus_summary_eqtlgen.R"
+		"../scripts/create_locus_summary.R"
 
 # -----------------------------------------------------------------------------
 # Annotate TSS with TFBS information

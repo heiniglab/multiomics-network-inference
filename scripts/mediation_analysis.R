@@ -8,15 +8,10 @@
 #' -----------------------------------------------------------------------------
 sink(snakemake@log[[1]], append = F, type = "output")
 
-#######
-## TODO adjust this script to handle eQTL seeded ranges (mediation w.r.t. trans
-# eQTLs rather than meQTLs)
-#######
-
 # ------------------------------------------------------------------------------
 print("Load libraries and source scripts")
 # ------------------------------------------------------------------------------
-library(GenomicRanges)
+suppressPackageStartupMessages(library(GenomicRanges))
 source("scripts/lib.R")
 source("scripts/validation.R")
 
@@ -41,15 +36,22 @@ print("Loading and preparing data.")
 data <- readRDS(fdata)
 ranges <- readRDS(franges)
 
+# the snp genes
 sgenes <- ranges$snp_genes$SYMBOL
 sgenes <- sgenes[sgenes %in% colnames(data)]
-cpgs <- names(ranges$cpgs)
-cpgs <- cpgs[cpgs %in% colnames(data)]
+
+# the trans associated entities
+if(ranges$seed == "meqtl") {
+  ta <- names(ranges$cpgs)
+} else {
+  ta <- ranges$trans_genes$SYMBOL
+}
+ta <- ta[ta %in% colnames(data)]
 
 # ------------------------------------------------------------------------------
 print("Performing mediation analysis.")
 # ------------------------------------------------------------------------------
-med <- mediation(data, sentinel, sgenes, cpgs,
+med <- mediation(data, sentinel, sgenes, ta,
                   fbeta_table, fbetas_per_gene_plot)
 
 # ------------------------------------------------------------------------------

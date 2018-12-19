@@ -47,7 +47,7 @@ rule convert_cpg_context:
 	input:
 		"data/current/cpgs_with_chipseq_context_100.RData"
 	output:
-		"results/current/chipseq_context.rds"
+		"results/current/cpg_context.rds"
 	script:
 		"scripts/convert_cpg_context.R"
 
@@ -184,7 +184,7 @@ rule prepare_lolipop_data:
 #------------------------------------------------------------------------------
 rule collect_ranges:
 	input: 
-		cpgcontext="data/current/cpgs_with_chipseq_context_100.RData",
+		cpgcontext="results/current/cpg_context.rds",
 		string=PPI_DB,
 		meqtl="data/current/meQTLs/transpairs_r02_110117_converted_1MB.txt",
 		tcosmo="results/current/trans-cosmopairs_combined_151216.rds",
@@ -204,11 +204,11 @@ rule collect_ranges:
 #------------------------------------------------------------------------------
 # Meta rule to collect ranges for all sentinels and plot some information
 #------------------------------------------------------------------------------
-rule ranges_overview:
+rule meqtl_locus_summary:
 	input:
 		expand(DRANGES + "{sentinel}_meqtl.rds", zip, sentinel=MEQTL.sentinel)
 	output:
-		DRANGES + "overview_{seed}.pdf"
+		DRANGES + "meqtl_summary.pdf"
 	script:
 		"scripts/create_locus_summary.R"
 

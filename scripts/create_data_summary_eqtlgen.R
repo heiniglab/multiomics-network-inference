@@ -7,10 +7,11 @@
 # ------------------------------------------------------------------------------
 print("Loading libraries and sourcing scripts.")
 # ------------------------------------------------------------------------------
+suppressPackageStartupMessages(library(GenomicRanges))
 library(ggplot2)
 library(reshape)
-suppressPackageStartupMessages(library(GenomicRanges))
 source("scripts/lib.R")
+
 cols <- set_defaultcolors()
 sfm <- scale_fill_manual(values=cols)
 theme_set(theme_bw())

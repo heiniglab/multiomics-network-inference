@@ -44,9 +44,13 @@ The pipeline is implemented as a snakemake pipeline.
 However, the already existing scripts merely have been altered such that they allow execution
 using snakemake and more improvements should be done.
 
-Modifications too the pipeline can be done in
+Modifications to the pipeline can be done in
 
 ./Snakfile
+
+and in all subworkflow scripts under
+
+./snakemake_rules/
 
 A new run of the pipeline can be performed (with cluster execution) using the following command:
 

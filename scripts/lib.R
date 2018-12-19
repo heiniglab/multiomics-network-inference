@@ -244,10 +244,9 @@ annotate.graph <- function(g, ranges, ppi_db, fcontext){
 #' @author Johann Hawe
 #'
 #' -----------------------------------------------------------------------------
-plot.ggm <- function(g, id, plot.on.device=T, dot.out=NULL){
-  library(graph)
-  library(Rgraphviz)
-  library(GenomicRanges)
+plot.ggm <- function(g, id=NULL, plot.on.device=T, dot.out=NULL){
+  suppressPackageStartupMessages(library(graph))
+  suppressPackageStartupMessages(library(Rgraphviz))
 
   # remove any unconnected nodes (primarily for bdgraph result, since
   # such nodes are already removed for genenet)
@@ -256,21 +255,33 @@ plot.ggm <- function(g, id, plot.on.device=T, dot.out=NULL){
   }
 
   # add sentinel to network if its is not in there yet or it has been removed
-  if(!(id %in% nodes(g))) {
+  if(!is.null(id) && !(id %in% nodes(g))) {
     g <- graph::addNode(c(id), g)
   }
-
   n <- nodes(g)
+
+  # if id is null, we simply identify all SNPs in the graph
+  if(is.null(id)){
+    id <- n[grepl("^rs",n)]
+  }
 
   # get trans and cpg gene symbols
   snp.genes <- n[unlist(nodeData(g,n,"snp.gene"))]
-  cpg.genes <- n[unlist(nodeData(g,n,"cpg.gene"))]
+
+  # this is only a quick hack: we plot cpg.genes/trans.genes from the meqtl/eqtl
+  # based analyses the same
+  if("cpg.gene" %in% names(nodeData(g, nodes(g)[1])[[1]])) {
+    assoc_genes <- n[unlist(nodeData(g,n,"cpg.gene"))]
+  } else if("trans.gene" %in% names(nodeData(g, nodes(g)[1])[[1]])){
+    assoc_genes <- n[unlist(nodeData(g,n,"trans.gene"))]
+  }
+
   tfs <- n[unlist(nodeData(g,n,"tf"))]
 
   # prepare plot-layout
   attrs <- list(node=list(fixedsize=TRUE, fontsize=14,
                           style="filled", fontname="helvetica"),
-                graph=list(overlap="false", root=id, outputorder="edgesfirst"))
+                graph=list(overlap="false", root=id[1], outputorder="edgesfirst"))
 
   shape = rep("ellipse", numNodes(g))
   names(shape) = n
@@ -291,7 +302,7 @@ plot.ggm <- function(g, id, plot.on.device=T, dot.out=NULL){
 
   col = rep("#ffffff", numNodes(g))
   names(col) = n
-  col[grep("^rs", n)] = "#fab4ad";
+  col[grep("^rs", n)] = "#ffe30f";
   col[grep("^cg", n)] = "#e4d7bc";
   if(!is.null(tfs)){
     col[tfs] = "green"
@@ -300,15 +311,15 @@ plot.ggm <- function(g, id, plot.on.device=T, dot.out=NULL){
   penwidth = rep(1, numNodes(g))
   names(penwidth) = n
   penwidth[snp.genes] = 3
-  penwidth[cpg.genes] = 3
+  penwidth[assoc_genes] = 3
   if(!is.null(tfs)){
     penwidth[tfs] = 3
   }
 
   bordercol = rep("black", numNodes(g));
   names(bordercol) = n;
-  bordercol[cpg.genes] = "#e4d7bc";
-  bordercol[id] = "#fab4ad";
+  bordercol[assoc_genes] = "#e4d7bc";
+  bordercol[id] = "#ffe30f";
 
   nAttrs = list(shape=shape, label=label, width=width,
                 height=height, penwidth=penwidth, fillcolor=col,
@@ -323,7 +334,7 @@ plot.ggm <- function(g, id, plot.on.device=T, dot.out=NULL){
   }
 
   # set also color for cpgs
-  for(cg in cpg.genes){
+  for(cg in assoc_genes){
     # color any edge from a cpg to one of its cpg genes blue (proximity edges)
     ecol[grepl("^cg|~cg", names(ecol)) & grepl(cg, names(ecol))] = "#b3cde2"
   }
@@ -363,6 +374,7 @@ plot.ggm <- function(g, id, plot.on.device=T, dot.out=NULL){
   return(list(graph=g, nodeAttrs=nAttrs, edgeAttrs=eAttrs, attrs=attrs))
 }
 
+#' -----------------------------------------------------------------------------
 #' Method to quickly filter an edge matrix for only those edges, which are within
 #' a specified graph
 #'
@@ -370,6 +382,7 @@ plot.ggm <- function(g, id, plot.on.device=T, dot.out=NULL){
 #'
 #' @date 2017/03/13
 #'
+#' -----------------------------------------------------------------------------
 filter.edge.matrix <- function(g, em){
   if(!is.matrix(em)){
     stop("Provided edge matrix is not an actual matrix.")

@@ -26,7 +26,7 @@ rule collect_ranges_egen:
 #TEMP = glob_wildcards(DRANGES + "{sentinel}_eqtlgen.rds")
 rule eqtlgen_locus_summary:
 	input:
-		expand(DRANGES + "{sentinel}_eqtlgen.rds", sentinel=EQTLGEN["sentinel"])
+		expand(DRANGES + "{sentinel}_eqtlgen.rds", sentinel=EQTLGEN_ALL["sentinel"])
 	output:
 		DRANGES + "eqtlgen_summary.pdf"
 	script:

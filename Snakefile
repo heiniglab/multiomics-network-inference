@@ -22,9 +22,9 @@ wildcard_constraints:
 # Define rules which should only be executed locally
 # -----------------------------------------------------------------------------
 localrules:
-        all, preprocess_kora_individuals, summarize_validation,
+        all, preprocess_kora_individuals, summarize_validation_meqtl,
         all_sim, validate_ggm_simulation, create_priors,
-        summarize_simulation, render_validation,
+        summarize_simulation, render_validation, summarize_validation_eqtlgen,
         create_stringdb, create_cosmo_splits, convert_cpg_context
 
 # ------------------------------------------------------------------------------

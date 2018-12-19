@@ -105,7 +105,7 @@ rule summarize_validation_meqtl:
                 "cat {input} | sort -r | uniq > {output}"
 
 rule summarize_validation_eqtlgen:
-        input: expand(DCOHORT_VAL + "{cohort}/{sentinel}_{graph_type}_eqtlgen.txt", sentinel=EQTLGEN["sentinel"], graph_type=GTYPES, cohort=COHORTS)
+        input: expand(DCOHORT_VAL + "{cohort}/{sentinel}_{graph_type}_eqtlgen.txt", sentinel=EQTLGEN.sentinel, graph_type=GTYPES, cohort=COHORTS)
         output: DCOHORT_VAL + "validation_all_eqtlgen.txt"
         shell:
                 "cat {input} | sort -r | uniq > {output}"

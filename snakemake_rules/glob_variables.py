@@ -36,16 +36,15 @@ def get_eqtlgen_hotspots(file):
         with open(file, "r") as f:
                 for line in f:
                         slist.append(line.strip())
-        # remove some loci for which trans genes are not
-        # available in our data
-        slist.remove("rs3130573")
-        slist.remove("rs114105355")
-        slist.remove("rs114905291")
         out["sentinel"] = slist
         return(out)
 
 # get the loci available in eQTLgen
-EQTLGEN = get_eqtlgen_hotspots("data/current/eqtl_gen/trans_hotspots.txt")
+# this is how we got ALL loci. it turned out that for some we currently
+# dont have all trans.genes in our annotation, which resulted in fewer
+# ranges. we then defined a new set based only on these ranges
+EQTLGEN_ALL = get_eqtlgen_hotspots("data/current/eqtl_gen/trans_hotspots.txt")
+EQTLGEN = glob_wildcards(DRANGES + "{sentinel}_eqtlgen.rds")
 
 # get the meQTL loci
 MEQTL = glob_wildcards("data/current/sentinels/{sentinel}.dummy")

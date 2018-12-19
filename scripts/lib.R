@@ -132,37 +132,64 @@ get.snp.range <- function(snp){
 get.chipseq.context <- function(cpgs, fcontext){
   load(fcontext)
   tfbs.ann <- tfbs.ann[rownames(tfbs.ann) %in% cpgs,,drop=F]
-
   return(tfbs.ann[cpgs,,drop=F])
 }
 
+#' -----------------------------------------------------------------------------
+#' General method to handle either CpG or TSS TFBS context
+#'
+#' @param entities IDs of CpGs or names of genes for which to get TFBS contet
+#' @param fcontext The file containing the precalculated TFBS context. Must
+#' match the entity types!
+#'
+#' @author Johann Hawe <johann.hawe@helmholtz-muenchen.de>
+#'
+#' -----------------------------------------------------------------------------
+get_tfbs_context <- function(entities, fcontext) {
+  load(fcontext)
+  tfbs_ann <- tfbs.ann[rownames(tfbs.ann) %in% entities,,drop=F]
+  return(tfbs_ann[entities,,drop=F])
+}
+
+#' -----------------------------------------------------------------------------
 #' Annotates a regulatory graph with appropriate node and
 #' edge attributes
 #'
 #' @param g The graph to be annotated
 #' @param ranges The ranges to be used for the annotation. Contains
 #' information on which genes are TFs, what the CpG genes are etc.
+#' @param ppi_db graphNEL object containing the used PPI database
+#' @param fcontext The CpG context file (cpgs annotated with TFBS)
 #'
 #' @return The same graph instance as given, but annotated with specific
 #' node and edge attributes
 #'
 #' @author Johann Hawe
 #'
-annotate.graph <- function(g, ranges, string_db, fcontext){
+#' -----------------------------------------------------------------------------
+annotate.graph <- function(g, ranges, ppi_db, fcontext){
   # work on all graph nodes
   gn <- nodes(g)
 
-  nodeDataDefaults(g,"cpg") <- F
-  nodeData(g, gn, "cpg") <- grepl("^cg", gn)
+  # check whether we have CpGs
+  if(ranges$seed == "meqtl") {
+    nodeDataDefaults(g,"cpg") <- F
+    nodeData(g, gn, "cpg") <- grepl("^cg", gn)
 
+    nodeDataDefaults(g,"cpg.gene") <- F
+    nodeData(g, gn, "cpg.gene") <- gn %in% ranges$cpg_genes$SYMBOL
+  } else {
+    # eQTLs, we have trans.genes instead of CpGs
+    nodeDataDefaults(g,"trans.gene") <- F
+    nodeData(g, gn, "trans.gene") <- gn %in% ranges$trans_genes$SYMBOL
+  }
+
+  # add common nodeData
   nodeDataDefaults(g,"snp") <- F
   nodeData(g, gn, "snp") <- grepl("^rs", gn)
 
   nodeDataDefaults(g,"snp.gene") <- F
   nodeData(g, gn, "snp.gene") <- gn %in% ranges$snp_genes$SYMBOL
-
-  nodeDataDefaults(g,"cpg.gene") <- F
-  nodeData(g, gn, "cpg.gene") <- gn %in% ranges$cpg_genes$SYMBOL
 
   nodeDataDefaults(g, "tf") <- F
   nodeData(g, gn, "tf") <- gn %in% ranges$tfs$SYMBOL
@@ -174,30 +201,33 @@ annotate.graph <- function(g, ranges, string_db, fcontext){
   edgeDataDefaults(g, "isChipSeq") <- FALSE
   edgeDataDefaults(g, "isPPI") <- FALSE
 
-  # we will also set tf2cpg priors at this point, so get all TFs
+  # add TFBS information
   tfs <- ranges$tfs$SYMBOL
-  # also get the chipseq context for our cpgs
-  context <- get.chipseq.context(names(ranges$cpgs), fcontext)
+  if(ranges$seed == "meqtl") {
+    context <- get_tfbs_context(names(ranges$cpgs), fcontext)
+  } else {
+    context <- get_tfbs_context(ranges$trans_genes$SYMBOL, fcontext)
+  }
 
   em <- matrix(ncol=2,nrow=0)
-  # for all cpgs
-  for(c in rownames(context)){
+  # for all entities
+  for(ent in rownames(context)){
     for(tf in tfs) {
       # might be that the TF was measured in more than one cell line
-      if(any(context[c,grepl(tf, colnames(context))])) {
-        em <- rbind(em,c(c,tf))
+      if(any(context[ent,grepl(tf, colnames(context))])) {
+        em <- rbind(em,c(ent,tf))
       }
     }
   }
-  em <- filter.edge.matrix(g,em)
+  em <- filter.edge.matrix(g, em)
   if(nrow(em) > 0){
-    edgeData(g,em[,1], em[,2],"isChipSeq") <- T
+    edgeData(g, em[,1], em[,2], "isChipSeq") <- T
   }
 
   # ppi edgedata
 
   # get subset of edges which are in our current graph
-  ss <- subGraph(intersect(nodes(string_db), gn), STRING_DB)
+  ss <- subGraph(intersect(nodes(ppi_db), gn), ppi_db)
   edges <- t(edgeMatrix(ss))
   edges <- cbind(gn[edges[,1]], gn[edges[,2]])
   edges <- filter.edge.matrix(g, edges)
@@ -208,6 +238,7 @@ annotate.graph <- function(g, ranges, string_db, fcontext){
   return(g)
 }
 
+#' -----------------------------------------------------------------------------
 #' Plot a GGM result graph
 #'
 #' Plots the a built graph (estimated from the sentinel data) using the
@@ -225,6 +256,7 @@ annotate.graph <- function(g, ranges, string_db, fcontext){
 #'
 #' @author Johann Hawe
 #'
+#' -----------------------------------------------------------------------------
 plot.ggm <- function(g, id, plot.on.device=T, dot.out=NULL){
   library(graph)
   library(Rgraphviz)

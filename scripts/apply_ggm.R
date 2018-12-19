@@ -28,7 +28,8 @@ franges <- snakemake@input[["ranges"]]
 fdata <- snakemake@input[["data"]]
 fppi_db <- snakemake@input[["ppi_db"]]
 fpriors <- snakemake@input[["priors"]]
-fcontext <- snakemake@input[["cpg_context"]]
+fcpg_context <- snakemake@input[["cpg_context"]]
+ftss_context <- snakemake@input[["tss_context"]]
 
 # output
 fout <- snakemake@output$fit
@@ -86,6 +87,14 @@ genenet <- reg_net(data, priors, "genenet", threads=threads)
 # ------------------------------------------------------------------------------
 print("Add custom annotations for the graphs.")
 # ------------------------------------------------------------------------------
+# determine the context to be used
+# (meqtl -> chipseq context; eqtl -> tss context)
+if(ranges$seed == meqtl) {
+  fcontext <- fcpg_context
+} else {
+  fcontext <- ftss_context
+}
+
 bdgraph$graph <- annotate.graph(bdgraph$graph, ranges, ppi_db, fcontext)
 bdgraph_no_priors_empty$graph <- annotate.graph(bdgraph_no_priors_empty$graph,
                                                 ranges, ppi_db, fcontext)

@@ -59,6 +59,9 @@ reg_net <- function(data, priors, model, threads=1,
 
   # for genenet and iRafNet, remove NAs
   data_no_nas <- data[,apply(data, 2, function(x) !anyNA(x))]
+  # we possibly lost some data when filtering for NAs, so we adjust priors too
+  priors_no_nas <- priors[rownames(priors) %in% colnames(data_no_nas),
+                          colnames(priors) %in% colnames(data_no_nas)]
 
   # check which model to build
   if("genenet" %in% model){
@@ -106,9 +109,9 @@ reg_net <- function(data, priors, model, threads=1,
     plotcoda(fit)
 
   } else if("irafnet" %in% model) {
-    irn_out <- iRafNet(data_no_nas, priors, ntrees, mtry, colnames(data_no_nas),
+    irn_out <- iRafNet(data_no_nas, priors_no_nas, ntrees, mtry, colnames(data_no_nas),
                        threads=threads)
-    irn_perm_out <- Run_permutation(data_no_nas, priors,
+    irn_perm_out <- Run_permutation(data_no_nas, priors_no_nas,
                                     ntrees, mtry, colnames(data_no_nas),
                                     npermut, threads=threads)
     fit <- iRafNet_network(irn_out, irn_perm_out, TH = irafnet.fdr)
@@ -140,7 +143,7 @@ reg_net <- function(data, priors, model, threads=1,
 # ------------------------------------------------------------------------------
 graph_from_fit <- function(ggm.fit,
                            ranges = NULL,
-                           string_db=NULL,
+                           ppi_db=NULL,
                            fcontext=NULL,
                            annotate=T){
 
@@ -167,12 +170,11 @@ graph_from_fit <- function(ggm.fit,
     g <- graphNEL(unique(c(net$node1, net$node2)),
                   edgemode = "undirected")
     g <- addEdge(net$node1, net$node2, g)
-
   }
 
   if(annotate) {
     # set node and edge attributes
-    g <- annotate.graph(g, ranges, string_db, fcontext)
+    g <- annotate.graph(g, ranges, ppi_db, fcontext)
   }
   return(g)
 }

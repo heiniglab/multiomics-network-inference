@@ -89,7 +89,7 @@ print("Add custom annotations for the graphs.")
 # ------------------------------------------------------------------------------
 # determine the context to be used
 # (meqtl -> chipseq context; eqtl -> tss context)
-if(ranges$seed == meqtl) {
+if(ranges$seed == "meqtl") {
   fcontext <- fcpg_context
 } else {
   fcontext <- ftss_context

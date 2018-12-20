@@ -54,6 +54,7 @@ get.trans.cpgs <- function(sentinel, trans.meQTL, cosmo, cpgs=NULL, cosmo.idxs=F
   }
 }
 
+# ------------------------------------------------------------------------------
 #' Get human gene annotation with symbols.
 #'
 #' This will get the gene annotation annotated with respective gene SYMBOL from UCSC for the hg19 build
@@ -63,28 +64,33 @@ get.trans.cpgs <- function(sentinel, trans.meQTL, cosmo, cpgs=NULL, cosmo.idxs=F
 #'
 #' @return GRanges object, where names(obj) are entrez-ids, and obj$SYMBOLS contains respective gene symbols
 #'
-get.gene.annotation <- function(drop.nas=TRUE) {
-  library(Homo.sapiens)
-  library(TxDb.Hsapiens.UCSC.hg19.knownGene)
-  txdb = TxDb.Hsapiens.UCSC.hg19.knownGene
-  ucsc2symbol = AnnotationDbi::select(Homo.sapiens, keys=keys(Homo.sapiens, keytype="GENEID"),
-                                      keytype="GENEID", columns="SYMBOL")
-  ucsc2alias = AnnotationDbi::select(Homo.sapiens, keys=keys(Homo.sapiens, keytype="GENEID"),
-                                      keytype="GENEID", columns="ALIAS")
+# ------------------------------------------------------------------------------
+get.gene.annotation <- function(drop.nas=TRUE, version=19) {
 
-  #ucsc2ens = AnnotationDbi::select(Homo.sapiens, keys=keys(Homo.sapiens, keytype="GENEID"),
-  #                                    keytype="GENEID", columns="ENSEMBL")
-  GENE.ANNOTATION = genes(txdb)
-  GENE.ANNOTATION$SYMBOL <- ucsc2symbol[match(values(GENE.ANNOTATION)[,"gene_id"],
-                                              ucsc2symbol[,"GENEID"]),"SYMBOL"]
-  GENE.ANNOTATION$ALIAS <- ucsc2alias[match(values(GENE.ANNOTATION)[,"gene_id"],
-                                              ucsc2alias[,"GENEID"]),"ALIAS"]
-  #GENE.ANNOTATION$ENSEMBL <- ucsc2ens[match(values(GENE.ANNOTATION)[,"gene_id"],
-  #                                            ucsc2symbol[,"GENEID"]),"ENSEMBL"]
-  if(drop.nas){
-    GENE.ANNOTATION <- GENE.ANNOTATION[!is.na(GENE.ANNOTATION$SYMBOL)]
+  if(version == 19 | version == 37) {
+    library(Homo.sapiens)
+    library(TxDb.Hsapiens.UCSC.hg19.knownGene)
+    txdb = TxDb.Hsapiens.UCSC.hg19.knownGene
+    ucsc2symbol = AnnotationDbi::select(Homo.sapiens, keys=keys(Homo.sapiens, keytype="GENEID"),
+                                        keytype="GENEID", columns="SYMBOL")
+    ga = genes(txdb)
+    ga$SYMBOL <- ucsc2symbol[match(values(ga)[,"gene_id"],
+                                                ucsc2symbol[,"GENEID"]),"SYMBOL"]
+    if(drop.nas){
+      ga <- ga[!is.na(ga$SYMBOL)]
+    }
+  } else if(version == 38) {
+    library(annotables)
+    grch38 <- data.table(grch38)
+    grch38 <- grch38[grch38$biotype=="protein_coding",]
+    ga <- with(grch38, 
+               GRanges(paste0("chr", chr), 
+                       IRanges(start, end), strand=strand, SYMBOL=symbol))
+  } else {
+    stop("Genome annotation version not supported.")
   }
-  return(GENE.ANNOTATION)
+
+  return(ga)
 }
 
 #'

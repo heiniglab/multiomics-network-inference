@@ -49,15 +49,15 @@ localrules:
         all, preprocess_kora_individuals, summarize_validation_meqtl,
         all_sim, validate_ggm_simulation, create_priors,
         summarize_simulation, render_validation, summarize_validation_eqtlgen,
-        create_stringdb, create_cosmo_splits, convert_cpg_context
+        create_stringdb, create_cosmo_splits, convert_cpg_context, all_ranges,
+        extract_meqtl_hotspots, extract_eqtlgen_hotspots
 
 # ------------------------------------------------------------------------------
-# Include the rule-sets for the two individual analyses (cohort, simulation) and
-# some eQTLgen specific rules
+# Include the rule-sets for the two individual analyses (cohort, simulation)
 # ------------------------------------------------------------------------------
 include: "snakemake_rules/cohort_data.sm"
 include: "snakemake_rules/simulation.sm"
-include: "snakemake_rules/eqtlgen.sm"
+
 
 ################################################################################
 # General rules used in both simulation and cohort studies
@@ -235,6 +235,60 @@ rule create_meqtl_locus_summary:
 		DRANGES + "meqtl_summary.pdf"
 	script:
 		"scripts/create_locus_summary.R"
+
+
+#------------------------------------------------------------------------------
+# Collect range information per sentinel snp (snp genes, connecting genes, 
+# eqtl genes etc)
+#------------------------------------------------------------------------------
+rule collect_ranges_eqtlgen:
+        input:
+                eqtl="data/current/eqtl_gen/trans-eQTL_significant_20181017.txt.gz",
+                ppi=PPI_DB,
+                tfbs_annot="results/current/tfbs_tss_annot.rds"
+        output:
+                DRANGES + "{sentinel}_eqtlgen.rds"
+        log:
+                "logs/collect_ranges_egen/{sentinel}.log"
+        benchmark:
+                "benchmarks/collect_ranges_egen/{sentinel}.bmk"
+        threads: 1
+        resources:
+                mem_mb=2300
+        script:
+                "../scripts/collect_ranges_eqtl.R"
+
+# -----------------------------------------------------------------------------
+# Target rule to generate all hotspot ranges collections for eqtl gen and to 
+# create a summary plot.
+# -----------------------------------------------------------------------------
+rule create_eqtlgen_locus_summary:
+	input:
+		expand(DRANGES + "{sentinel}_eqtlgen.rds", sentinel=EQTLGEN.sentinel)
+	output:
+		DRANGES + "eqtlgen_summary.pdf"
+	script:
+		"../scripts/create_locus_summary.R"
+
+# -----------------------------------------------------------------------------
+# Meta rule to create all ranges and their summaries
+# -----------------------------------------------------------------------------
+rule all_ranges:
+	input:
+		DRANGES + "eqtlgen_summary.pdf",
+		DRANGES + "meqtl_summary.pdf"
+	
+# -----------------------------------------------------------------------------
+# Annotate TSS with TFBS information
+# -----------------------------------------------------------------------------
+rule annotate_tss_with_tf:
+        input:
+                tfbs_remap="data/current/tfbs/filPeaks_public.bed",
+                tfbs_encode="data/current/tfbs/wgEncodeRegTfbsClusteredWithCellsV3.bed"
+        output:
+                tfbs_annot="results/current/tfbs_tss_annot.rds"
+        script:
+                "../scripts/annotate_tss_with_tf.R"
 
 #------------------------------------------------------------------------------
 # Collect cohort data for a single sentinel locus

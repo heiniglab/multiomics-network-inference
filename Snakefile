@@ -256,7 +256,7 @@ rule collect_ranges_eqtlgen:
         resources:
                 mem_mb=2300
         script:
-                "../scripts/collect_ranges_eqtl.R"
+                "scripts/collect_ranges_eqtl.R"
 
 # -----------------------------------------------------------------------------
 # Target rule to generate all hotspot ranges collections for eqtl gen and to 
@@ -268,7 +268,7 @@ rule create_eqtlgen_locus_summary:
 	output:
 		DRANGES + "eqtlgen_summary.pdf"
 	script:
-		"../scripts/create_locus_summary.R"
+		"scripts/create_locus_summary.R"
 
 # -----------------------------------------------------------------------------
 # Meta rule to create all ranges and their summaries
@@ -288,7 +288,7 @@ rule annotate_tss_with_tf:
         output:
                 tfbs_annot="results/current/tfbs_tss_annot.rds"
         script:
-                "../scripts/annotate_tss_with_tf.R"
+                "scripts/annotate_tss_with_tf.R"
 
 #------------------------------------------------------------------------------
 # Collect cohort data for a single sentinel locus

@@ -48,7 +48,8 @@ adjust_data <- function(sentinel, ranges, data, geno, fccosmo, fceqtl) {
   symbols <- unique(c(ranges$cpg_genes$SYMBOL,
                       ranges$snp_genes$SYMBOL,
                       ranges$spath$SYMBOL,
-                      ranges$tfs$SYMBOL))
+                      ranges$tfs$SYMBOL,
+                      ranges$trans_genes$SYMBOL))
   symbols <- symbols[!sapply(symbols, is.na)]
 
   # retrieve the genotype data
@@ -58,27 +59,29 @@ adjust_data <- function(sentinel, ranges, data, geno, fccosmo, fceqtl) {
   g_resid <- rm_covariate_effects(data[,!grepl("^rs|^cg",
                                                colnames(data))], "expr")
 
-  print("Loading eQTLs.")
-  eqtls <- load_eqtls(fceqtl, colnames(g_resid))
-
-  # get genotype data for eqtls and meqtls
-  ids <- unique(eqtls$snp_id)
-  if(!is.null(ids)) {
-    gen <- geno[,colnames(geno) %in% ids, drop=F]
-    gen <- gen[data$geno_ids,,drop=F]
-
-    # get rid of cis-eqtl effects
-    cat("Adjusting for cis eqtls.\n")
-    g_resid <- adjust_cis_eqtls(g_resid, eqtls, gen)
-  }
-
-
-  print("Summarizing probe levels.")
-  # summarize to gene level estimates from expression probes
-  g_resid <- summarize(g_resid, symbols = symbols)
-
-  # check whether we had meQTL seeds -> process CpG data
+  # ----------------------------------------------------------------------------
+  # meQTL seed sepcific processing
+  # ----------------------------------------------------------------------------
   if(ranges$seed == "meqtl") {
+    # remember cpg genes' probe ids -> used for adjusting cis eqtl effects
+    cpg_gene_probes <- unique(unlist(ranges$cpg_genes$ids))
+
+    # process gene data
+    print("Loading eQTLs.")
+    eqtls <- load_eqtls(fceqtl, cpg_gene_probes)
+
+    # get genotype data for eqtls and meqtls
+    ids <- unique(eqtls$snp_id)
+    if(!is.null(ids)) {
+      gen <- geno[,colnames(geno) %in% ids, drop=F]
+      gen <- gen[data$geno_ids,,drop=F]
+
+      # get rid of cis-eqtl effects
+      print("Adjusting for cis eqtls.")
+      g_resid <- adjust_cis_eqtls(g_resid, eqtls, gen)
+    }
+
+    # process the CpG data
     c_resid <- rm_covariate_effects(data[,!grepl("^rs",
                                                  colnames(data))], "meth")
 
@@ -89,12 +92,14 @@ adjust_data <- function(sentinel, ranges, data, geno, fccosmo, fceqtl) {
       gen <- geno[, colnames(geno) %in% ids, drop=F]
       gen <- gen[data$geno_ids,,drop=F]
       # get rid of cis-eqtl effects
-      cat("Adjusting for cis meqtls.\n")
+      print("Adjusting for cis meqtls.")
       c_resid <- adjust_cis_meqtls(c_resid, meqtls, gen)
     }
-  } else {
-    c_resid <- NULL
   }
+
+  print("Summarizing probe levels.")
+  # summarize to gene level estimates from expression probes
+  g_resid <- summarize(g_resid, symbols = symbols)
 
   # create complete matrix, containing all the information
   if(ranges$seed == "meqtl") {
@@ -156,11 +161,11 @@ rm_covariate_effects <- function(data, data.type, cols=NULL) {
 }
 
 # ------------------------------------------------------------------------------
-#' Takes a gene expression matrix and adjusts the genes' expression for cis-eQTLs
-#' using gtex eqtl results.
+#' Takes a gene expression matrix and adjusts the genes' expression
+#' for cis-eQTLs
 #'
 #' @param expr Gene expression matrix with all the genes in the column. Column names
-#' need to be gene symbols.
+#' need to be illumina probe ids.
 #' @param eqtls List of eqtls for which to adjust the data
 #' @param geno_data Available genotype data
 #'

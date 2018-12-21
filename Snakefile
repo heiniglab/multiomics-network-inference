@@ -47,10 +47,10 @@ MEQTL = glob_wildcards(hotspots(DHOTSPOTS + "meqtl_thres" +
 # -----------------------------------------------------------------------------
 localrules:
         all, preprocess_kora_individuals, summarize_validation_meqtl,
-        all_sim, validate_ggm_simulation, create_priors,
+        all_simulation, all_cohort, validate_ggm_simulation, create_priors,
         summarize_simulation, render_validation, summarize_validation_eqtlgen,
         create_stringdb, create_cosmo_splits, convert_cpg_context, all_ranges,
-        extract_meqtl_hotspots, extract_eqtlgen_hotspots
+	all_priors, all_data
 
 # ------------------------------------------------------------------------------
 # Include the rule-sets for the two individual analyses (cohort, simulation)
@@ -58,6 +58,17 @@ localrules:
 include: "snakemake_rules/cohort_data.sm"
 include: "snakemake_rules/simulation.sm"
 
+#-------------------------------------------------------------------------------
+# Overall target rule (both simulation and cohort study are executed).
+# Note: this runs a long time and should definitely be executed on a cluster
+#-------------------------------------------------------------------------------
+rule all:
+        input:
+                DCOHORT_VAL + "stat_overview_meqtl.pdf",
+                DRANGES + "overview_meqtl.pdf",
+                DCOHORT_VAL + "stat_overview_eqtlgen.pdf",
+                DRANGES + "overview_eqtlgen.pdf",
+                "results/current/simulation/simulation.html"
 
 ################################################################################
 # General rules used in both simulation and cohort studies
@@ -303,7 +314,7 @@ rule collect_data:
 	output:
 		DCOHORT_DATA + "{cohort}/{sentinel}_{seed}.rds",
 		DCOHORT_DATA + "{cohort}/{sentinel}_raw_{seed}.rds"
-	threads: 1
+	threads: 2
 	params:
 		cohort="{cohort}",
 		sentinel="{sentinel}"
@@ -320,7 +331,7 @@ rule collect_data:
 # Meta rule to collect data for all sentinels and plot some information. 
 # For eQTLgen we currently only have the KORA data available.
 #------------------------------------------------------------------------------
-rule data_summary:
+rule all_data:
         input:
                 meqtl=expand(DCOHORT_DATA + "{cohort}/{sentinel}_meqtl.rds", 
                              sentinel=MEQTL.sentinel, cohort=COHORTS),

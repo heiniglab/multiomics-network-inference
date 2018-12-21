@@ -1,23 +1,8 @@
-###
-# data prep
-###
-We first need to gather some data from other projects:
+## Get the randwom_walk data:
+Currently we are relying on some precalculated information which we atm
+cannot reproduce using our workflow (TODO). Therefore in a first step
+we just link the needed data to our working directory.
 
-Collect the already preprocessed cohort data:
-```{bash}
-WDIR=$(pwd)
-d="data/current/cohorts/"
-mkdir $d
-cd $d
-for i in /home/icb/johann.hawe/work/analysis/meQTLs/results/current/ggm/*.adjusted.data.RData ; do
-  ln -s $i ;
-done
-rm rs60626639*.RData
-rm rs79755767*.RData
-cd $WDIR
-```
-
-Get the randwom_walk data:
 ```{bash}
 d="data/current/networks/"
 mkdir $d
@@ -25,47 +10,50 @@ cd $d
 for i in /storage/groups/groups_epigenereg/analyses/meQTLs/results/20170517/networks/random_walk/rw_string_v9_ld_wb_plots/*.RData ; do 
   ln -s $i ; 
 done
-rm rs60626639.RData
-rm rs79755767*.RData
-
 cd $WDIR
 ```
 
-Note that we actually removed the data for the following sentinel, since at the moment it is too unconvenient to 
-wait for the results of this snp in the pipeline (>900 nodes):
-rs60626639
-rs79755767
+## Snakemake pipeline
+The analysis is implemented as a snakemake pipeline.
+Both the simulation and the cohort-data based analyses are integrated in a single workflow,
+although split into separate snakemake files, and both rely on the subworkflow located under
+'workflows/1_extract_hotspts.sm'. This workflow needs to be run before everything else, since
+it extracts the hotspot loci (as dummy sentinel files) on which the rest of the pipeline
+is based. Although this is automatically done when calling any downstream rules, the hotspot
+extraction can also be done individually:
 
-###
-# pipeline
-###
+```{bash}
+snakemake -s workflows/1_extract_hotspots.sm all
+```
 
-The pipeline is implemented as a snakemake pipeline.
-However, the already existing scripts merely have been altered such that they allow execution
-using snakemake and more improvements should be done.
+There are several meta targets to obtain intermediate results.
 
-Modifications to the pipeline can be done in
+### Generate ranges overview
+The call below creates all hotspots networks as 'ranges' objects/files and generates
+a summary plot.
 
-./Snakfile
+```{bash}
+nohup nice snakemake -j 10 -k all_ranges &
+```
 
-and in all subworkflow scripts under
+### Generaet data overview
+This call collects and normalized all cohort data for the created ranges objects and
+generates an overview plot.
 
-./snakemake_rules/
+```{bash}
+nohup nice snakemake -j 10 -k all_data &
+```
 
-A new run of the pipeline can be performed (with cluster execution) using the following command:
+### Running the complete cohort data pipeline and cluster execution
+The below code can be used to run the full network inference pipeline on a SGE cluster,
+althrough the cluster configuration (cluster.config) should be adjusted before 
+executing. Cohort and simulation study can be run separately by using either the 
+*all_cohort* or *all_simulation* rule, respectively. To call the full pipeline 
+including both studies the *all* rule is used:
 
 ```{bash}
 nohup nice snakemake -u cluster.config --jobs=100 --local-cores=10 \
            --cluster "qsub -pe smp {threads} -hard -l job_mem={resources.mem_mb}M \
-           -q {cluster.q} -cwd -V -o {log} -e {log} -N {cluster.N}" -k all & 
+           -q {cluster.q} -cwd -V -o {log} -e {log} -N {cluster.N}" all & 
 ```
 
-Currently, we are also performing a 'sub-analysis' (simulation), which we could include into the main
-pipeline on a later point.
-For now we just call snakemake with a specific target:
-
-```{bash}
-nohup nice snakemake -u cluster.config --jobs=100 --local-cores=10 \
-           --cluster "qsub -pe smp {threads} -hard -l job_mem={resources.mem_mb}M \
-           -q {cluster.q} -cwd -V -o {log} -e {log} -N {cluster.N}" all_sim &
-```

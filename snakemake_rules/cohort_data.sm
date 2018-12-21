@@ -1,13 +1,3 @@
-# -----------------------------------------------------------------------------
-# Target rule for complete cohort study
-# -----------------------------------------------------------------------------
-rule all:
-        input:
-                DCOHORT_VAL + "stat_overview_meqtl.pdf",
-                DRANGES + "overview_meqtl.pdf",
-                DCOHORT_VAL + "stat_overview_eqtlgen.pdf",
-                DRANGES + "overview_eqtlgen.pdf"
-
 #------------------------------------------------------------------------------
 # Mediation analysis. This part can be performed indepdent of the graph fits
 #------------------------------------------------------------------------------

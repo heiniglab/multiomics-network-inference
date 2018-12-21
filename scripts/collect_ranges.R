@@ -116,7 +116,7 @@ gene_annot <- get.gene.annotation()
 gene_annot$ids <- probes.from.symbols(gene_annot$SYMBOL,
                                            as.list=T)
 
-ppi_db <- readRDS(fppi)
+ppi_db <- readRDS(fppi_db)
 
 # load trans-meQTL table
 trans_meQTL = read.csv(fmeqtl,

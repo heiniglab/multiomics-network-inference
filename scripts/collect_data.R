@@ -1,6 +1,6 @@
 # ------------------------------------------------------------------------------
-#' Collects methylation, expression and genotype data for a either KORA or LOLIPOP
-#' cohort based on a ranges object
+#' Collects methylation, expression and genotype data for a either KORA or
+#' LOLIPOP cohort based on a ranges object
 #'
 #' @autho Johann Hawe
 #'
@@ -115,13 +115,14 @@ adjust_data <- function(sentinel, ranges, data, geno, fccosmo, fceqtl) {
 # ------------------------------------------------------------------------------
 #' Gets residuals based on linear models from a data matrix
 #'
-#' Calculates the residual matrix for a given matrix considering available covariates.
+#' Calculates the residual matrix for a given matrix considering available
+#' covariates.
 #' Uses linear model for methylation data and linear mixed
 #' model with plate as random effect for the expression data.
 #'
 #' @param data the matrix for which to calculate the covariates
-#' @param data.type the type of data in the matrix: either "meth" or "expr". Depending on the type
-#' different formulas are used for the linear model.
+#' @param data.type the type of data in the matrix: either "meth" or "expr".
+#' Depending on the type different formulas are used for the linear model.
 #' @param cols The col.names over which to iterate in the dataframe to calculate
 #' the residuals on (e.g. probe.ides, gene.names,..)
 #'
@@ -164,8 +165,8 @@ rm_covariate_effects <- function(data, data.type, cols=NULL) {
 #' Takes a gene expression matrix and adjusts the genes' expression
 #' for cis-eQTLs
 #'
-#' @param expr Gene expression matrix with all the genes in the column. Column names
-#' need to be illumina probe ids.
+#' @param expr Gene expression matrix with all the genes in the column.
+#' Column names need to be illumina probe ids.
 #' @param eqtls List of eqtls for which to adjust the data
 #' @param geno_data Available genotype data
 #'

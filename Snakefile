@@ -241,6 +241,21 @@ rule collect_data:
 		"scripts/collect_data.R"
 
 #------------------------------------------------------------------------------
+# Meta rule to collect data for all sentinels and plot some information. 
+# For eQTLgen we currently only have the KORA data available.
+#------------------------------------------------------------------------------
+rule data_summary:
+        input:
+                meqtl=expand(DCOHORT_DATA + "{cohort}/{sentinel}_meqtl.rds", 
+                             sentinel=MEQTL.sentinel, cohort=COHORTS),
+                eqtlgen=expand(DCOHORT_DATA + "kora/{sentinel}_eqtlgen.rds", 
+                               sentinel=EQTLGEN.sentinel)
+        output:
+                DCOHORT_DATA + "summary.pdf"
+        script:
+                "scripts/create_data_summary.R"
+
+#------------------------------------------------------------------------------
 # Collect prior information for a sentinel locus
 #------------------------------------------------------------------------------
 rule collect_priors:

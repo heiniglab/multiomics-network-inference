@@ -31,8 +31,8 @@ source("scripts/lib.R")
 
 #' Gets the shortest paths between two sets of genes
 #'
-#' Uses the validated string network and identified the genes on the shortest paths
-#' between two given genesets.
+#' Uses the validated string network and identified the genes on the shortest
+#' paths between two given genesets.
 #'
 #' @param cis List of nodes in cis (e.g. CpGs)
 #' @param trans List of nodes in trans (e.g. snp genes and TFs)
@@ -40,8 +40,8 @@ source("scripts/lib.R")
 #' @param best_trans The identified 'best' trans genes in the priorization
 #' analysis
 #' @param string_db Instance of the string.db to be used (graphNEL)
-#' @return A vector of gene symbols being on the shortest path between the two lists
-#' of genes as found in the validated string network
+#' @return A vector of gene symbols being on the shortest path between the
+#' two lists of genes as found in the validated string network
 #'
 #' @author Johann Hawe, Matthias Heinig
 #'

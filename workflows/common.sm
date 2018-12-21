@@ -1,3 +1,6 @@
+# output directories
+DHOTSPOTS = "results/current/hotspots/"
+
 # general params
 COHORTS = ["lolipop", "kora"] # available cohorts
 
@@ -17,6 +20,8 @@ else:
 # -----------------------------------------------------------------------------
 
 # output directories
+DHOTSPOTS = "results/current/hotspots/"
+
 DCOHORT_VAL = "results/current/" + PPI_NAME + "/validation/"
 DPRIORS = "results/current/" + PPI_NAME + "/priors/"
 DRANGES = "results/current/" + PPI_NAME + "/ranges/"
@@ -28,24 +33,4 @@ DMEDIATION = "results/current/" + PPI_NAME + "/mediation/"
 DSIM_DATA = "results/current/" + PPI_NAME + "/simulation/data/"
 DSIM_VALIDATION = "results/current/" + PPI_NAME + "/simulation/validation/"
 DSIM_FITS = "results/current/" + PPI_NAME + "/simulation/fits/"
-
-# Helper method to get list of eQTL gen hotspot snps
-def get_eqtlgen_hotspots(file):
-        out = {}
-        slist = []
-        with open(file, "r") as f:
-                for line in f:
-                        slist.append(line.strip())
-        out["sentinel"] = slist
-        return(out)
-
-# get the loci available in eQTLgen
-# this is how we got ALL loci. it turned out that for some we currently
-# dont have all trans.genes in our annotation, which resulted in fewer
-# ranges. we then defined a new set based only on these ranges
-EQTLGEN_ALL = get_eqtlgen_hotspots("data/current/eqtl_gen/trans_hotspots.txt")
-EQTLGEN = glob_wildcards(DRANGES + "{sentinel}_eqtlgen.rds")
-
-# get the meQTL loci
-MEQTL = glob_wildcards("data/current/sentinels/{sentinel}.dummy")
 

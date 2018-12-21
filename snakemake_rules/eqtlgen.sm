@@ -23,10 +23,9 @@ rule collect_ranges_egen:
 # Target rule to generate all hotspot ranges collections for eqtl gen and to 
 # create a summary plot.
 # -----------------------------------------------------------------------------
-#TEMP = glob_wildcards(DRANGES + "{sentinel}_eqtlgen.rds")
-rule eqtlgen_locus_summary:
+rule create_eqtlgen_locus_summary:
 	input:
-		expand(DRANGES + "{sentinel}_eqtlgen.rds", sentinel=EQTLGEN_ALL["sentinel"])
+		expand(DRANGES + "{sentinel}_eqtlgen.rds", sentinel=EQTLGEN.sentinel)
 	output:
 		DRANGES + "eqtlgen_summary.pdf"
 	script:

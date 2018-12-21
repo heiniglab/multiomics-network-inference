@@ -11,14 +11,36 @@
 configfile: "config.json"
 
 # -----------------------------------------------------------------------------
+# incude the hotspot extraction workflow which extracts all the sentinels
+# for eqtlgen and meqtl
+# -----------------------------------------------------------------------------
+subworkflow hotspots:
+    workdir:
+        "./"
+    snakefile:
+        "workflows/1_extract_hotspots.sm"
+    configfile:
+        "./config.json"
+
+# -----------------------------------------------------------------------------
 # Insert global vars
 # -----------------------------------------------------------------------------
-include: "snakemake_rules/glob_variables.py"
+include: "workflows/common.sm"
 
 # set global wildcard constraints
 wildcard_constraints:
     sentinel="rs\d+",
     seed="eqtlgen|meqtl"
+
+# the hotspots() funciton ensures the dependency on the subworkflow, 
+
+# get the loci available in eQTLgen
+EQTLGEN = glob_wildcards(hotspots(DHOTSPOTS + "eqtlgen_thres" + 
+                         config["hots_thres"] + "/loci/{sentinel}.dmy"))
+
+# get the meQTL loci
+MEQTL = glob_wildcards(hotspots(DHOTSPOTS + "meqtl_thres" + 
+                         config["hots_thres"] + "/loci/{sentinel}.dmy"))
 
 # -----------------------------------------------------------------------------
 # Define rules which should only be executed locally
@@ -206,7 +228,7 @@ rule collect_ranges:
 #------------------------------------------------------------------------------
 # Meta rule to collect ranges for all sentinels and plot some information
 #------------------------------------------------------------------------------
-rule meqtl_locus_summary:
+rule create_meqtl_locus_summary:
 	input:
 		expand(DRANGES + "{sentinel}_meqtl.rds", zip, sentinel=MEQTL.sentinel)
 	output:

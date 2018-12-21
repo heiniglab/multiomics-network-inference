@@ -1,3 +1,4 @@
 {
-	"ppi_db" : "string"
+	"hots_thres" : "5",
+	"ppi_db" : "biogrid"
 }

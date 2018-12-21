@@ -25,6 +25,7 @@ source("scripts/lib.R")
 # Define needed methods
 # ------------------------------------------------------------------------------
 
+# ------------------------------------------------------------------------------
 #' Gets the shortest paths between two sets of genes
 #'
 #' Uses the validated string network and identified the
@@ -40,6 +41,7 @@ source("scripts/lib.R")
 #'
 #' @author Johann Hawe, Matthias Heinig
 #'
+# ------------------------------------------------------------------------------
 get_shortest_paths <- function(cis, trans, snp_genes, ppi_db) {
 
   ppi_genes <- nodes(ppi_db)

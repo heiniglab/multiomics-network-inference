@@ -185,7 +185,7 @@ rule prepare_lolipop_data:
 rule collect_ranges:
 	input: 
 		cpgcontext="results/current/cpg_context.rds",
-		string=PPI_DB,
+		ppi_db=PPI_DB,
 		meqtl="data/current/meQTLs/transpairs_r02_110117_converted_1MB.txt",
 		tcosmo="results/current/trans-cosmopairs_combined_151216.rds",
 		priorization="data/current/rw_string_v9_ld_wb_prioritize_full_with_empirical_p_lte_0.05.txt"

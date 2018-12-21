@@ -46,11 +46,11 @@ source("scripts/lib.R")
 #' @author Johann Hawe, Matthias Heinig
 #'
 get_string_shortest_paths <- function(cis, trans, snp_genes,
-                                      best_trans, string_db) {
+                                      best_trans, ppi_db) {
 
   print("Preprocessing.")
-  g <- string_db
-  g.nodes <- nodes(string_db)
+  g <- ppi_db
+  g.nodes <- nodes(ppi_db)
 
   # ensure to have only nodes in our giant cluster
   cis <- cis[which(cis %in% g.nodes)]
@@ -64,7 +64,9 @@ get_string_shortest_paths <- function(cis, trans, snp_genes,
   prop = propagation(graph2sparseMatrix(g), n.eigs=500,
                      from=cis, to=trans, sum="both")
 
-  if(is.null(best_trans)) {
+  # the latter case can happen when we use the biogrid db.
+  # TODO in that case we should rethink using the a prior best_trans genes....
+  if(is.null(best_trans) | !best_trans %in% g.nodes) {
     warning("No best trans genes detected, using propagation results.")
     # get the best trans gene
     best_trans = snp_genes[which.max(prop[snp_genes,"from"])]
@@ -95,7 +97,7 @@ get_string_shortest_paths <- function(cis, trans, snp_genes,
 # ------------------------------------------------------------------------------
 fcosmo <- snakemake@input[["tcosmo"]]
 fmeqtl <- snakemake@input[["meqtl"]]
-fstring <- snakemake@input[["string"]]
+fppi_db <- snakemake@input[["ppi_db"]]
 fprio_tab <- snakemake@input$priorization
 
 # TODO: create this file from scratch!
@@ -114,7 +116,7 @@ gene_annot <- get.gene.annotation()
 gene_annot$ids <- probes.from.symbols(gene_annot$SYMBOL,
                                            as.list=T)
 
-string_db <- readRDS(fstring)
+ppi_db <- readRDS(fppi)
 
 # load trans-meQTL table
 trans_meQTL = read.csv(fmeqtl,
@@ -207,15 +209,15 @@ sp <- NULL
 cpgs <- names(croi)
 snp_genes <- unique(genes_sroi$SYMBOL)
 
-# modify string_db to contain our CpGs
+# modify ppi_db to contain our CpGs
 
 # load the cpg-tf context
 tfbs_ann <- get_tfbs_context(names(croi), fcpgcontext)
 cpgs_with_tfbs <- cpgs[cpgs %in% rownames(tfbs_ann[rowSums(tfbs_ann)>0,])]
-snp_genes_in_string <- snp_genes[snp_genes %in% nodes(string_db)]
+snp_genes_in_string <- snp_genes[snp_genes %in% nodes(ppi_db)]
 
 # get locus graph
-locus_graph <- add.to.graphs(list(string_db), sentinel, snp_genes,
+locus_graph <- add.to.graphs(list(ppi_db), sentinel, snp_genes,
                              cpgs_with_tfbs, tfbs_ann)[[1]]
 
 # get tfs connected to cpgs
@@ -226,7 +228,7 @@ if(length(tfs)<1){
   warning("No TFs, skipping shortest paths calculation.")
 } else {
   # the nodes we want to keep
-  nodeset <- c(nodes(string_db), setdiff(tfs, "KAP1"),
+  nodeset <- c(nodes(ppi_db), setdiff(tfs, "KAP1"),
                snp_genes_in_string, cpgs_with_tfbs)
   locus_graph <- subGraph(intersect(nodes(locus_graph), nodeset), locus_graph)
 

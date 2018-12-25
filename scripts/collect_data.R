@@ -312,6 +312,11 @@ load_eqtls <- function(fceqtl, expr.probes=NULL) {
   genes <- eqtls$Gene[keep]
   pids <- eqtls$Probe_Id[keep]
 
+  # check whether we got any hits
+  if(length(genes) < 1) {
+    return(NULL)
+  }
+
   # try to map some additional symbols
   temp <- lapply(1:length(genes), function(i) {
     if(genes[i] == "") {

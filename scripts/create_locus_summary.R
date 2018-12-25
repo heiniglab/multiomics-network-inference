@@ -91,22 +91,29 @@ gp2 <- gp + geom_line(aes(group=locus))
 # histograms of individual entity types
 gp3 <- ggplot(aes(x=count, fill=entity), data=melted) +
   geom_histogram(stat="count") + facet_wrap(~ entity, ncol=2) + sfm
+
+# barplot over all loci
+gp4 <- ggplot(aes(y=count, x=locus, fill=entity), data=melted) + 
+  geom_bar(stat="identity", position="dodge") + sfm + 
+  theme(axis.text.x = element_text(angle = 90, hjust = 1))
+
 pdf(fout, width=10, height=8)
 gp
 gp1
 gp2
 gp3
+gp4
 
 # finally, plot the number of entities per locus
 sum_per_locus <- tapply(melted$count, melted$locus, sum)
 sum_per_locus <- cbind.data.frame(locus=names(sum_per_locus),
                        count=sum_per_locus, stringsAsFactors=F)
-gp4 <- ggplot(aes(y=count, x="all loci", fill="all loci"),data = sum_per_locus) +
+gp5 <- ggplot(aes(y=count, x="all loci", fill="all loci"),data = sum_per_locus) +
   geom_violin(draw_quantiles = c(0.25, 0.5, 0.75)) +
   xlab("") + ylab("Number of entities") +
   ggtitle("Total number of entities for all available loci.") +
   scale_fill_manual(values=cols, guide=F)
-gp4
+gp5
 
 dev.off()
 

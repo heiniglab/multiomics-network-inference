@@ -18,6 +18,7 @@ print("Get snakemake params")
 # ------------------------------------------------------------------------------
 # input
 fmeqtl <- snakemake@input[[1]]
+fkora_data <- snakemake@input$kora_data
 
 # output
 fout_plot <- snakemake@output$plot
@@ -32,6 +33,11 @@ hots_thres <- as.numeric(snakemake@wildcards$hots_thres)
 # ------------------------------------------------------------------------------
 print("Loading and processing data.")
 # ------------------------------------------------------------------------------
+load(fkora_data)
+available_snps <- colnames(geno)
+rm(geno,expr,meth,covars)
+gc()
+
 meqtl <- fread(fmeqtl)
 
 # check the number of trans sentinel cpg for each sentinel
@@ -51,6 +57,8 @@ trans_cpgs_by_snp <- trans_cpgs_by_snp[!unlist(lapply(trans_cpgs_by_snp,
 hotspots <- cbind.data.frame(sentinel=names(trans_cpgs_by_snp),
                              ntrans=unlist(lapply(trans_cpgs_by_snp, length)),
                              stringsAsFactors=F)
+hotspots <- hotspots[hotspots$sentinel %in% available_snps,,drop=F]
+
 print("Total number of hotspots:")
 print(nrow(hotspots))
 

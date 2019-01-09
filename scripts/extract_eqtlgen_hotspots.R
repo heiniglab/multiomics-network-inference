@@ -18,6 +18,7 @@ print("Get snakemake params")
 # ------------------------------------------------------------------------------
 # input
 feqtl <- snakemake@input[[1]]
+fkora_data <- snakemake@input$kora_data
 
 # output
 fout_plot <- snakemake@output$plot
@@ -31,11 +32,17 @@ hots_thres <- as.numeric(snakemake@wildcards$hots_thres)
 # ------------------------------------------------------------------------------
 print("Loading and processing data.")
 # ------------------------------------------------------------------------------
+load(fkora_data)
+available_snps <- colnames(geno)
+rm(geno,expr,meth,covars)
+gc()
+
 eqtl <- fread(paste0("zcat ", feqtl))
 
 # filter eqtl for genes in our gene annotation
 ga <- get.gene.annotation()
 eqtl <- eqtl[eqtl$GeneSymbol %in% ga$SYMBOL,]
+eqtl <- eqtl[eqtl$SNP %in% available_snps,]
 
 # get all trans genes per SNP
 trans_genes_by_snp <- tapply(eqtl$GeneSymbol, eqtl$SNP, function(x) {

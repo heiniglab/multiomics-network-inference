@@ -170,35 +170,6 @@ rule preprocess_kora_individuals:
 		"""
 
 #------------------------------------------------------------------------------
-# Gather kora data in single file for more convenient postprocessing
-#------------------------------------------------------------------------------
-rule prepare_kora_data:
-	input:
-		genotypes="data/current/kora/snp_dosages/MAF001/full_sorted.bgz",
-		expression="data/current/kora/expression/kora_f4_normalized.Rdata",
-		expression_cov="data/current/kora/expression/technical_covariables_kora_f4.Rdata",
-		methylation="data/current/kora/methylation/KF4_beta_qn_bmiq.RData",
-		methylation_cov="data/current/kora/methylation/control_probe_pcs_n1727.RData",
-		individuals="results/current/kora_individuals.csv",
-		impute_indiv="data/current/kora/imputation_individuals",
-		trans_meqtl="data/current/meQTLs/transpairs_r02_110117_converted_1MB.txt",
-		houseman="data/current/kora/methylation/Houseman/KF4_QN_estimated_cell_distribution_meanimpute473_lessThanOneTRUE.csv",
-		kora_ceqtl="data/current/kora/eqtl/kora-cis-eqtls.csv",
-		cosmo="data/current/meQTLs/cosmopairs_combined_151216.RData",
-		eqtl_gen="data/current/eqtl_gen/trans-eQTL_significant_20181017.txt.gz"
-	output:
-		"results/current/ggmdata_kora.RData"
-	resources:
-		mem_mb=23000
-	log:
-		"logs/prepare-kora-data.log"
-	threads: 6
-	benchmark:
-		"benchmarks/prepare-kora-data.bmk"
-	script:
-		"scripts/prepare-kora-data.R"
-
-#------------------------------------------------------------------------------
 # Prepare lolipop data for more convenient postprocessing
 #------------------------------------------------------------------------------
 rule prepare_lolipop_data:

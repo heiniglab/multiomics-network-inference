@@ -51,20 +51,19 @@ get_genotypes <- function(snp_ranges, dosage_file,
   }, mc.cores=threads)
   geno <- do.call(rbind, temp)
 
-  if(nrow(geno) != length(snp_ranges)){
+  if(nrow(geno) < length(snp_ranges)){
     warning("Some SNPs were NA in genotype data.")
   }
 
   geno <- t(geno)
 
   # get rid of non-changing snps
-  if(any(apply(geno,2,var)!=0)) {
+  if(any(apply(geno,2,var)==0)) {
     warning("Removing non-varying SNPs.")
     geno <- geno[,apply(geno,2,var)!=0, drop=F]
   }
   # refactor column names (get rid of beginning "1.")
-  colnames(geno) <- gsub("^1\\.", "", colnames(geno))
-  return(geno)
+  colnames(geno) <- gsub("^[0-9]+\\.", "", colnames(geno))
 }
 
 # ------------------------------------------------------------------------------
@@ -142,10 +141,10 @@ findividual_mapping <- snakemake@input[["individuals"]]
 fexpression <- snakemake@input[["expression"]]
 fexpression_cov <- snakemake@input[["expression_cov"]]
 fmethylation <- snakemake@input[["methylation"]]
-fmethylationn_cov <- snakemake@input[["methylation_cov"]]
+fmethylation_cov <- snakemake@input[["methylation_cov"]]
 ftrans_meqtl <- snakemake@input[["trans_meqtl"]]
 fhouseman <- snakemake@input[["houseman"]]
-fccosmo <- snakemake@input[["ccosmo"]]
+fcosmo <- snakemake@input[["cosmo"]]
 fceqtl <- snakemake@input[["kora_ceqtl"]]
 feqtlgen <- snakemake@input[["eqtl_gen"]]
 
@@ -177,14 +176,14 @@ eqtlgen <- unique(with(eqtlgen, GRanges(paste0("chr", SNPChr),
                                         IRanges(SNPPos, width=1))))
 ranges <- unique(c(ranges, eqtlgen))
 
-cosmo <- readRDS(fccosmo)
+load(fcosmo)
 ranges <- unique(c(ranges, with(cosmo,
                                 GRanges(paste0("chr", snp.chr),
                                         IRanges(snp.pos, width=1)))))
 rm(cosmo, ceqtl)
 gc()
 
-print(paste0("Got ", length(ranges), " SNPs to process."))
+print(paste0("Got ", length(ranges), " ranges to process."))
 
 # ------------------------------------------------------------------------------
 print("Loading KORA data.")
@@ -209,7 +208,7 @@ print("Preparing KORA raw data.")
 # load covariates to get ids of samples with expression/methylation data
 load(fexpression_cov)
 expr_sids <-as.character(covars.f4$ZZ.NR)
-load(fmethylationn_cov)
+load(fmethylation_cov)
 meth_sids <- rownames(pcs)
 
 # gets as 687 individuals, having all data available (some ids of the id

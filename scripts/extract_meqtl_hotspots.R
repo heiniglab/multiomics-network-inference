@@ -10,6 +10,7 @@
 print("Load libraries and source scripts")
 # ------------------------------------------------------------------------------
 suppressPackageStartupMessages(library(GenomicRanges))
+suppressPackageStartupMessages(library(ggplot2))
 library(data.table)
 source("scripts/lib.R")
 
@@ -19,6 +20,7 @@ print("Get snakemake params")
 # input
 fmeqtl <- snakemake@input[[1]]
 fkora_data <- snakemake@input$kora_data
+flolipop_data <- snakemake@input$lolipop_data
 
 # output
 fout_plot <- snakemake@output$plot
@@ -35,6 +37,9 @@ print("Loading and processing data.")
 # ------------------------------------------------------------------------------
 load(fkora_data)
 available_snps <- colnames(geno)
+load(flolipop_data)
+available_snps <- intersect(available_snps, colnames(geno))
+
 rm(geno,expr,meth,covars)
 gc()
 
@@ -71,9 +76,12 @@ for(i in 1:nrow(hotspots)) {
 }
 
 # plot a simple histogram for now
+theme_set(theme_bw())
+
 pdf(fout_plot)
-hist(hotspots$ntrans, breaks=50, xlab="number of trans genes",
-     main = "Hotspot overview")
+ggplot(aes(x=ntrans), data=hotspots) + geom_histogram() +
+  ggtitle(paste0("Overview on number of trans CpGs for ", nrow(hotspots), " hotspots.")) +
+  xlab("number of trans associations")
 dev.off()
 
 # ------------------------------------------------------------------------------

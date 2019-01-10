@@ -157,35 +157,6 @@ rule create_cosmo_splits:
 		"scripts/create-cosmo-splits.R"
 
 #------------------------------------------------------------------------------
-# Preprocess the sample-mapping sheet for kora
-#------------------------------------------------------------------------------
-rule preprocess_kora_individuals:
-	input:
-		"data/current/kora/individuals.csv"
-	output:
-		"results/current/kora_individuals.csv"
-	shell:
-		"""
-		awk 'BEGIN {{ FS = ";" }} ; {{ if ($1 != "" && $5 != "" && $6 != "" ) print }}' {input} | sed s/zz_nr_//g > {output}
-		"""
-
-#------------------------------------------------------------------------------
-# Prepare lolipop data for more convenient postprocessing
-#------------------------------------------------------------------------------
-rule prepare_lolipop_data:
-	input: 
-		lolipop="data/current/meQTLs/ggmdata_201017.RData"
-	output: "results/current/ggmdata_lolipop.RData"
-	resources:
-		mem_mb=2000
-	log:
-		"logs/prepare-lolipop-data.log"
-	benchmark:
-		"benchmarks/prepare-lolipop-data.bmk"
-	script:
-		"scripts/prepare-lolipop-data.R"
-		
-#------------------------------------------------------------------------------
 # Collect range information per sentinel snp (snp genes, cpg genes, etc)
 #------------------------------------------------------------------------------
 rule collect_ranges:

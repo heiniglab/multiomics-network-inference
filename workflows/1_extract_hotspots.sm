@@ -10,6 +10,18 @@ rule all:
 		DHOTSPOTS + "eqtlgen_thres" + config["hots_thres"] + "/summary.pdf",
 		DHOTSPOTS + "meqtl_thres" + config["hots_thres"] + "/summary.pdf"
 
+#------------------------------------------------------------------------------
+# Preprocess the sample-mapping sheet for kora
+#------------------------------------------------------------------------------
+rule preprocess_kora_individuals:
+        input:
+                "data/current/kora/individuals.csv"
+        output:
+                "results/current/kora_individuals.csv"
+        shell:
+                """
+                awk 'BEGIN {{ FS = ";" }} ; {{ if ($1 != "" && $5 != "" && $6 != "" ) print }}' {input} | sed s/zz_nr_//g > {output}
+                """
 
 #------------------------------------------------------------------------------
 # Gather kora data in single file for more convenient postprocessing.
@@ -45,13 +57,30 @@ rule prepare_kora_data:
         script:
                 "../scripts/prepare-kora-data.R"
 
+#------------------------------------------------------------------------------
+# Prepare lolipop data for more convenient postprocessing
+#------------------------------------------------------------------------------
+rule prepare_lolipop_data:
+        input:
+                lolipop="data/current/meQTLs/ggmdata_201017.RData"
+        output: "results/current/ggmdata_lolipop.RData"
+        resources:
+                mem_mb=2000
+        log:
+                "logs/prepare-lolipop-data.log"
+        benchmark:
+                "benchmarks/prepare-lolipop-data.bmk"
+        script:
+                "scripts/prepare-lolipop-data.R"
+
 # ------------------------------------------------------------------------------
 # Extract eQTLgen hotspots
 # ------------------------------------------------------------------------------
 rule extract_eqtlgen_hotspots:
 	input:
 		eqtl="data/current/eqtl_gen/trans-eQTL_significant_20181017.txt.gz",
-		kora_data = "results/current/ggmdata_kora.RData"
+		kora_data = "results/current/ggmdata_kora.RData",
+		lolipop_data = "results/current/ggmdata_lolipop.RData"
 	output:
 		plot=DHOTSPOTS + "eqtlgen_thres{hots_thres}/summary.pdf",
 		loci_dir=directory(DHOTSPOTS + "eqtlgen_thres{hots_thres}/loci/")
@@ -64,7 +93,8 @@ rule extract_eqtlgen_hotspots:
 rule extract_meqtl_hotspots:
 	input:
 		meqtl="data/current/meQTLs/transpairs_r02_110117_converted_1MB.txt",
-		kora_data = "results/current/ggmdata_kora.RData"
+		kora_data = "results/current/ggmdata_kora.RData",
+		lolipop_data = "results/current/ggmdata_lolipop.RData"
 	output:
 		plot=DHOTSPOTS + "meqtl_thres{hots_thres}/summary.pdf",
 		loci_dir=directory(DHOTSPOTS + "meqtl_thres{hots_thres}/loci/")

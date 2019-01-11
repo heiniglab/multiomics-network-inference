@@ -275,9 +275,9 @@ rule collect_data:
 #------------------------------------------------------------------------------
 rule all_data:
         input:
-                meqtl=expand(DCOHORT_DATA + "{cohort}/{sentinel}_meqtl.rds", 
+                expand(DCOHORT_DATA + "{cohort}/{sentinel}_meqtl.rds", 
                              sentinel=MEQTL.sentinel, cohort=COHORTS),
-                eqtlgen=expand(DCOHORT_DATA + "kora/{sentinel}_eqtlgen.rds", 
+                expand(DCOHORT_DATA + "kora/{sentinel}_eqtlgen.rds", 
                                sentinel=EQTLGEN.sentinel)
         output:
                 DCOHORT_DATA + "summary.pdf"

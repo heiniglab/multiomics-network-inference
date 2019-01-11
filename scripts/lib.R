@@ -13,6 +13,7 @@ set_defaultcolors <- function() {
   return(cols)
 }
 
+# ------------------------------------------------------------------------------
 #' Gets trans-associated CpGs for a sentinel SNP
 #'
 #' Get all trans cpgs for an individual sentinel SNP using a "cosmo"
@@ -27,6 +28,7 @@ set_defaultcolors <- function() {
 #'
 #' @author Matthias Heinig
 #'
+# ------------------------------------------------------------------------------
 get.trans.cpgs <- function(sentinel, trans.meQTL, cosmo, cpgs=NULL, cosmo.idxs=F) {
 
   pairs = which(trans.meQTL[,"sentinel.snp"] == sentinel)
@@ -93,6 +95,7 @@ get.gene.annotation <- function(drop.nas=TRUE, version=19) {
   return(ga)
 }
 
+# ------------------------------------------------------------------------------
 #'
 #' Define a convenience function to get linear model p-values
 #'
@@ -100,6 +103,7 @@ get.gene.annotation <- function(drop.nas=TRUE, version=19) {
 #'
 #' @return The p-value to the given linear model
 #'
+# ------------------------------------------------------------------------------
 lmp <- function (modelobject) {
     if (class(modelobject) != "lm") stop("Not an object of class 'lm' ")
     f <- summary(modelobject)$fstatistic
@@ -108,10 +112,12 @@ lmp <- function (modelobject) {
     return(p)
 }
 
+# ------------------------------------------------------------------------------
 #' Gets a single snp range from the gtex snp database
 #'
 #' @author Johann Hawe
 #'
+# ------------------------------------------------------------------------------
 get.snp.range <- function(snp){
   library(data.table)
   snps <- fread(paste0("results/current/gtex-snp-locations.txt"))
@@ -250,9 +256,12 @@ annotate.graph <- function(g, ranges, ppi_db, fcontext){
 #' @author Johann Hawe
 #'
 #' -----------------------------------------------------------------------------
-plot.ggm <- function(g, id=NULL, plot.on.device=T, dot.out=NULL){
+plot.ggm <- function(g, id=NULL, plot.on.device=T, dot.out=NULL, ...){
   suppressPackageStartupMessages(library(graph))
   suppressPackageStartupMessages(library(Rgraphviz))
+
+  # get some default colors to be used here
+  cols <- set_defaultcolors()
 
   # remove any unconnected nodes (primarily for bdgraph result, since
   # such nodes are already removed for genenet)
@@ -268,7 +277,7 @@ plot.ggm <- function(g, id=NULL, plot.on.device=T, dot.out=NULL){
 
   # if id is null, we simply identify all SNPs in the graph
   if(is.null(id)){
-    id <- n[grepl("^rs",n)]
+    id <- n[grepl("^rs|^chr",n)]
   }
 
   # get trans and cpg gene symbols
@@ -292,7 +301,7 @@ plot.ggm <- function(g, id=NULL, plot.on.device=T, dot.out=NULL){
   shape = rep("ellipse", numNodes(g))
   names(shape) = n
   shape[grep("^cg", n)] = "box"
-  shape[grep("^rs", n)] = "box"
+  shape[grep(id, n)] = "box"
 
   width = rep(0.8, numNodes(g))
   names(width) = n
@@ -308,11 +317,13 @@ plot.ggm <- function(g, id=NULL, plot.on.device=T, dot.out=NULL){
 
   col = rep("#ffffff", numNodes(g))
   names(col) = n
-  col[grep("^rs", n)] = "#ffe30f";
-  col[grep("^cg", n)] = "#e4d7bc";
+  col[grep(id, n)] = cols[1]
+  col[grep("^cg", n)] = cols[2]
   if(!is.null(tfs)){
-    col[tfs] = "green"
+    col[tfs] = cols[3]
   }
+  col[snp.genes] = cols[4]
+  col[assoc_genes] = cols[5]
 
   penwidth = rep(1, numNodes(g))
   names(penwidth) = n
@@ -366,7 +377,13 @@ plot.ggm <- function(g, id=NULL, plot.on.device=T, dot.out=NULL){
   if(numEdges(g)>500){
     warning("Skipping plotting on device due to large amount of edges")
   } else if(plot.on.device) {
-    plot(g, "twopi", nodeAttrs=nAttrs, edgeAttrs=eAttrs, attrs=attrs)
+    plot(g, "twopi", nodeAttrs=nAttrs, edgeAttrs=eAttrs, attrs=attrs, ...)
+    # start with empty plot, then add legend
+    plot(NULL ,xaxt='n',yaxt='n',bty='n',ylab='',xlab='', xlim=0:1, ylim=0:1)
+
+    legend("left", legend = c("SNP","SNP gene","TF","assoc gene"),
+           pch=16, pt.cex=3, cex=1.5, bty='n',
+           col = c(cols[1], cols[4], cols[3], cols[5]), title="graph legend")
   }
 
   if(!is.null(dot.out)){

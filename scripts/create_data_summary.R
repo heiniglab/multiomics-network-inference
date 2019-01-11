@@ -9,7 +9,6 @@ print("Loading libraries and sourcing scripts.")
 # ------------------------------------------------------------------------------
 suppressPackageStartupMessages(library(GenomicRanges))
 library(ggplot2)
-library(reshape)
 source("scripts/lib.R")
 
 cols <- set_defaultcolors()
@@ -35,6 +34,7 @@ data <- lapply(finputs, function(fin) {
 
 data <- do.call(rbind.data.frame, args=c(data, stringsAsFactors=F))
 colnames(data) <- c("entities")
+data$seed <- ifelse(grepl("eqtlgen", finputs), "eqtlgen", "meqtl")
 
 # convert back to numeric..
 data$entities <- as.numeric(data$entities)
@@ -43,7 +43,11 @@ data$entities <- as.numeric(data$entities)
 print("Plotting and saving results.")
 # ------------------------------------------------------------------------------
 pdf(fout)
-hist(data$entities, breaks=100)
+ggplot(data, aes(x=entities)) + geom_histogram(stat="count") +
+  xlab("number of variables") + ggtitle("Histogram of the number of
+                                                     variables over all loci
+                                                     for meQTL and eQTLgen.") +
+  facet_wrap(~seed, ncol=2)
 dev.off()
 
 # ------------------------------------------------------------------------------

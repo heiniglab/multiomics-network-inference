@@ -65,9 +65,9 @@ include: "snakemake_rules/simulation.sm"
 rule all:
         input:
                 DCOHORT_VAL + "stat_overview_meqtl.pdf",
-                DRANGES + "overview_meqtl.pdf",
+                DRANGES + "meqtl_summary.pdf",
                 DCOHORT_VAL + "stat_overview_eqtlgen.pdf",
-                DRANGES + "overview_eqtlgen.pdf",
+                DRANGES + "eqtlgen_summary.pdf",
                 "results/current/simulation/simulation.html"
 
 ################################################################################
@@ -156,64 +156,6 @@ rule create_cosmo_splits:
 	script:
 		"scripts/create-cosmo-splits.R"
 
-#------------------------------------------------------------------------------
-# Preprocess the sample-mapping sheet for kora
-#------------------------------------------------------------------------------
-rule preprocess_kora_individuals:
-	input:
-		"data/current/kora/individuals.csv"
-	output:
-		"results/current/kora_individuals.csv"
-	shell:
-		"""
-		awk 'BEGIN {{ FS = ";" }} ; {{ if ($1 != "" && $5 != "" && $6 != "" ) print }}' {input} | sed s/zz_nr_//g > {output}
-		"""
-
-#------------------------------------------------------------------------------
-# Gather kora data in single file for more convenient postprocessing
-#------------------------------------------------------------------------------
-rule prepare_kora_data:
-	input:
-		genotypes="data/current/kora/snp_dosages/MAF001/full_sorted.bgz",
-		expression="data/current/kora/expression/kora_f4_normalized.Rdata",
-		expression_cov="data/current/kora/expression/technical_covariables_kora_f4.Rdata",
-		methylation="data/current/kora/methylation/KF4_beta_qn_bmiq.RData",
-		methylation_cov="data/current/kora/methylation/control_probe_pcs_n1727.RData",
-		individuals="results/current/kora_individuals.csv",
-		impute_indiv="data/current/kora/imputation_individuals",
-		trans_meqtl="data/current/meQTLs/transpairs_r02_110117_converted_1MB.txt",
-		houseman="data/current/kora/methylation/Houseman/KF4_QN_estimated_cell_distribution_meanimpute473_lessThanOneTRUE.csv",
-		kora_ceqtl="data/current/kora/eqtl/kora-cis-eqtls.csv",
-		ccosmo="results/current/cis-cosmopairs_combined_151216.rds",
-		eqtl_gen="data/current/eqtl_gen/trans-eQTL_significant_20181017.txt.gz"
-	output:
-		"results/current/ggmdata_kora.RData"
-	resources:
-		mem_mb=23000
-	log:
-		"logs/prepare-kora-data.log"
-	threads: 6
-	benchmark:
-		"benchmarks/prepare-kora-data.bmk"
-	script:
-		"scripts/prepare-kora-data.R"
-
-#------------------------------------------------------------------------------
-# Prepare lolipop data for more convenient postprocessing
-#------------------------------------------------------------------------------
-rule prepare_lolipop_data:
-	input: 
-		lolipop="data/current/meQTLs/ggmdata_201017.RData"
-	output: "results/current/ggmdata_lolipop.RData"
-	resources:
-		mem_mb=2000
-	log:
-		"logs/prepare-lolipop-data.log"
-	benchmark:
-		"benchmarks/prepare-lolipop-data.bmk"
-	script:
-		"scripts/prepare-lolipop-data.R"
-		
 #------------------------------------------------------------------------------
 # Collect range information per sentinel snp (snp genes, cpg genes, etc)
 #------------------------------------------------------------------------------
@@ -333,9 +275,9 @@ rule collect_data:
 #------------------------------------------------------------------------------
 rule all_data:
         input:
-                meqtl=expand(DCOHORT_DATA + "{cohort}/{sentinel}_meqtl.rds", 
+                expand(DCOHORT_DATA + "{cohort}/{sentinel}_meqtl.rds", 
                              sentinel=MEQTL.sentinel, cohort=COHORTS),
-                eqtlgen=expand(DCOHORT_DATA + "kora/{sentinel}_eqtlgen.rds", 
+                expand(DCOHORT_DATA + "kora/{sentinel}_eqtlgen.rds", 
                                sentinel=EQTLGEN.sentinel)
         output:
                 DCOHORT_DATA + "summary.pdf"

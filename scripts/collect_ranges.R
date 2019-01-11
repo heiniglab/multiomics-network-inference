@@ -66,7 +66,7 @@ get_string_shortest_paths <- function(cis, trans, snp_genes,
 
   # the latter case can happen when we use the biogrid db.
   # TODO in that case we should rethink using the a prior best_trans genes....
-  if(is.null(best_trans) | !best_trans %in% g.nodes) {
+  if(is.null(best_trans) || !best_trans %in% g.nodes) {
     warning("No best trans genes detected, using propagation results.")
     # get the best trans gene
     best_trans = snp_genes[which.max(prop[snp_genes,"from"])]

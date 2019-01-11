@@ -66,69 +66,6 @@ get_genotypes <- function(snp_ranges, dosage_file,
   colnames(geno) <- gsub("^[0-9]+\\.", "", colnames(geno))
 }
 
-# ------------------------------------------------------------------------------
-#' Scans genotype files for SNPs within the provided genomic ranges
-#'
-#' @param ranges GRanges object containing the ranges which to scan for SNPs
-#' @param dir Base directory in which genotype information is stored
-#' @param genotype.file Path to and including file which contains the genotypes,
-#' relative to the base directory
-#' @param id.file Path to and including file which contains the individual ids,
-#' relative to the base directory
-#'
-#' @author Johann Hawe
-#'
-# ------------------------------------------------------------------------------
-scan_snps <- function(ranges, dosage_file, individuals) {
-
-  # create system command using tabix...
-  ranges.str <- paste(ranges, collapse=" ")
-
-  # for very large ranges-objects (e.g. several thousand ranges)
-  # using the tabix cmd directly in the fread method seems not
-  # to work, neither does calling tabix via the system() command.
-  # therefore we create a temp bash file (tf), which we call using R
-  # the output (tf2) is then read using fread
-  tf <- tempfile()
-  tf2 <- tempfile()
-  cmd <- paste0("tabix ", dosage_file, " ", ranges.str, " > ", tf2)
-  cat(cmd, file=tf, append = F)
-  system(paste0("sh ", tf))
-
-  # read the data from the created temp file
-  data <- tryCatch( {
-    d <- fread(tf2, sep="\t", data.table=F)
-  }, warning = function(e) {
-    message(paste0("WARNING when loading SNPs:\n", e))
-    return(d)
-  }, error= function(e) {
-    message(paste0("ERROR when loading SNPs:\n", e))
-  }
-  )
-
-  # remove the temp files instantly
-  rm(tf,tf2)
-
-  if(inherits(data, "try-error")){
-    cat("No SNPs found in specified regions.\n")
-    return(list(snpInfo=data.frame(), snps=data.frame()))
-  } else {
-    data <- data[!duplicated(data[,2]),,drop=F]
-    message(paste("Processed", nrow(data), "SNPs." ))
-
-    # process the genotype information to get numerics
-    for(i in 6:ncol(data)){
-      data[,i] <- (as.numeric(data[,i]))
-    }
-
-    ## create colnames using individual codes
-    colnames(data)<- c("chr", "name", "pos", "orig", "alt", individuals)
-    rownames(data) <- data$name
-
-    return(data[,6:ncol(data)])
-  }
-}
-
 # start processing -------------------------------------------------------------
 
 # ------------------------------------------------------------------------------

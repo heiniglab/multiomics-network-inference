@@ -39,7 +39,7 @@ rule prepare_kora_data:
                 methylation="data/current/kora/methylation/KF4_beta_qn_bmiq.RData",
                 methylation_cov="data/current/kora/methylation/control_probe_pcs_n1727.RData",
                 individuals="results/current/kora_individuals.csv",
-                impute_indiv="data/current/kora/imputation_individuals",
+                impute_indiv="data/current/kora/imputation_individuals.txt",
                 trans_meqtl="data/current/meQTLs/transpairs_r02_110117_converted_1MB.txt",
                 houseman="data/current/kora/methylation/Houseman/KF4_QN_estimated_cell_distribution_meanimpute473_lessThanOneTRUE.csv",
                 kora_ceqtl="data/current/kora/eqtl/kora-cis-eqtls.csv",

@@ -256,8 +256,7 @@ annotate.graph <- function(g, ranges, ppi_db, fcontext){
 #' @author Johann Hawe
 #'
 #' -----------------------------------------------------------------------------
-plot.ggm <- function(g, id=NULL, plot.on.device=T, dot.out=NULL,
-                     legend.out=NULL){
+plot.ggm <- function(g, id=NULL, plot.on.device=T, dot.out=NULL, ...){
   suppressPackageStartupMessages(library(graph))
   suppressPackageStartupMessages(library(Rgraphviz))
 
@@ -378,7 +377,13 @@ plot.ggm <- function(g, id=NULL, plot.on.device=T, dot.out=NULL,
   if(numEdges(g)>500){
     warning("Skipping plotting on device due to large amount of edges")
   } else if(plot.on.device) {
-    plot(g, "twopi", nodeAttrs=nAttrs, edgeAttrs=eAttrs, attrs=attrs)
+    plot(g, "twopi", nodeAttrs=nAttrs, edgeAttrs=eAttrs, attrs=attrs, ...)
+    # start with empty plot, then add legend
+    plot(NULL ,xaxt='n',yaxt='n',bty='n',ylab='',xlab='', xlim=0:1, ylim=0:1)
+
+    legend("left", legend = c("SNP","SNP gene","TF","assoc gene"),
+           pch=16, pt.cex=3, cex=1.5, bty='n',
+           col = c(cols[1], cols[4], cols[3], cols[5]), title="graph legend")
   }
 
   if(!is.null(dot.out)){
@@ -387,19 +392,6 @@ plot.ggm <- function(g, id=NULL, plot.on.device=T, dot.out=NULL,
     toDot(g, dot.out, nodeAttrs=nAttrs, edgeAttrs=eAttrs, attrs=attrs)
   }
 
-  # plot the legend?
-  if(!is.null(legend.out)) {
-    pdf(legend.out)
-
-    # start with empty plot, then add legend
-    plot(NULL ,xaxt='n',yaxt='n',bty='n',ylab='',xlab='', xlim=0:1, ylim=0:1)
-
-    legend("topleft", legend = c("SNP","SNP gene","TF","assoc gene"), 
-           pch=16, pt.cex=3, cex=1.5, bty='n',
-           col = c(cols[1], cols[4], cols[3], cols[5]))
-    mtext("Legend", at=0.2, cex=2)
-    dev.off()
-  }
   # return the list of created plotattributes and the possibly modified graph
   # object
   return(list(graph=g, nodeAttrs=nAttrs, edgeAttrs=eAttrs, attrs=attrs))

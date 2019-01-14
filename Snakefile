@@ -11,14 +11,14 @@
 configfile: "config.json"
 
 # -----------------------------------------------------------------------------
-# incude the hotspot extraction workflow which extracts all the sentinels
-# for eqtlgen and meqtl
+# include the hotspot extraction workflow which extracts all the sentinels
+# for eqtlgen and meqtl as well as additional data prep
 # -----------------------------------------------------------------------------
-subworkflow hotspots:
+subworkflow preprocess:
     workdir:
         "./"
     snakefile:
-        "workflows/1_extract_hotspots.sm"
+        "workflows/1_preprocess.sm"
     configfile:
         "./config.json"
 
@@ -32,14 +32,14 @@ wildcard_constraints:
     sentinel="rs\d+",
     seed="eqtlgen|meqtl"
 
-# the hotspots() funciton ensures the dependency on the subworkflow, 
+# the preprocess() funciton ensures the dependency on the subworkflow, 
 
 # get the loci available in eQTLgen
-EQTLGEN = glob_wildcards(hotspots(DHOTSPOTS + "eqtlgen_thres" + 
+EQTLGEN = glob_wildcards(preprocess(DHOTSPOTS + "eqtlgen_thres" + 
                          config["hots_thres"] + "/loci/{sentinel}.dmy"))
 
 # get the meQTL loci
-MEQTL = glob_wildcards(hotspots(DHOTSPOTS + "meqtl_thres" + 
+MEQTL = glob_wildcards(preprocess(DHOTSPOTS + "meqtl_thres" + 
                          config["hots_thres"] + "/loci/{sentinel}.dmy"))
 
 # -----------------------------------------------------------------------------
@@ -249,8 +249,8 @@ rule annotate_tss_with_tf:
 rule collect_data:
 	input: 
 		ranges=DRANGES + "{sentinel}_{seed}.rds",
-		kora="results/current/ggmdata_kora.RData",
-		lolipop="results/current/ggmdata_lolipop.RData",
+		kora=preprocess("results/current/ggmdata_kora.RData"),
+		lolipop=preprocess("results/current/ggmdata_lolipop.RData"),
 		ceqtl="data/current/kora/eqtl/kora-cis-eqtls.csv",
 		ccosmo="results/current/cis-cosmopairs_combined_151216.rds"
 	output:

@@ -10,6 +10,29 @@ rule all:
 		DHOTSPOTS + "eqtlgen_thres" + config["hots_thres"] + "/summary.pdf",
 		DHOTSPOTS + "meqtl_thres" + config["hots_thres"] + "/summary.pdf"
 
+# ------------------------------------------------------------------------------
+# Prune the eQTLGen SNPs
+# ------------------------------------------------------------------------------
+rule prune_snps:
+	input:
+		eqtl = "data/current/eqtl_gen/trans-eQTL_significant_20181017.txt.gz",
+		dosage = "data/current/kora/snp_dosages/MAF001/full_sorted.bgz",
+		individuals = "results/current/kora_individuals.csv"
+	output:
+		full = "results/current/eqtlgen/full.rds",
+		pruned = "results/current/eqtlgen/pruned.rds"
+	threads:
+		4
+	params:
+		ld_max_dist = 1e6,
+		r2_min = 0.2
+	log:
+		"logs/prune_snps.log"
+	benchmark:
+		"benchmarks/prune_snps.bmk"
+	script:
+		"../scripts/prune_snps.R"
+
 #------------------------------------------------------------------------------
 # Preprocess the sample-mapping sheet for kora
 #------------------------------------------------------------------------------
@@ -78,7 +101,7 @@ rule prepare_lolipop_data:
 # ------------------------------------------------------------------------------
 rule extract_eqtlgen_hotspots:
 	input:
-		eqtl="data/current/eqtl_gen/trans-eQTL_significant_20181017.txt.gz",
+		eqtl="results/current/eqtlgen/pruned.rds",
 		kora_data = "results/current/ggmdata_kora.RData",
 		lolipop_data = "results/current/ggmdata_lolipop.RData"
 	output:

@@ -14,6 +14,7 @@ sink(log, type="message")
 print("Load libraries and source scripts")
 # ------------------------------------------------------------------------------
 library(data.table)
+library(parallel)
 suppressPackageStartupMessages(library(GenomicRanges))
 source("scripts/lib.R")
 
@@ -21,9 +22,17 @@ source("scripts/lib.R")
 print("Get snakemake params and load data.")
 # ------------------------------------------------------------------------------
 
+# params
+ld_max_dist <- as.numeric(snakemake@params$ld_max_dist)
+r2_min <- as.numeric(snakemake@params$r2_min)
+threads <- snakemake@threads
+fdr_cutoff <- as.numeric(snakemake@params$fdr_cutoff)
+
 # input
 feqtl <- snakemake@input$eqtl
-eqtl <- fread(feqtl)
+eqtl <- fread(paste0("zcat ", feqtl))
+# we also filter to fdr < fdrcutoff
+eqtl <- eqtl[eqtl$FDR < fdr_cutoff]
 eqtl_by_chromosome <- split(eqtl, f=eqtl$SNPChr)
 
 fdosage <- snakemake@input$dosage
@@ -31,16 +40,14 @@ findividuals <- snakemake@input$individuals
 individuals <- read.table(findividuals, header=F)[,1]
 
 # output
-fpruned <- snakemake@output[[1]]
+ffull <- snakemake@output$full
+fpruned <- snakemake@output$pruned
 
-# params
-ld_max_dist <- as.numeric(snakemake@params$ld_max_dist)
-r2_min <- as.numeric(snakemake@params$r2_min)
 
 # ------------------------------------------------------------------------------
 print("Pruning SNPs for all chromosomes.")
 # ------------------------------------------------------------------------------
-pruned <- lapply(names(eqtl_by_chromosome), function(chr) {
+full <- mclapply(names(eqtl_by_chromosome), function(chr) {
   print(paste0("Current chromosome: ", chr))
 
   # get eQTL subset for current chromosome
@@ -56,11 +63,13 @@ pruned <- lapply(names(eqtl_by_chromosome), function(chr) {
   # get KORA genotypes
   geno <- scan_snps(snps, fdosage, individuals)
 
-  # get a list of MAFs to be used later on
+  # remove SNPs for which we do not have any genotypes
+  snps <- snps[names(snps)[names(snps) %in% rownames(geno)]]
+  eqtl_subs <- eqtl_subs[eqtl_subs$SNP %in% names(snps)]
+
+  # get MAFs to be used later on
   MAF <- rowMeans(geno) / 2
   MAF[MAF>0.5] <- 1 - MAF[MAF>0.5]
-
-  # TODO cope with missing genotypes for some SNPs
 
   # calculate pairwise r^2
   pw_r2 <- cor(t(geno))^2
@@ -68,7 +77,7 @@ pruned <- lapply(names(eqtl_by_chromosome), function(chr) {
   # check each SNP pair (within distance threshold) for large r^2 and define
   # LD clusters
 
-  # list of cluster and cluster identifier (id of first SNP)
+  # list of cluster and first cluster identifier (id of first SNP)
   cluster <- list()
   clustern <- names(snps)[1]
   cluster[[clustern]] <- clustern
@@ -86,59 +95,65 @@ pruned <- lapply(names(eqtl_by_chromosome), function(chr) {
       if (r2 > 0.2 & d12 <= ld_max_dist) {
         # add to current cluster
         cluster[[clustern]] <- c(cluster[[clustern]], names(s2))
-        # we can skip this SNP in the next round
-        i <- j + 1
-        # we replace the current s1 SNP (to also adjust distance)
+
+        # we replace the current reference s1 SNP (to also adjust distance)
         s1 <- s2
 
       } else {
-        # in that case, we do not have to test the other SNPs since the list
-        # is sorted by genomic position
-        # we create a new cluster with the next SNP (i+1 is here always in range)
-        clustern <- names(snps)[i+1]
+        # we create a new cluster with the current j SNP (s2)
+        i <- j
+        clustern <- names(snps)[j]
         cluster[[clustern]] <- clustern
         break
       }
     }
   }
 
+  # for annotating the eqtl with the respective sentinel
+  eqtl_subs <- cbind(eqtl_subs, sentinel=NA_character_)
+
   # now we select a representative SNP for each cluster using
   # 1) the number of trans associations
   # 2) the MAF
-  sentinels <- unlist(lapply(cluster, function(cl_snps) {
+  for(i in 1:length(cluster)) {
+    cl_snps <- cluster[[i]]
+
     # get the number of trans associations per SNP
-    eqtl <- eqtl[eqtl$SNP %in% cl_snps,]
-    counts <- tapply(eqtl$GeneSymbol, eqtl$SNP, length)
+    sub <- eqtl_subs[eqtl_subs$SNP %in% cl_snps,]
+
+    ulength <- function(x) {return(unique(length(x)))}
+    counts <- tapply(sub$GeneSymbol, sub$SNP, ulength)
+
+    # select SNPs with maximal trans assoc
     counts <- counts[counts == max(counts)]
-    # check whether we have to check MAF as well
+
+    # check whether we have to check MAF as well, i.e. ties in the counts
+    sentinel <- NULL
     if(length(counts) > 1) {
       mafs <- MAF[names(counts)]
       # select one (random) snp with the highest MAF
-      names(mafs[mafs == max(mafs)])[1]
+      sentinel <- names(mafs[mafs == max(mafs)])[1]
     } else {
-      names(counts)
+      sentinel <- names(counts)
     }
-  }))
-
-  # annotate the eqtl with the respective sentinel
-  eqtl_subs <- cbind(eqtl_subs, sentinel=NA_character_)
-
-  for(i in 1:length(cluster)) {
-    # get all snps
-    cl_snps <- cluster[[i]]
-
-    # get the sentinel
-    sentinel <- sentinels[names(cluster)[i]]
 
     # set the sentinel in the eQTL list
-    eqtl_subs[eqtl_subs$SNP %in% cl_snps]$sentinel <- sentinel
+    set <- eqtl_subs$SNP %in% cl_snps
+    eqtl_subs[set]$sentinel <- rep(sentinel, sum(set))
   }
+
   eqtl_subs
-})
+}, mc.cores = threads)
+
+# get single data.table
+full <- do.call(rbind, full)
+# only sentinel SNP associations
+pruned <- full[full$SNP == full$sentinel]
 
 # ------------------------------------------------------------------------------
 print("Saving results.")
 # ------------------------------------------------------------------------------
+saveRDS(file=ffull, full)
 saveRDS(file=fpruned, pruned)
 
 # ------------------------------------------------------------------------------

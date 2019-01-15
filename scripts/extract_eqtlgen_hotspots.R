@@ -30,7 +30,6 @@ dout_loci <- snakemake@output$loci_dir
 
 # minimum number of trans loci
 hots_thres <- as.numeric(snakemake@wildcards$hots_thres)
-reduce_region <- 10000
 
 # ------------------------------------------------------------------------------
 print("Loading and processing data.")
@@ -43,7 +42,7 @@ available_snps <- colnames(geno)
 rm(geno,expr,meth,covars)
 gc()
 
-eqtl <- fread(paste0("zcat ", feqtl))
+eqtl <- readRDS(feqtl)
 
 # filter eqtl for genes in our gene annotation
 ga <- get.gene.annotation()
@@ -71,24 +70,9 @@ hotspots <- cbind(hotspots,
                   eqtl[match(hotspots$sentinel, eqtl$SNP),
                        c("SNPPos", "SNPChr")])
 hotspot_ranges <- with(hotspots, GRanges(SNPChr, IRanges(SNPPos, width=1)))
-hotspot_ranges_reduced <- reduce(hotspot_ranges, min.gap=reduce_region,
-                                 with.rev=T)
 
 print("Total number of hotspots:")
 print(nrow(hotspots))
-
-print("Total number of reduced hotspots:")
-print(length(hotspot_ranges_reduced))
-
-# create new reduced hotspot list according to the reduced ranges
-ntrans_reduced <- unlist(lapply(hotspot_ranges_reduced, function(r) {
-  idxs <- unlist(r$revmap)
-  spots <- hotspots[idxs,]
-  ntrans <- length(unique(unlist(eqtl[eqtl$SNP %in% spots$sentinel,
-                                      "GeneSymbol"])))
-  ntrans
-}))
-ntrans_reduced <- cbind.data.frame(ntrans = ntrans_reduced)
 
 # ------------------------------------------------------------------------------
 print("Saving and plotting results.")
@@ -104,11 +88,6 @@ theme_set(theme_bw())
 pdf(fout_plot)
 ggplot(aes(x=ntrans), data=hotspots) + geom_histogram() +
   ggtitle(paste0("Overview on number of trans genes for ", nrow(hotspots), " hotspots.")) +
-  xlab("number of trans associations")
-
-ggplot(aes(x=ntrans), data=ntrans_reduced) + geom_histogram() +
-  ggtitle(paste0("Overview on number of trans genes for ",
-                 nrow(ntrans_reduced), " reduced hotspots (", reduce_region, "bp).")) +
   xlab("number of trans associations")
 dev.off()
 

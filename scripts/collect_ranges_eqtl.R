@@ -1,7 +1,7 @@
 # ------------------------------------------------------------------------------
 #'
-#' Script to collect all associated ids (expr and geno)
-#' for a specific sentinel snp of the eQTL Gen results
+#' Script to collect all associated entities (expr and geno)
+#' for a specific sentinel snp of the GTEx trans- eQTL results
 #'
 #' @author Johann Hawe
 #'
@@ -20,65 +20,7 @@ suppressPackageStartupMessages(library(GenomicRanges))
 library(data.table)
 library(graph)
 source("scripts/lib.R")
-
-# ------------------------------------------------------------------------------
-# Define needed methods
-# ------------------------------------------------------------------------------
-
-# ------------------------------------------------------------------------------
-#' Gets the shortest paths between two sets of genes
-#'
-#' Uses the validated string network and identified the
-#' genes on the shortest paths between two given genesets.
-#'
-#' @param cis List of nodes in cis
-#' @param trans List of nodes in trans
-#' @param snp_genes List of snp genes
-#' @param ppi_db Instance of the PPI database to be used (graphNEL)
-#'
-#' @return A vector of gene symbols being on the shortest path between the
-#' two lists of genes as found in the validated string network
-#'
-#' @author Johann Hawe, Matthias Heinig
-#'
-# ------------------------------------------------------------------------------
-get_shortest_paths <- function(cis, trans, snp_genes, ppi_db) {
-
-  ppi_genes <- nodes(ppi_db)
-  # ensure to have only nodes in our giant cluster
-  cis <- cis[which(cis %in% ppi_genes)]
-  trans <- trans[which(trans %in% ppi_genes)]
-  snp_genes <- snp_genes[which(snp_genes %in% ppi_genes)]
-  if(length(cis) == 0 | length(trans) == 0 | length(snp_genes) == 0) {
-    return(NULL)
-  }
-
-  # calculate weights for nodes
-  prop = propagation(graph2sparseMatrix(ppi_db), n.eigs=500,
-                     from=cis, to=trans, sum="both")
-
-  # get the best snp gene
-  best_snp_gene = snp_genes[which.max(prop[snp_genes,"from"])]
-
-  print(paste0("Best cis: ", paste(best_snp_gene, collapse = ",")))
-
-  ## find the shortest path with maximal weight
-  ## we have an algorithm that finds minimum node weight paths so we need
-  ## to turn the weighting around
-  node.weights <- rowSums(prop)
-  node.weights = max(node.weights) - node.weights + 1
-
-  print("Getting minimal node weight path.")
-  # extract shortest paths
-  sp = min.node.weight.path(ppi_db, node.weights, from=trans, to=best_snp_gene)
-  nodes <- setdiff(unlist(lapply(sp, "[", "path_detail")), NA)
-  nodes <- setdiff(nodes, c(trans, cis))
-
-  print("Shortest path genes:")
-  print(nodes)
-
-  return(nodes)
-}
+source("scripts/collect_ranges_methods.R")
 
 # ------------------------------------------------------------------------------
 print("Getting snakemake params.")
@@ -87,6 +29,7 @@ print("Getting snakemake params.")
 feqtl <- snakemake@input$eqtl
 fppi <- snakemake@input$ppi
 ftfbs_annot <- snakemake@input$tfbs_annot
+fgene_annot <- snakemake@input$gene_annot
 
 # output file
 fout <- snakemake@output[[1]]
@@ -103,7 +46,7 @@ ppi_db <- readRDS(fppi)
 ppi_genes <- nodes(ppi_db)
 
 # gene annotation
-gene_annot <- get.gene.annotation()
+gene_annot <- load_gene_annotation(fgene_annot)
 gene_annot$ids <- probes.from.symbols(gene_annot$SYMBOL,
                                       as.list=T)
 
@@ -160,53 +103,19 @@ print("Collecting TFs and shortest path genes.")
 
 # load all TFBS we have available in our data and connect with trans-genes
 tfbs <- tfbs[trans_genes$SYMBOL,,drop=F]
-
-# init
 tfs <- NULL
 sp <- NULL
 
-# get TFs and map their corresponding trans gene
-tfs_by_transGene <- c()
-for(i in 1:length(trans_genes)){
-  s <- trans_genes[i]$SYMBOL
-  tfbs_sub <- tfbs[s,,drop=F]
-  tfbs_sub <- names(tfbs_sub[,apply(tfbs_sub,2,any)])
-  if(length(tfbs_sub)>0) {
-    tfbs_sub <- unique(unlist(lapply(strsplit(tfbs_sub, "\\."), "[[", 1)))
-    tfs <- gene_annot[gene_annot$SYMBOL %in% tfbs_sub]
-    n <- names(tfs_by_transGene)
-    tfs_by_transGene <- c(tfs_by_transGene, tfs)
-    names(tfs_by_transGene) <- c(n,s)
-  }
-}
+tfs_by_transGene <- get_tfs_by_transGene(tfbs, trans_genes, gene_annot)
 tfs <- unique(unlist(GenomicRangesList(tfs_by_transGene)))
 
 # find the shortest path genes between the SNP genes and the annotated TFs
 if(length(tfs)<1){
   warning("No TFs, skipping shortest paths calculation.")
 } else {
-  # add any TFs, trans genes and their binding information to the PPI db
-  toadd <- setdiff(tfs$SYMBOL, ppi_genes)
-  toadd <- unique(c(toadd, setdiff(trans_genes$SYMBOL, ppi_genes)))
-  ppi_db_mod <- addNode(toadd, ppi_db)
-  for(i in 1:length(tfs_by_transGene)) {
-    tf_sub <- tfs_by_transGene[[i]]
-    tgene <- names(tfs_by_transGene)[i]
-    ppi_db_mod <- addEdge(rep(tgene, length(tf_sub)),
-                          tf_sub$SYMBOL,
-                          ppi_db_mod)
-  }
-  syms_sp <- get_shortest_paths(cis = unique(c(tfs$SYMBOL, snp_genes$SYMBOL)),
-                                trans=trans_genes$SYMBOL,
-                                snp_genes$SYMBOL,
-                                ppi_db_mod)
-
-  # did we find any?
-  if(length(syms_sp) < 1){
-    warning("No shortest path genes.")
-  } else {
-    sp <- gene_annot[gene_annot$SYMBOL %in% syms_sp]
-  }
+  sp <- collect_shortest_path_genes(tfs$SYMBOL, trans_genes$SYMBOL,
+                                    tfs_by_transGene, ppi_genes, 
+                                    snp_genes$SYMBOL, ppi_db, gene_annot)
 }
 
 # ------------------------------------------------------------------------------
@@ -225,7 +134,7 @@ if(!is.null(tfs)){
 }
 
 # set seed name
-result$seed <- "eqtlgen"
+result$seed <- "eqtl"
 
 saveRDS(file=fout, result)
 

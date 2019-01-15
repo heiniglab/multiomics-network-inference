@@ -66,9 +66,11 @@ get.trans.cpgs <- function(sentinel, trans.meQTL, cosmo, cpgs=NULL, cosmo.idxs=F
 #'
 #' @return GRanges object, where names(obj) are entrez-ids, and obj$SYMBOLS contains respective gene symbols
 #'
+#' DEPRECATED
+#' Use the new load_gene_annotation() function instead
 # ------------------------------------------------------------------------------
 get.gene.annotation <- function(drop.nas=TRUE, version=19) {
-
+  warning("DEPRECATED: use file based load_gene_annotation() function instead")
   if(version == 19 | version == 37) {
     library(Homo.sapiens)
     library(TxDb.Hsapiens.UCSC.hg19.knownGene)
@@ -84,7 +86,7 @@ get.gene.annotation <- function(drop.nas=TRUE, version=19) {
   } else if(version == 38) {
     library(annotables)
     grch38 <- data.table(grch38)
-    grch38 <- grch38[grch38$biotype=="protein_coding",]
+#    grch38 <- grch38[grch38$biotype=="protein_coding",]
     ga <- with(grch38,
                GRanges(paste0("chr", chr),
                        IRanges(start, end), strand=strand, SYMBOL=symbol))
@@ -93,6 +95,47 @@ get.gene.annotation <- function(drop.nas=TRUE, version=19) {
   }
 
   return(ga)
+}
+
+# ------------------------------------------------------------------------------
+#' Load gene annotation from a GFF file
+#'
+#' @param fgene_annot The gene annotation file (GFF format). The method expects
+#' to find gene_id, gene_name and gene_biotype in the attributes as well as
+#' a single row per gene
+#'
+#' @author Johann Hawe <johann.hawe@helmholtz-muenchen.de>
+# ------------------------------------------------------------------------------
+load_gene_annotation <- function(fgene_annot) {
+  require(data.table)
+  require(GenomicRanges)
+  
+  # load gene annotation
+  ga <- fread(fgene_annot)
+  
+  # file format is: chr origin type start stop U strand U add_info
+  colnames(ga) <- c("chr", "origin", "type", "start", "stop", "score", "strand",
+                    "frame", "info") 
+  # extract ranges
+  ra <- with(ga, GRanges(chr, IRanges(start, stop), strand))
+  
+  # extract the additional attributes and merge with ranges object
+  attrs <- strsplit(ga$info, ";")
+  gene_id <- sapply(attrs, function(x) { sapply(strsplit(x[grepl("gene_id",x)], " "), "[[", 2) })
+  gene_name <- sapply(attrs, function(x) { sapply(strsplit(x[grepl("gene_name",x)], " "), "[[", 3) })
+  gene_biotype <- sapply(attrs, function(x) { sapply(strsplit(x[grepl("gene_type",x)], " "), "[[", 3) })
+
+  # remove any lingering quotes
+  gene_id <- gsub("\"", "", gene_id)
+  gene_name <- gsub("\"", "", gene_name)
+  gene_biotype <- gsub("\"", "", gene_biotype)
+
+  # add to ranges object
+  names(ra) <- gene_id
+  ra$SYMBOL <- gene_name
+  ra$BIOTYPE <- gene_biotype
+
+  return(ra)
 }
 
 # ------------------------------------------------------------------------------

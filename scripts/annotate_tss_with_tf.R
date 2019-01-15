@@ -16,15 +16,16 @@ source("scripts/lib.R")
 # ------------------------------------------------------------------------------
 print("Get snakemake params.")
 # ------------------------------------------------------------------------------
-fbinding_sites_remap <- snakemake@input[["tfbs_remap"]]
-fbinding_sites_encode <- snakemake@input[["tfbs_encode"]]
+fbinding_sites_remap <- snakemake@input$tfbs_remap
+fbinding_sites_encode <- snakemake@input$tfbs_encode
+fgene_annot <- snakemake@input$gene_annot
 
-ftfbs_annot <- snakemake@output[["tfbs_annot"]]
+ftfbs_annot <- snakemake@output$tfbs_annot
 
 # ------------------------------------------------------------------------------
 print("Start processing.")
 # ------------------------------------------------------------------------------
-ga <- get.gene.annotation()
+ga <- load_gene_annotation(fgene_annot)
 tss <- promoters(ga, 1000, 1000)
 names(tss) <- tss$SYMBOL
 

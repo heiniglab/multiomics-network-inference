@@ -24,11 +24,12 @@ print("Getting snakemake params.")
 # ------------------------------------------------------------------------------
 # input
 finputs <- snakemake@input
+
+# check seed group: twas or eqtl based
+group <- if(grepl("twas", finputs), "twas", "eqtl")
+
 # output
 fout <- snakemake@output[[1]]
-
-# read SEED type from first input file
-seed <- readRDS(finputs[[1]])$seed
 
 # ------------------------------------------------------------------------------
 print("Loading data and creating data-frame for plotting.")
@@ -43,6 +44,8 @@ data <- lapply(finputs, function(fin) {
   sg <- length(ranges$snp_genes)
   tfs <- length(ranges$tfs)
   sp <- length(ranges$spath)
+
+  seed <- ranges$seed
 
   if(seed == "meqtl"){
     trans_assoc <- length(ranges$cpgs)

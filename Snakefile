@@ -120,7 +120,8 @@ rule create_priors:
 rule create_stringdb:
 	input:
 		string="data/current/string/human_gene_hgnc_symbol.links.detailed.v9.0.txt",
-		gtex="data/current/gtex/GTEx_Analysis_v6_RNA-seq_RNA-SeQCv1.1.8_gene_median_rpkm.gct"
+		gtex="data/current/gtex/GTEx_Analysis_v6_RNA-seq_RNA-SeQCv1.1.8_gene_median_rpkm.gct",
+		gene_annot = GENE_ANNOT
 	output:
 		PPI_DB_STRING
 	log:
@@ -128,8 +129,7 @@ rule create_stringdb:
 	benchmark:
 		"benchmarks/create_stringdb.bmk"
 	script:
-		"scripts/create-stringdb.R"
-
+		"scripts/create_stringdb.R"
 
 #------------------------------------------------------------------------------
 # Preprocess biogrid PPI network
@@ -137,7 +137,8 @@ rule create_stringdb:
 rule create_biogrid:
 	input:
 		biogrid="data/current/biogrid/3.5.166/by_organism/BIOGRID-ORGANISM-Homo_sapiens-3.5.166.tab2.txt",
-		gtex="data/current/gtex/GTEx_Analysis_v6_RNA-seq_RNA-SeQCv1.1.8_gene_median_rpkm.gct"
+		gtex="data/current/gtex/GTEx_Analysis_v6_RNA-seq_RNA-SeQCv1.1.8_gene_median_rpkm.gct",
+		gene_annot = GENE_ANNOT
 	output:
 		PPI_DB_BIOGRID
 	script:
@@ -165,7 +166,8 @@ rule collect_ranges:
 		ppi_db=PPI_DB,
 		meqtl="data/current/meQTLs/transpairs_r02_110117_converted_1MB.txt",
 		tcosmo="results/current/trans-cosmopairs_combined_151216.rds",
-		priorization="data/current/rw_string_v9_ld_wb_prioritize_full_with_empirical_p_lte_0.05.txt"
+		priorization="data/current/rw_string_v9_ld_wb_prioritize_full_with_empirical_p_lte_0.05.txt",
+		gene_annot = GENE_ANNOT
 	output: 
 		DRANGES + "{sentinel}_meqtl.rds"
 	log: 
@@ -198,7 +200,8 @@ rule collect_ranges_eqtlgen:
         input:
                 eqtl="data/current/eqtl_gen/trans-eQTL_significant_20181017.txt.gz",
                 ppi=PPI_DB,
-                tfbs_annot="results/current/tfbs_tss_annot.rds"
+                tfbs_annot="results/current/tfbs_tss_annot.rds",
+                gene_annot = GENE_ANNOT
         output:
                 DRANGES + "{sentinel}_eqtlgen.rds"
         log:
@@ -237,7 +240,8 @@ rule all_ranges:
 rule annotate_tss_with_tf:
         input:
                 tfbs_remap="data/current/tfbs/filPeaks_public.bed",
-                tfbs_encode="data/current/tfbs/wgEncodeRegTfbsClusteredWithCellsV3.bed"
+                tfbs_encode="data/current/tfbs/wgEncodeRegTfbsClusteredWithCellsV3.bed",
+                gene_annot = GENE_ANNOT
         output:
                 tfbs_annot="results/current/tfbs_tss_annot.rds"
         script:

@@ -17,20 +17,19 @@ sink(log, type="message")
 library(igraph)
 library(graph)
 library(data.table)
-library(Homo.sapiens)
 
 # ------------------------------------------------------------------------------
 # Get snakemake parms
 # ------------------------------------------------------------------------------
-ofile <- snakemake@output[[1]]
-string_file <- snakemake@input[["string"]]
-gtex_file <- snakemake@input[["gtex"]]
-
+fout <- snakemake@output[[1]]
+fstring <- snakemake@input$string
+fgtex <- snakemake@input$gtex
+fgene_annog <- snakemake@input$gene_annot
 
 # ------------------------------------------------------------------------------
 # Load string db as graph object
 # ------------------------------------------------------------------------------
-string.all <- fread(string_file,
+string.all <- fread(fstring,
                     data.table=F, header=T, stringsAsFactors=F)
 string.inter <- string.all[string.all$experimental>=1 | string.all$database>=1,]
 
@@ -43,20 +42,17 @@ string.db <- addEdge(string.inter[,1],
 # ------------------------------------------------------------------------------
 # filtered for expressed genes in gtex whole blood
 # ------------------------------------------------------------------------------
-expr = read.csv(gtex_file, 
+expr = read.csv(fgtex, 
                 sep="\t", 
                 skip=2, 
                 stringsAsFactors=F)
 
 expressed <- expr[expr[,"Whole.Blood"] > 0.1, "Name"]
-expressed <- sapply(strsplit(expressed, "." ,fixed=T) ,"[", 1)
-expressed.symbols <- select(Homo.sapiens, keys=expressed, keytype="ENSEMBL", columns="SYMBOL")
-expressed.symbols <- unique(expressed.symbols[,"SYMBOL"])
-expressed.aliases <- select(Homo.sapiens, keys=expressed, keytype="ENSEMBL", columns="ALIAS")
-expressed.aliases <- setdiff(unique(expressed.aliases[,"ALIAS"]), NA)
+ga <- load_gene_annotation(fgene_annot)
+expressed.symbols <- ga[intersect(expressed, names(ga))]$SYMBOL
 
-string.nodes = intersect(nodes(string.db), c(expressed.symbols, 
-                                             expressed.aliases))
+string.nodes = intersect(nodes(string.db), c(expressed.symbols))
+
 string.db = subGraph(string.nodes, string.db)
 
 # ------------------------------------------------------------------------------

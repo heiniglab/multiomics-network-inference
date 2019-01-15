@@ -1,6 +1,9 @@
 # output directories
 DHOTSPOTS = "results/current/hotspots/"
 
+# gene annotation
+GENE_ANNOT = "data/current/gencode_annotations/gencode.v19.annotation.gene.gtf"
+
 # general params
 COHORTS = ["lolipop", "kora"] # available cohorts
 

@@ -100,11 +100,11 @@ rule create_priors:
 		pheno="data/current/gtex/GTEx_Data_V6_Annotations_SubjectPhenotypesDS.txt",
 		ppi=PPI_DB
 	output:	
-		gene_priors=protected("results/current/gtex.gg.cors.rds"),
-		eqtl_priors=protected("results/current/gtex.eqtl.priors.rds")
+		gene_priors=protected("results/current/" + PPI_NAME + "/gtex.gg.cors.rds"),
+		eqtl_priors=protected("results/current/" + PPI_NAME + "/gtex.eqtl.priors.rds")
 	threads: 1
 	params:
-		plot_dir = "results/current/plots/"
+		plot_dir = "results/current/" + PPI_NAME + "/plots/"
 	log:
 		"logs/create_priors.log"
 	benchmark:
@@ -274,8 +274,8 @@ rule all_data:
 #------------------------------------------------------------------------------
 rule collect_priors:
 	input:
-		gg_priors="results/current/gtex.gg.cors.rds", 
-		eqtl_priors="results/current/gtex.eqtl.priors.rds",
+		gg_priors="results/current/" + PPI_NAME + "/gtex.gg.cors.rds", 
+		eqtl_priors="results/current/" + PPI_NAME + "/gtex.eqtl.priors.rds",
 		ranges=DRANGES + "{sentinel}_{seed}.rds",
 		ppi=PPI_DB,
 		cpg_context="data/current/cpgs_with_chipseq_context_100.RData",

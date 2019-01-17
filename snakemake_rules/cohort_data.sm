@@ -5,9 +5,9 @@
 rule all_cohort:
         input:
                 DCOHORT_VAL + "stat_overview_meqtl.pdf",
-                DRANGES + "meqtl_summary.pdf",
+                DRANGES + "summary.pdf",
                 DCOHORT_VAL + "stat_overview_eqtlgen.pdf",
-                DRANGES + "eqtlgen_summary.pdf",
+                DRANGES + "summary.pdf",
 
 #------------------------------------------------------------------------------
 # Mediation analysis. This part can be performed indepdent of the graph fits
@@ -44,7 +44,7 @@ rule apply_ggm:
         output:
                 fit=DCOHORT_FITS + "{cohort}/{sentinel}_{seed}.rds",
                 summary_file=DCOHORT_FITS + "{cohort}/{sentinel}_{seed}.pdf",
-                gstart_file=DCOHORT_FITS + "{cohort}/{sentinel}_{seed}-gstart.pdf"
+                gstart_file=DCOHORT_FITS + "{cohort}/{sentinel}_{seed}_gstart.pdf"
         threads: 8
         resources:
                 mem_mb=1000
@@ -55,6 +55,15 @@ rule apply_ggm:
         script:
                 "../scripts/apply_ggm.R"
 
+#------------------------------------------------------------------------------
+# Meta target rule to generate all GGMs
+#------------------------------------------------------------------------------
+rule all_ggm:
+	input:
+		expand(DCOHORT_FITS + "lolipop/{sentinel}_meqtl.rds", sentinel=MEQTL.sentinel),
+		expand(DCOHORT_FITS + "kora/{sentinel}_meqtl.rds", sentinel=MEQTL.sentinel),
+		expand(DCOHORT_FITS + "kora/{sentinel}_eqtlgen.rds", sentinel=EQTLGEN.sentinel),
+		
 #------------------------------------------------------------------------------
 # Validate calculated ggms
 #------------------------------------------------------------------------------
@@ -106,7 +115,7 @@ rule summarize_validation_meqtl:
                 "cat {input} | sort -r | uniq > {output}"
 
 rule summarize_validation_eqtlgen:
-        input: expand(DCOHORT_VAL + "{cohort}/{sentinel}_{graph_type}_eqtlgen.txt", sentinel=EQTLGEN.sentinel, graph_type=GTYPES, cohort=COHORTS)
+        input: expand(DCOHORT_VAL + "{cohort}/{sentinel}_{graph_type}_eqtlgen.txt", sentinel=EQTLGEN.sentinel, graph_type=GTYPES, cohort="kora")
         output: DCOHORT_VAL + "validation_all_eqtlgen.txt"
         shell:
                 "cat {input} | sort -r | uniq > {output}"

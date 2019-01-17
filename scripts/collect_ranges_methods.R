@@ -74,7 +74,7 @@ get_tfs_by_transGene <- function(tfbs, trans_genes, gene_annot) {
   for(i in 1:length(trans_genes)){
     s <- trans_genes[i]$SYMBOL
     tfbs_sub <- tfbs[s,,drop=F]
-    tfbs_sub <- names(tfbs_sub[,apply(tfbs_sub,2,any)])
+    tfbs_sub <- unique(colnames(tfbs_sub[,apply(tfbs_sub,2,any),drop=F]))
     if(length(tfbs_sub)>0) {
       tfbs_sub <- unique(unlist(lapply(strsplit(tfbs_sub, "\\."), "[[", 1)))
       tfs <- gene_annot[gene_annot$SYMBOL %in% tfbs_sub]

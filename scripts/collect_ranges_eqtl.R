@@ -107,7 +107,9 @@ tfs <- NULL
 sp <- NULL
 
 tfs_by_transGene <- get_tfs_by_transGene(tfbs, trans_genes, gene_annot)
-tfs <- unique(unlist(GenomicRangesList(tfs_by_transGene)))
+if(length(tfs_by_transGene) > 0) {
+  tfs <- unique(unlist(GenomicRangesList(tfs_by_transGene)))
+}
 
 # find the shortest path genes between the SNP genes and the annotated TFs
 if(length(tfs)<1){

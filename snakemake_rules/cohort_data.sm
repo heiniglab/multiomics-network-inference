@@ -111,6 +111,11 @@ rule summarize_validation_eqtlgen:
         shell:
                 "cat {input} | sort -r | uniq > {output}"
 
+rule all_summarize_validation:
+	input:
+		DCOHORT_VAL + "validation_all_eqtlgen.txt",
+		DCOHORT_VAL + "validation_all_meqtl.txt"
+
 #------------------------------------------------------------------------------
 # Create summary report
 #------------------------------------------------------------------------------

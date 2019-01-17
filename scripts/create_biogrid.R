@@ -12,14 +12,16 @@ print("Load libraries and source scripts")
 # ------------------------------------------------------------------------------
 suppressPackageStartupMessages(library(data.table))
 suppressPackageStartupMessages(library(graph))
-suppressPackageStartupMessages(library(Homo.sapiens))
 suppressPackageStartupMessages(library(igraph))
+source("scripts/lib.R")
 
 # ------------------------------------------------------------------------------
 print("Get snakemake params.")
 # ------------------------------------------------------------------------------
 # ppis
 fbiogrid <- snakemake@input$biogrid
+fgene_annot <- snakemake@input$gene_annot
+
 # gtex gene expression data (we filter genes for the ones expressed in blood)
 fgtex <- snakemake@input$gtex
 
@@ -45,16 +47,10 @@ g <- addEdge(biogrid$`Official Symbol Interactor A`,
 print("Filtering PPI for expressed genes.")
 # ------------------------------------------------------------------------------
 expressed <- unlist(gtex[`Whole Blood` > 0.1,"Name"])
-expressed <- sapply(strsplit(expressed, "." ,fixed=T) ,"[", 1)
-expressed.symbols <- select(Homo.sapiens, keys=expressed,
-                            keytype="ENSEMBL", columns="SYMBOL")
-expressed.symbols <- unique(expressed.symbols[,"SYMBOL"])
-expressed.aliases <- select(Homo.sapiens, keys=expressed,
-                            keytype="ENSEMBL", columns="ALIAS")
-expressed.aliases <- setdiff(unique(expressed.aliases[,"ALIAS"]), NA)
+ga <- load_gene_annotation(fgene_annot)
+expressed.symbols <- ga[intersect(expressed, names(ga))]$SYMBOL
 
-nodes_to_keep = intersect(nodes(g), c(expressed.symbols,
-                                      expressed.aliases))
+nodes_to_keep = intersect(nodes(g), c(expressed.symbols))
 g = subGraph(nodes_to_keep, g)
 
 # ------------------------------------------------------------------------------

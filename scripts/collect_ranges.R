@@ -24,84 +24,19 @@ library(graph)
 library(RBGL) # for shortest paths
 library(Matrix)
 source("scripts/lib.R")
-
-# ------------------------------------------------------------------------------
-# Define needed methods
-# ------------------------------------------------------------------------------
-
-#' Gets the shortest paths between two sets of genes
-#'
-#' Uses the validated string network and identified the genes on the shortest
-#' paths between two given genesets.
-#'
-#' @param cis List of nodes in cis (e.g. CpGs)
-#' @param trans List of nodes in trans (e.g. snp genes and TFs)
-#' @param snp_genes List of snp/trans genes near the sentinel
-#' @param best_trans The identified 'best' trans genes in the priorization
-#' analysis
-#' @param string_db Instance of the string.db to be used (graphNEL)
-#' @return A vector of gene symbols being on the shortest path between the
-#' two lists of genes as found in the validated string network
-#'
-#' @author Johann Hawe, Matthias Heinig
-#'
-get_string_shortest_paths <- function(cis, trans, snp_genes,
-                                      best_trans, ppi_db) {
-
-  print("Preprocessing.")
-  g <- ppi_db
-  g.nodes <- nodes(ppi_db)
-
-  # ensure to have only nodes in our giant cluster
-  cis <- cis[which(cis %in% g.nodes)]
-  trans <- trans[which(trans %in% g.nodes)]
-  snp_genes <- snp_genes[which(snp_genes %in% g.nodes)]
-  if(length(cis) == 0 | length(trans) == 0 | length(snp_genes) == 0) {
-    return(NULL)
-  }
-
-  # calculate weights for nodes
-  prop = propagation(graph2sparseMatrix(g), n.eigs=500,
-                     from=cis, to=trans, sum="both")
-
-  # the latter case can happen when we use the biogrid db.
-  # TODO in that case we should rethink using the a prior best_trans genes....
-  if(is.null(best_trans) || !best_trans %in% g.nodes) {
-    warning("No best trans genes detected, using propagation results.")
-    # get the best trans gene
-    best_trans = snp_genes[which.max(prop[snp_genes,"from"])]
-  }
-
-  print(paste0("Best trans: ", paste(best_trans, collapse = ",")))
-
-  ## find the shortest path with maximal weight
-  ## we have an algorithm that finds minimum node weight paths so we need
-  ## to turn the weighting around
-  node.weights <- rowSums(prop)
-  node.weights = max(node.weights) - node.weights + 1
-
-  print("Getting minimal node weight path.")
-  # extract shortest paths
-  sp = min.node.weight.path(g, node.weights, from=cis, to=best_trans)
-  nodes <- setdiff(unlist(lapply(sp, "[", "path_detail")), NA)
-  nodes <- setdiff(nodes, c(trans, cis))
-
-  print("Shortest path genes:")
-  print(nodes)
-
-  return(nodes)
-}
+source("scripts/collect_ranges_methods.R")
 
 # ------------------------------------------------------------------------------
 # Get snakemake params
 # ------------------------------------------------------------------------------
-fcosmo <- snakemake@input[["tcosmo"]]
-fmeqtl <- snakemake@input[["meqtl"]]
-fppi_db <- snakemake@input[["ppi_db"]]
+fcosmo <- snakemake@input$tcosmo
+fmeqtl <- snakemake@input$meqtl
+fppi_db <- snakemake@input$ppi_db
 fprio_tab <- snakemake@input$priorization
+fgene_annot <- snakemake@input$gene_annot
 
 # TODO: create this file from scratch!
-fcpgcontext <- snakemake@input[["cpgcontext"]]
+fcpgcontext <- snakemake@input$cpgcontext
 
 ofile <- snakemake@output[[1]]
 sentinel <- snakemake@wildcards$sentinel
@@ -112,10 +47,9 @@ sentinel <- snakemake@wildcards$sentinel
 
 print("Loading data.")
 
-gene_annot <- get.gene.annotation()
+gene_annot <- load_gene_annotation(fgene_annot)
 gene_annot$ids <- probes.from.symbols(gene_annot$SYMBOL,
                                            as.list=T)
-
 ppi_db <- readRDS(fppi_db)
 
 # load trans-meQTL table
@@ -232,21 +166,19 @@ if(length(tfs)<1){
                snp_genes_in_string, cpgs_with_tfbs)
   locus_graph <- subGraph(intersect(nodes(locus_graph), nodeset), locus_graph)
 
-  syms_sp <- get_string_shortest_paths(cis = cpgs_with_tfbs,
+  syms_sp <- get_shortest_paths(cis = cpgs_with_tfbs,
                                        trans=unique(c(snp_genes_in_string,
                                                       tfs)),
                                        snp_genes=snp_genes_in_string,
-                                       best_trans,
-                                       locus_graph)
+                                       locus_graph,
+                                       best_trans)
 
   if(length(syms_sp) < 1){
     warning("No shortest path genes.")
   } else {
     sp <- gene_annot[gene_annot$SYMBOL %in% syms_sp]
-    sp$ids <- probes.from.symbols(sp$SYMBOL, as.list=T)
   }
   tfs <- gene_annot[gene_annot$SYMBOL %in% tfs]
-  tfs$ids <- probes.from.symbols(tfs$SYMBOL, as.list=T)
 }
 
 # ------------------------------------------------------------------------------

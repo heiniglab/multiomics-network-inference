@@ -22,7 +22,7 @@
 #' @author Johann Hawe, Matthias Heinig
 #'
 # ------------------------------------------------------------------------------
-get_shortest_paths <- function(cis, trans, snp_genes, ppi_db) {
+get_shortest_paths <- function(cis, trans, snp_genes, ppi_db, best_trans=NULL) {
 
   ppi_genes <- nodes(ppi_db)
   # ensure to have only nodes in our giant cluster
@@ -38,8 +38,11 @@ get_shortest_paths <- function(cis, trans, snp_genes, ppi_db) {
                      from=cis, to=trans, sum="both")
 
   # get the best snp gene
-  best_snp_gene = snp_genes[which.max(prop[snp_genes,"from"])]
-
+  if(is.null(best_trans) || !best_trans %in% ppi_genes) {
+    best_snp_gene = snp_genes[which.max(prop[snp_genes,"from"])]
+  } else {
+    best_snp_gene <- best_trans
+  }
   print(paste0("Best cis: ", paste(best_snp_gene, collapse = ",")))
 
   ## find the shortest path with maximal weight

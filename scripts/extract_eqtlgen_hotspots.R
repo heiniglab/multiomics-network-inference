@@ -18,9 +18,10 @@ source("scripts/lib.R")
 print("Get snakemake params")
 # ------------------------------------------------------------------------------
 # input
-feqtl <- snakemake@input[[1]]
+feqtl <- snakemake@input$eqtl
 fkora_data <- snakemake@input$kora_data
 flolipop_data <- snakemake@input$lolipop_data
+fgene_annot <- snakemake@input$gene_annot
 
 # output
 fout_plot <- snakemake@output$plot
@@ -45,7 +46,7 @@ gc()
 eqtl <- readRDS(feqtl)
 
 # filter eqtl for genes in our gene annotation
-ga <- get.gene.annotation()
+ga <- load_gene_annotation(fgene_annot)
 eqtl <- eqtl[eqtl$GeneSymbol %in% ga$SYMBOL,]
 eqtl <- eqtl[eqtl$SNP %in% available_snps,]
 

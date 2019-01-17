@@ -36,12 +36,19 @@ a summary plot.
 nohup nice snakemake -j 10 -k all_ranges &
 ```
 
-### Generaet data overview
+### Generate data overview
 This call collects and normalized all cohort data for the created ranges objects and
 generates an overview plot.
 
 ```{bash}
 nohup nice snakemake -j 10 -k all_data &
+```
+
+### Generate overview on GGM fits
+This generates all ranges and data collections and fits different GGMs to the data
+
+```{bash}
+nohup nice snakemake -j 10 --res mem_mb=80000 -k all_ggm &
 ```
 
 ### Running the complete cohort data pipeline and cluster execution

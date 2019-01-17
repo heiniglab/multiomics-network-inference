@@ -92,7 +92,7 @@ full <- mclapply(names(eqtl_by_chromosome), function(chr) {
 
       # check LD criteria distance and r^2
       d12 <- distance(s1,s2)
-      if (r2 > 0.2 & d12 <= ld_max_dist) {
+      if (r2 > r2_min & d12 <= ld_max_dist) {
         # add to current cluster
         cluster[[clustern]] <- c(cluster[[clustern]], names(s2))
 

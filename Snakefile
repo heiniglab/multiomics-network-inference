@@ -181,18 +181,6 @@ rule collect_ranges:
 		"scripts/collect_ranges.R"
 
 #------------------------------------------------------------------------------
-# Meta rule to collect ranges for all sentinels and plot some information
-#------------------------------------------------------------------------------
-rule create_meqtl_locus_summary:
-	input:
-		expand(DRANGES + "{sentinel}_meqtl.rds", zip, sentinel=MEQTL.sentinel)
-	output:
-		DRANGES + "meqtl_summary.pdf"
-	script:
-		"scripts/create_locus_summary.R"
-
-
-#------------------------------------------------------------------------------
 # Collect range information per sentinel snp (snp genes, connecting genes, 
 # eqtl genes etc)
 #------------------------------------------------------------------------------
@@ -218,22 +206,15 @@ rule collect_ranges_eqtlgen:
 # Target rule to generate all hotspot ranges collections for eqtl gen and to 
 # create a summary plot.
 # -----------------------------------------------------------------------------
-rule create_eqtlgen_locus_summary:
+rule all_ranges:
 	input:
-		expand(DRANGES + "{sentinel}_eqtlgen.rds", sentinel=EQTLGEN.sentinel)
+		expand(DRANGES + "{sentinel}_eqtlgen.rds", sentinel=EQTLGEN.sentinel),
+		expand(DRANGES + "{sentinel}_meqtl.rds", sentinel=MEQTL.sentinel)
 	output:
-		DRANGES + "eqtlgen_summary.pdf"
+		DRANGES + "summary.pdf"
 	script:
 		"scripts/create_locus_summary.R"
 
-# -----------------------------------------------------------------------------
-# Meta rule to create all ranges and their summaries
-# -----------------------------------------------------------------------------
-rule all_ranges:
-	input:
-		DRANGES + "eqtlgen_summary.pdf",
-		DRANGES + "meqtl_summary.pdf"
-	
 # -----------------------------------------------------------------------------
 # Annotate TSS with TFBS information
 # -----------------------------------------------------------------------------

@@ -85,10 +85,10 @@ pdf(fout)
 theme_set(theme_bw())
 ggplot(toplot, aes(x=overlap_count, color=group)) +
   geom_freqpoly() +
-  ggtitle("Distribution of number of trans-gene overlaps for neighbouring hotspots before and after SNP pruning")
+  ggtitle("Distribution of number of trans-gene overlaps for neighbouring hotspots\nbefore and after SNP pruning")
 ggplot(toplot, aes(x=overlap_ratio, color=group)) +
   geom_freqpoly() +
-  ggtitle("Distribution of fraction of trans-gene overlap for neighbouring hotspots before and after SNP pruning")
+  ggtitle("Distribution of fraction of trans-gene overlap for neighbouring hotspots\nbefore and after SNP pruning")
 dev.off()
 
 # ------------------------------------------------------------------------------

@@ -34,6 +34,20 @@ rule prune_snps:
 		"../scripts/prune_snps.R"
 
 #------------------------------------------------------------------------------
+# SUmmarize the overlap of trans-genes between neighbouring hotspots
+# before and after SNP pruning
+#------------------------------------------------------------------------------
+rule summarize_transgene_overlap:
+	input:
+		"results/current/eqtlgen/full.rds"
+	output:
+		"results/current/eqtlgen/transgene_overlap_summary_ht" + config["hots_thres"] + ".pdf"
+	params:
+		hotspot_threshold = config["hots_thres"]
+	script:
+		"../scripts/summarize_transgene_overlap.R"
+
+#------------------------------------------------------------------------------
 # Preprocess the sample-mapping sheet for kora
 #------------------------------------------------------------------------------
 rule preprocess_kora_individuals:

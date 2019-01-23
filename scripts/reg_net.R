@@ -11,7 +11,7 @@
 
 # define the available models for network inference
 reg_net.models <- function() {
-  return(c("genenet", "bdgraph", "irafnet", "custom"))
+  return(c("genenet", "bdgraph", "irafnet", "glasso", "custom"))
 }
 
 # ------------------------------------------------------------------------------
@@ -48,9 +48,9 @@ reg_net <- function(data, priors, model, threads=1,
 
   # load inference methods
   suppressPackageStartupMessages(library(GeneNet))
-  suppressPackageStartupMessages(library(BDgraph,
-          lib.loc = "/home/icb/johann.hawe/R/x86_64-redhat-linux-gnu-library/3.4"))
+  suppressPackageStartupMessages(library(BDgraph))
   suppressPackageStartupMessages(library(iRafNet))
+  suppressPackageStartupMessages(library(glasso))
 
 
   # get available models
@@ -59,10 +59,14 @@ reg_net <- function(data, priors, model, threads=1,
 
   # for genenet and iRafNet, remove NAs
   data_no_nas <- data[,apply(data, 2, function(x) !anyNA(x))]
-  # we possibly lost some data when filtering for NAs, so we adjust priors too
-  priors_no_nas <- priors[rownames(priors) %in% colnames(data_no_nas),
-                          colnames(priors) %in% colnames(data_no_nas)]
-
+  
+  if(!is.null(priors)) {
+    # we possibly lost some data when filtering for NAs, so we adjust priors too
+    priors_no_nas <- priors[rownames(priors) %in% colnames(data_no_nas),
+                            colnames(priors) %in% colnames(data_no_nas)]
+  } else {
+    priors_no_nas <- NULL
+  }
   # check which model to build
   if("genenet" %in% model){
     pcors <- ggm.estimate.pcor(data_no_nas)
@@ -80,11 +84,11 @@ reg_net <- function(data, priors, model, threads=1,
         }
         fit <- bdgraph(data, method = "gcgm",
                        iter = iter, burnin = burnin, g.start=gstart,
-                       save.all=T, cores=threads)
+                       save = T, cores=threads)
       } else {
         fit <- bdgraph(data, method = "gcgm",
                        iter = iter, burnin = burnin,
-                       save.all=T, cores=threads)
+                       save = T, cores=threads)
       }
     } else {
       # we have priors, check whether to use the prior based start graph
@@ -93,13 +97,13 @@ reg_net <- function(data, priors, model, threads=1,
         fit <- bdgraph(data, method = "gcgm",
                        iter = iter, burnin = burnin,
                        g.prior = priors, g.start = gstart,
-                       save.all=T, cores=threads)
+                       save = T, cores=threads)
       } else {
         # use priors, but no specific start graph
         fit <- bdgraph(data, method = "gcgm",
                        iter = iter, burnin = burnin,
                        g.prior = priors, g.start="empty",
-                       save.all=T, cores=threads)
+                       save = T, cores=threads)
       }
     }
 
@@ -118,6 +122,14 @@ reg_net <- function(data, priors, model, threads=1,
     class(fit) <- c(class(fit), "irafnet")
   } else if("custom" %in% model) {
     stop("Sorry, custom model is not yet implemented.")
+  } else if("glasso" %in% model) {
+    # for now we simply call using 1-priors as penalization
+    gl_out <- glasso(cov(data, use="na.or.complete"), 
+                     1 - priors)
+    # get the resulting precision matrix
+    fit <- gl_out$wi
+    rownames(fit) <- colnames(fit) <- colnames(data)
+    class(fit) <- c(class(fit), "glasso")
   }
 
   # now get the graph object
@@ -154,6 +166,7 @@ graph_from_fit <- function(ggm.fit,
   suppressPackageStartupMessages(library(BDgraph))
   suppressPackageStartupMessages(library(graph))
   suppressPackageStartupMessages(library(igraph))
+  require(reshape2)
 
   # get the graph instance from the ggm fit
   cutoff <- 0.95
@@ -170,6 +183,15 @@ graph_from_fit <- function(ggm.fit,
     g <- graphNEL(unique(c(net$node1, net$node2)),
                   edgemode = "undirected")
     g <- addEdge(net$node1, net$node2, g)
+  } else if(inherits(ggm.fit, "glasso")) {
+    g <- graphNEL(colnames(ggm.fit),
+                  edgemode="undirected")
+    # create edge matrix
+    temp <- melt(ggm.fit)
+    temp <- temp[temp$value>0,,drop=F]
+    if(nrow(temp) > 0) {
+      g <- addEdge(temp$Var1, temp$Var2, g)
+    }
   }
 
   if(annotate) {

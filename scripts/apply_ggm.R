@@ -84,6 +84,9 @@ irafnet <- reg_net(data, priors, "irafnet", threads=threads)
 print("Fitting model using GeneNet.")
 genenet <- reg_net(data, priors, "genenet", threads=threads)
 
+print("Fitting model using glasso.")
+glasso <- reg_net(data,priors, "glasso", threads=threads)
+
 # ------------------------------------------------------------------------------
 print("Add custom annotations for the graphs.")
 # ------------------------------------------------------------------------------
@@ -101,6 +104,8 @@ bdgraph_no_priors_empty$graph <- annotate.graph(bdgraph_no_priors_empty$graph,
 irafnet$graph <- annotate.graph(irafnet$graph, ranges, ppi_db, fcontext)
 genenet$graph <- annotate.graph(genenet$graph, ranges, ppi_db, fcontext)
 
+glasso$graph <- annotate.graph(glasso$graph, ranges, ppi_db, fcontext)
+
 # ------------------------------------------------------------------------------
 print("Create result list.")
 # ------------------------------------------------------------------------------
@@ -111,7 +116,9 @@ result <- list(bdgraph_fit = bdgraph$fit,
                bdgraph = bdgraph$graph,
                bdgraph_no_priors_empty = bdgraph_no_priors_empty$graph,
                irafnet = irafnet$graph,
-               genenet = genenet$graph)
+               genenet = genenet$graph,
+               glasso_fit = glasso$fit,
+               glasso_graph = glasso$graph)
 
 # ------------------------------------------------------------------------------
 print("Done with model fitting. Finishing up.")

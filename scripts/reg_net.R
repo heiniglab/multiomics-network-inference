@@ -123,14 +123,22 @@ reg_net <- function(data, priors, model, threads=1,
   } else if("custom" %in% model) {
     stop("Sorry, custom model is not yet implemented.")
   } else if("glasso" %in% model) {
+    if(!is.null(priors)) {
     # for now we simply call using 1-priors as penalization
     gl_out <- glasso(cov(data, use="na.or.complete"), 
                      1 - priors)
+    } else {
+      gl_out <- glasso(cov(data, use="na.or.complete"),
+                       0.1)
+    }
     # get the resulting precision matrix
     fit <- gl_out$wi
     rownames(fit) <- colnames(fit) <- colnames(data)
     class(fit) <- c(class(fit), "glasso")
   }
+ # now get the graph object
+  g <- graph_from_fit(fit, annotate = F)
+
 
   # now get the graph object
   g <- graph_from_fit(fit, annotate = F)
@@ -167,6 +175,7 @@ graph_from_fit <- function(ggm.fit,
   suppressPackageStartupMessages(library(graph))
   suppressPackageStartupMessages(library(igraph))
   require(reshape2)
+  require(tidyverse)
 
   # get the graph instance from the ggm fit
   cutoff <- 0.95
@@ -188,7 +197,14 @@ graph_from_fit <- function(ggm.fit,
                   edgemode="undirected")
     # create edge matrix
     temp <- melt(ggm.fit)
-    temp <- temp[temp$value>0,,drop=F]
+    
+    # convert back to characters for graphNEL
+    temp$Var1 <- as.character(temp$Var1)
+    temp$Var2 <- as.character(temp$Var2)
+
+    # define edges and remove self-edges
+    temp <- filter(temp, Var1 != Var2 & value > 0)
+
     if(nrow(temp) > 0) {
       g <- addEdge(temp$Var1, temp$Var2, g)
     }

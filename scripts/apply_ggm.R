@@ -118,7 +118,7 @@ result <- list(bdgraph_fit = bdgraph$fit,
                irafnet = irafnet$graph,
                genenet = genenet$graph,
                glasso_fit = glasso$fit,
-               glasso_graph = glasso$graph)
+               glasso = glasso$graph)
 
 # ------------------------------------------------------------------------------
 print("Done with model fitting. Finishing up.")

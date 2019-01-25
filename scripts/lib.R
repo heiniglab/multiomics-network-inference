@@ -289,9 +289,7 @@ annotate.graph <- function(g, ranges, ppi_db, fcontext){
 #'
 #' @param graph: Graph to be plotted (graphNEL)
 #'
-#' @param id The Id of the sentinel snp
-#' @param ranges The list of sentinel associated ranges (we need snp.genes
-#' and cpg.genes, enriched.tfs etc.)
+#' @param id The Id of the sentinel
 #' @param dot.out File to which to write the graph in dot format
 #'
 #' @return List of plot graph attributes and the underlying graph structure
@@ -299,7 +297,8 @@ annotate.graph <- function(g, ranges, ppi_db, fcontext){
 #' @author Johann Hawe
 #'
 #' -----------------------------------------------------------------------------
-plot.ggm <- function(g, id=NULL, plot.on.device=T, dot.out=NULL, ...){
+plot.ggm <- function(g, id, plot.on.device=T, dot.out=NULL, ...){
+  suppressPackageStartupMessages(library(igraph))
   suppressPackageStartupMessages(library(graph))
   suppressPackageStartupMessages(library(Rgraphviz))
 
@@ -316,12 +315,21 @@ plot.ggm <- function(g, id=NULL, plot.on.device=T, dot.out=NULL, ...){
   if(!is.null(id) && !(id %in% nodes(g))) {
     g <- graph::addNode(c(id), g)
   }
-  n <- nodes(g)
 
   # if id is null, we simply identify all SNPs in the graph
   if(is.null(id)){
-    id <- n[grepl("^rs|^chr",n)]
+    stop("Sentinel ID must not be NULL.")
   }
+
+  # now get the cluster which contains our sentinel
+  ig = graph_from_graphnel(g)
+  cl = clusters(ig)
+  sentinel_cluster <- cl$membership[names(cl$membership) == id]
+  keep = nodes(g)[cl$membership == sentinel_cluster]
+  g = subGraph(keep, g)
+  
+  # the remaining nodes
+  n <- keep
 
   # get trans and cpg gene symbols
   snp.genes <- n[unlist(nodeData(g,n,"snp.gene"))]
@@ -417,7 +425,7 @@ plot.ggm <- function(g, id=NULL, plot.on.device=T, dot.out=NULL, ...){
 
   eAttrs = list(color=ecol, dir=dir)
 
-  if(numEdges(g)>500){
+  if(numEdges(g)>600){
     warning("Skipping plotting on device due to large amount of edges")
   } else if(plot.on.device) {
     plot(g, "twopi", nodeAttrs=nAttrs, edgeAttrs=eAttrs, attrs=attrs, ...)

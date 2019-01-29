@@ -32,10 +32,12 @@ ftfbs_annot <- snakemake@input$tfbs_annot
 fgene_annot <- snakemake@input$gene_annot
 
 # output file
-fout <- snakemake@output[[1]]
+fout_ranges <- snakemake@output$ranges
+fout_plot <- snakemake@output$plot
 
 # params
 sentinel <- snakemake@wildcards$sentinel
+tissue <- snakemake@wildcards$tissue
 
 # ------------------------------------------------------------------------------
 print("Load and preprocess data.")
@@ -51,7 +53,7 @@ gene_annot$ids <- probes.from.symbols(gene_annot$SYMBOL,
                                       as.list=T)
 
 # load trans-eQTL
-eqtl = fread(paste0("zcat ", feqtl))
+eqtl = fread(feqtl)
 eqtl <- eqtl[eqtl$SNP == sentinel,]
 if(nrow(eqtl)<5) stop("Will only process hotspots with at least 5 associations.")
 
@@ -102,7 +104,7 @@ print("Collecting TFs and shortest path genes.")
 # ------------------------------------------------------------------------------
 
 # load all TFBS we have available in our data and connect with trans-genes
-tfbs <- tfbs[trans_genes$SYMBOL,,drop=F]
+tfbs <- tfbs[rownames(tfbs) %in% trans_genes$SYMBOL,,drop=F]
 tfs <- NULL
 sp <- NULL
 
@@ -137,8 +139,12 @@ if(!is.null(tfs)){
 
 # set seed name
 result$seed <- "eqtl"
+result$tissue <- tissue
 
-saveRDS(file=fout, result)
+saveRDS(file=fout_ranges, result)
+
+# plot
+plot_ranges(result, fout_plot)
 
 # ------------------------------------------------------------------------------
 print("Session info:")

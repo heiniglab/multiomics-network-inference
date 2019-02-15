@@ -42,6 +42,7 @@ fplot <- snakemake@output[[2]]
 # ------------------------------------------------------------------------------
 print("Loading data.")
 # ------------------------------------------------------------------------------
+
 print("Loading PPI db.")
 ppi_db <- readRDS(fppi)
 
@@ -49,8 +50,8 @@ ppi_db <- readRDS(fppi)
 ranges <- readRDS(franges)
 
 # get all entities as single vector
-nodes <- c(sentinel,
-           with(ranges, c(snp_genes$SYMBOL, tfs$SYMBOL, spath$SYMBOL)))
+nodes <- c(sentinel, ranges$snp_genes$SYMBOL, 
+           ranges$tfs$SYMBOL, ranges$spath$SYMBOL)
 
 if(ranges$seed == "meqtl") {
   nodes <- c(nodes, with(ranges,

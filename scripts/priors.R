@@ -79,6 +79,7 @@ get_link_priors <- function(ranges, nodes, ppi_db, fcpgcontext, fcpg_annot) {
                                                 "Bivalent.Poised.TSS",
                                                 "Flanking.Bivalent.TSS.Enh")])
             }
+            if(p>=1) p <- 1 - pseudo_prior
             priors[n,symbol] <- priors[symbol,n] <- p
           }
         }
@@ -129,7 +130,7 @@ get_link_priors <- function(ranges, nodes, ppi_db, fcpgcontext, fcpg_annot) {
         if(p <= pseudo_prior) {
           p <- pseudo_prior
         }
-        if(p==1) {
+        if(p>=1) {
           p = 1 - pseudo_prior
         }
         priors[g,id] <- priors[id,g] <- p
@@ -164,6 +165,7 @@ get_link_priors <- function(ranges, nodes, ppi_db, fcpgcontext, fcpg_annot) {
                            grepl(paste0("_", n, "$"), rnames)))[1]
         if(!is.na(idxs)) {
           p <- pseudo_prior + gtex.gg.cors[idxs, "prior"]
+          if(p >= 1) p <- 1 - pseudo_prior
         } else {
           p <- pseudo_prior
         }
@@ -180,8 +182,9 @@ get_link_priors <- function(ranges, nodes, ppi_db, fcpgcontext, fcpg_annot) {
     for(i in 1:nrow(temp)) {
       g1 <- temp[i,1]
       g2 <- temp[i,2]
-      prior <- as.numeric(temp[i,3])
-      priors[g1,g2] <- priors[g2,g1] <- pseudo_prior + prior
+      p <- pseudo_prior + as.numeric(temp[i,3])
+      if(p >= 1) p <- 1 - pseudo_prior
+      priors[g1,g2] <- priors[g2,g1] <- p
     }
   }
 

@@ -13,6 +13,7 @@ sink(log, type="message")
 print("Prepare libraries and source scripts.")
 # ------------------------------------------------------------------------------
 library(pheatmap)
+library(doParallel)
 suppressPackageStartupMessages(library(GenomicRanges))
 suppressPackageStartupMessages(library(igraph))
 suppressPackageStartupMessages(library(graph))
@@ -38,6 +39,8 @@ fgstart_plot <- snakemake@output$gstart_file
 
 # params
 threads <- snakemake@threads
+cl <- makeCluster(threads)
+registerDoParallel(cl)
 
 # ------------------------------------------------------------------------------
 print("Load and prepare data.")
@@ -63,7 +66,7 @@ pdf(fsummary_plot)
 # ------------------------------------------------------------------------------
 print("Infer regulatory networks.")
 # ------------------------------------------------------------------------------
-print("Fitting model using priors.")
+print("Fitting bdgraph using priors.")
 bdgraph <- reg_net(data, priors, "bdgraph", threads=threads)
 
 #print("Fitting model with priors without start graph")
@@ -74,9 +77,9 @@ bdgraph <- reg_net(data, priors, "bdgraph", threads=threads)
 #bdgraph_no_priors <- reg_net(d, NULL, "bdgraph",
 #                             gstart = gstart, threads=threads)
 
-print("Fitting model without priors using empty start graph.")
-bdgraph_no_priors_empty <- reg_net(data, NULL, "bdgraph",
-                                   use_gstart = F, threads=threads)
+print("Fitting bdgraph without priors.")
+bdgraph_no_priors <- reg_net(data, NULL, "bdgraph",
+                             use_gstart = F, threads=threads)
 
 print("Fitting model using iRafNet.")
 irafnet <- reg_net(data, priors, "irafnet", threads=threads)
@@ -85,7 +88,13 @@ print("Fitting model using GeneNet.")
 genenet <- reg_net(data, priors, "genenet", threads=threads)
 
 print("Fitting model using glasso.")
-glasso <- reg_net(data,priors, "glasso", threads=threads)
+glasso <- reg_net(data, priors, "glasso", threads=threads)
+
+print("Fitting model using glasso, no priors.")
+ut <- 1-priors[upper.tri(priors)]
+lambda <- sum(ut)/length(ut)
+glasso_no_priors <- reg_net(data, NULL, "glasso", glasso.lambda=lambda, 
+                            threads=threads)
 
 # ------------------------------------------------------------------------------
 print("Add custom annotations for the graphs.")
@@ -99,26 +108,30 @@ if(ranges$seed == "meqtl") {
 }
 
 bdgraph$graph <- annotate.graph(bdgraph$graph, ranges, ppi_db, fcontext)
-bdgraph_no_priors_empty$graph <- annotate.graph(bdgraph_no_priors_empty$graph,
+bdgraph_no_priors_empty$graph <- annotate.graph(bdgraph_no_priors$graph,
                                                 ranges, ppi_db, fcontext)
 irafnet$graph <- annotate.graph(irafnet$graph, ranges, ppi_db, fcontext)
 genenet$graph <- annotate.graph(genenet$graph, ranges, ppi_db, fcontext)
 
 glasso$graph <- annotate.graph(glasso$graph, ranges, ppi_db, fcontext)
+glasso$graph_no_priors <- annotate.graph(glasso_no_priors$graph, 
+                                         ranges, ppi_db, fcontext)
 
 # ------------------------------------------------------------------------------
 print("Create result list.")
 # ------------------------------------------------------------------------------
 result <- list(bdgraph_fit = bdgraph$fit,
-               bdgraph_fit_no_priors_empty = bdgraph_no_priors_empty$fit,
+               bdgraph_fit_no_priors = bdgraph_no_priors$fit,
                irn_fit = irafnet$fit,
                genenet_fit = genenet$fit,
                bdgraph = bdgraph$graph,
-               bdgraph_no_priors_empty = bdgraph_no_priors_empty$graph,
+               bdgraph_no_priors = bdgraph_no_priors$graph,
                irafnet = irafnet$graph,
                genenet = genenet$graph,
                glasso_fit = glasso$fit,
-               glasso = glasso$graph)
+               glasso = glasso$graph,
+               glasso_no_priors_fit = glasso$fit,
+               glasso_no_priors = glasso$graph)
 
 # ------------------------------------------------------------------------------
 print("Done with model fitting. Finishing up.")

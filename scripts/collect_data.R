@@ -103,10 +103,13 @@ adjust_data <- function(sentinel, ranges, data, geno, fccosmo, fceqtl) {
 
   # create complete matrix, containing all the information
   if(ranges$seed == "meqtl") {
-    data <- cbind.data.frame(g_resid, c_resid, s,
+    # scale and center
+    resid <- scale(cbind.data.frame(g_resid, c_resid))
+    data <- cbind.data.frame(resid, s,
                              stringsAsFactors=F)
   } else {
-    data <- cbind.data.frame(g_resid, s,
+    resid <- scale(g_resid)
+    data <- cbind.data.frame(resid, s,
                              stringsAsFactors=F)
   }
   return(data)

@@ -44,7 +44,7 @@ reg_net.models <- function() {
 reg_net <- function(data, priors, model, threads=1,
                     use_gstart=T, gstart=NULL, iter=10000, burnin=5000,
                     ntrees=1000, mtry=round(sqrt(ncol(data)-1)), npermut=5,
-                    irafnet.fdr=0.05, glasso.scale=1) {
+                    irafnet.fdr=0.05, glasso.scale=1, glasso.lambda=0.1) {
 
   # load inference methods
   suppressPackageStartupMessages(library(GeneNet))
@@ -128,7 +128,7 @@ reg_net <- function(data, priors, model, threads=1,
                      glasso.scale*(1 - priors))
     } else {
       gl_out <- glasso(cov(data, use="na.or.complete"),
-                       0.06)
+                       glasso.lambda)
     }
     # get the resulting precision matrix
     fit <- gl_out$wi
@@ -169,7 +169,7 @@ graph_from_fit <- function(ggm.fit,
   suppressPackageStartupMessages(library(graph))
   suppressPackageStartupMessages(library(igraph))
   require(reshape2)
-  suppressPackageStartupMessages(require(tidyverse))
+#  suppressPackageStartupMessages(require(tidyverse))
 
   # get the graph instance from the ggm fits
   if (inherits(ggm.fit, "bdgraph")) {
@@ -198,7 +198,7 @@ graph_from_fit <- function(ggm.fit,
     temp$Var2 <- as.character(temp$Var2)
 
     # define edges and remove self-edges
-    temp <- filter(temp, Var1 != Var2 & value != 0)
+    temp <- subset(temp, Var1 != Var2 & value != 0)
 
     if(nrow(temp) > 0) {
       g <- addEdge(temp$Var1, temp$Var2, g)

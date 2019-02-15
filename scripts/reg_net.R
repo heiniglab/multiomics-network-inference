@@ -42,9 +42,9 @@ reg_net.models <- function() {
 #'
 # ------------------------------------------------------------------------------
 reg_net <- function(data, priors, model, threads=1,
-                    use_gstart=T, gstart=NULL, iter=10000, burnin=2500,
+                    use_gstart=T, gstart=NULL, iter=10000, burnin=5000,
                     ntrees=1000, mtry=round(sqrt(ncol(data)-1)), npermut=5,
-                    irafnet.fdr=0.05) {
+                    irafnet.fdr=0.05, glasso.scale=1) {
 
   # load inference methods
   suppressPackageStartupMessages(library(GeneNet))
@@ -80,7 +80,7 @@ reg_net <- function(data, priors, model, threads=1,
       # build without priors, nevertheless, we could have a custom start graph
       if(use_gstart) {
         if(is.null(gstart)) {
-          stop("Start graph must be provided if now priors are given.")
+          stop("Start graph must be provided if no priors are given.")
         }
         fit <- bdgraph(data, method = "gcgm",
                        iter = iter, burnin = burnin, g.start=gstart,
@@ -109,8 +109,6 @@ reg_net <- function(data, priors, model, threads=1,
 
     # plot convergence info for any case
     ggm_summary <- summary(fit)
-    traceplot(fit)
-    plotcoda(fit)
 
   } else if("irafnet" %in% model) {
     irn_out <- iRafNet(data_no_nas, priors_no_nas, ntrees, mtry, colnames(data_no_nas),
@@ -119,26 +117,24 @@ reg_net <- function(data, priors, model, threads=1,
                                     ntrees, mtry, colnames(data_no_nas),
                                     npermut, threads=threads)
     fit <- iRafNet_network(irn_out, irn_perm_out, TH = irafnet.fdr)
+    fit <- list(fit=fit, nodes=colnames(data_no_nas))
     class(fit) <- c(class(fit), "irafnet")
   } else if("custom" %in% model) {
     stop("Sorry, custom model is not yet implemented.")
   } else if("glasso" %in% model) {
     if(!is.null(priors)) {
-    # for now we simply call using 1-priors as penalization
-    gl_out <- glasso(cov(data, use="na.or.complete"), 
-                     1 - priors)
+      # for now we simply call using 1-priors as penalization
+      gl_out <- glasso(cov(data, use="na.or.complete"), 
+                     glasso.scale*(1 - priors))
     } else {
       gl_out <- glasso(cov(data, use="na.or.complete"),
-                       0.1)
+                       0.06)
     }
     # get the resulting precision matrix
     fit <- gl_out$wi
     rownames(fit) <- colnames(fit) <- colnames(data)
     class(fit) <- c(class(fit), "glasso")
   }
- # now get the graph object
-  g <- graph_from_fit(fit, annotate = F)
-
 
   # now get the graph object
   g <- graph_from_fit(fit, annotate = F)
@@ -152,7 +148,6 @@ reg_net <- function(data, priors, model, threads=1,
 #' @param ggm.fit The bdgraph ggm fit
 #' @param ranges The ranges of the entities used for the graph fit
 #' @param string_db
-#' @param fcontext
 #' @param annotate Flag whether to annotate the graph entities with nodeData.
 #' Default: T
 #'
@@ -164,32 +159,32 @@ reg_net <- function(data, priors, model, threads=1,
 graph_from_fit <- function(ggm.fit,
                            ranges = NULL,
                            ppi_db=NULL,
-                           fcontext=NULL,
                            annotate=T){
 
-  if(annotate & (is.null(fcontext) | is.null(ranges))) {
-    stop("Chip-seq context and ranges must not be null for annotating graphs!")
+  if(annotate & is.null(ranges)) {
+    stop("Ranges must not be null for annotating graphs!")
   }
 
   suppressPackageStartupMessages(library(BDgraph))
   suppressPackageStartupMessages(library(graph))
   suppressPackageStartupMessages(library(igraph))
   require(reshape2)
-  require(tidyverse)
+  suppressPackageStartupMessages(require(tidyverse))
 
-  # get the graph instance from the ggm fit
-  cutoff <- 0.95
+  # get the graph instance from the ggm fits
   if (inherits(ggm.fit, "bdgraph")) {
-    g.adj <- BDgraph::select(ggm.fit, cut = cutoff)
+    g.adj <- BDgraph::select(ggm.fit, cut = 0.9)
     g <-
       as_graphnel(graph.adjacency(g.adj, mode = "undirected", diag = F))
   } else if (inherits(ggm.fit, "irafnet")) {
-    g <- graphNEL(unique(unlist(ggm.fit)), edgemode = "undirected")
-    g <- addEdge(ggm.fit$gene1, ggm.fit$gene2, g)
+    g <- graphNEL(ggm.fit$nodes, edgemode = "undirected")
+    fit <- ggm.fit$fit
+    g <- addEdge(fit$gene1, fit$gene2, g)
   } else if (inherits(ggm.fit, "genenet")) {
+    n <- unique(c(ggm.fit$node1, ggm.fit$node2))
     net <- extract.network(ggm.fit,
-                           cutoff.ggm = cutoff)
-    g <- graphNEL(unique(c(net$node1, net$node2)),
+                           cutoff.ggm = 0.8)
+    g <- graphNEL(n,
                   edgemode = "undirected")
     g <- addEdge(net$node1, net$node2, g)
   } else if(inherits(ggm.fit, "glasso")) {
@@ -203,7 +198,7 @@ graph_from_fit <- function(ggm.fit,
     temp$Var2 <- as.character(temp$Var2)
 
     # define edges and remove self-edges
-    temp <- filter(temp, Var1 != Var2 & value > 0)
+    temp <- filter(temp, Var1 != Var2 & value != 0)
 
     if(nrow(temp) > 0) {
       g <- addEdge(temp$Var1, temp$Var2, g)
@@ -212,7 +207,121 @@ graph_from_fit <- function(ggm.fit,
 
   if(annotate) {
     # set node and edge attributes
-    g <- annotate.graph(g, ranges, ppi_db, fcontext)
+    g <- annotate.graph(g, ranges, ppi_db)
   }
   return(g)
+}
+
+
+# ------------------------------------------------------------------------------
+#' Get a graph score summary to estimate how well the inferred graph structure
+#' fits our assumptions of the underlying regulatory mechanisms.
+#' 
+#' @param g The graph for which to get the score (igraph)
+#' @param sentinel The sentinel to be found in the graph
+#' @param ranges The ranges collection for the respective sentinel/locus
+#' 
+#' @author Johann Hawe <johann.hawe@helmholtz-muenchen.de>
+# ------------------------------------------------------------------------------
+get_graph_score <- function(g, sentinel, ranges, density=NULL) {
+  require(igraph)
+  
+  seed <- ranges$seed
+  
+  # get graph score
+  score <- 0
+  
+  # keep only cluster with sentinel
+  cl <- clusters(g)
+  cn <- cl$membership[sentinel]
+  subnodes <- names(cl$membership[cl$membership == cn])
+  g <- induced_subgraph(g, subnodes)
+  
+  # check whether we have any SNP gene.
+  # if not, the score will be 0
+  # otherwise proceed with check
+  adj_sent <- igraph::neighbors(g, sentinel)$name
+  
+  # get number of trans genes in our cluster
+  v <- V(g)$name
+  tg_in_v <- intersect(ranges$trans_genes$SYMBOL, v)
+  
+  if(seed == "eqtl") {
+    # weight for cis-genes
+    X <- 0.5
+    cis_sent <- intersect(ranges$snp_genes$SYMBOL, adj_sent)
+    if (length(cis_sent) < 1) {
+      return(score)
+    } else {
+      score <- score + X
+    }
+    
+    # define proportion to use for scoring
+    cis_in_v <- intersect(ranges$snp_genes$SYMBOL, v)
+    cis_not_sent <- setdiff(cis_in_v, cis_sent)
+    Y_cis <- X / length(cis_in_v)
+    Y_trans <- X / length(tg_in_v)
+    
+    # check for cis genes which are not connected to the snp/any other
+    # snp genes
+    for (cis in cis_not_sent) {
+      # check adjacency to any of the cis genes adj to sentinel
+      if (!any(cis_sent %in% neighbors(g, cis))) {
+        score <- score - Y_cis
+      }
+    }
+    
+    # check whether trans genes are directly connected to sentinel
+    # score gets a penalty for each such instance
+    tg_sent <- intersect(tg_in_v, adj_sent)
+    for (i in tg_sent) {
+      score <- score - Y_trans
+    }
+    
+    # now we investigate whether we can reach the trans genes
+    # starting from the snp_genes. for this we first
+    # remove the sentinel from the network
+    g <- delete.vertices(g, sentinel)
+    for (cis in cis_sent) {
+      for (trans in tg_in_v) {
+        # we always remove all other trans genes than the current
+        # one to avoid walking over other trans genes to reach it
+        sg <- delete.vertices(g, setdiff(tg_in_v, trans))
+        
+        # get path to trans_gene
+        paths <-
+          suppressWarnings(get.shortest.paths(sg, cis, trans))$vpath[[1]]
+        if (length(paths) > 1) {
+          score <- score + Y_trans
+        }
+      }
+    }
+  } else {
+    
+    # TODO: we could check whether sentinel is TF, then get fraction of 
+    # directly reachable trans genes
+    
+    # fraction of reachable TGs via at least one TF or spath gene
+    Y_trans <- 1/length(tg_in_v)
+    
+    for(trans in tg_in_v) {
+      # remove all other trans-genes to get only independently reachable TGs
+      sg <- delete.vertices(g, setdiff(tg_in_v, trans))
+      
+      paths <-
+        suppressWarnings(get.shortest.paths(sg, sentinel, trans))$vpath[[1]]
+      
+      # we need at least one TF or Spath gene on the path
+      pgenes <- unique(c(ranges$tfs$SYMBOL, ranges$spath$SYMBOL))
+      
+      if(length(paths) > 1 && any(pgenes %in% paths$name)) {
+        score <- score + Y_trans
+      }
+    }
+  }
+  # if graph density is available, we use it to adjust the score
+  if(!is.null(density)) {
+    score <- score * (1-density)
+  }
+  return(score)
 }

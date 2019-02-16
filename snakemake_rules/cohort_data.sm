@@ -68,7 +68,7 @@ rule all_ggm:
 # Validate calculated ggms
 #------------------------------------------------------------------------------
 # define graph types
-GTYPES = ["bdgraph", "bdgraph_no_priors", "genenet", "irafnet"]
+GTYPES = ["bdgraph", "bdgraph_no_priors", "genenet", "irafnet", "glasso", "glasso_no_priors"]
 GTYPES_CONSTR = "|".join(GTYPES)
 rule validate_ggm:
         input:
@@ -103,7 +103,7 @@ rule validate_ggm:
         resources:
                 mem_mb=7000
         script:
-                "../scripts/validate-ggm.R"
+                "../scripts/validate_ggm.R"
 
 #------------------------------------------------------------------------------
 # Collect validation information in single file for different seeds

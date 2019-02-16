@@ -72,7 +72,7 @@ mediation <- function(data, snp, cis_genes, trans_assoc,
   gp <- ggplot(data=betas, aes(x=snp.trans_assoc, y=snp.trans_assoc.hat)) +
     geom_hline(yintercept=0, colour="grey") +
     geom_vline(xintercept=0, colour="grey") +
-    facet_wrap(~ gene, ncol=3) +
+    facet_wrap(~ cis_gene, ncol=3) +
 	    geom_point() +
 	    geom_smooth(method="lm") +
 	    ylab(expression(hat(beta)[c])) +
@@ -395,12 +395,13 @@ validate_gene2gene <- function(expr.data, g, all.genes){
     # get the data set
     dset <- expr.data[[ds]]
     dset <- dset[,colnames(dset) %in% gnodes]
-    if(ncol(dset) == 0) {
+    if(ncol(dset) < 2) {
       return(NA)
     }
     # create adj_matrix
     m <- matrix(nrow=ncol(dset), ncol=ncol(dset))
     rownames(m) <- colnames(m) <- colnames(dset)
+    diag(m) <- 0
 
     # calculate correlations
     res <- c()
@@ -436,10 +437,12 @@ validate_gene2gene <- function(expr.data, g, all.genes){
        m[r$n1, r$n2] <- m[r$n2, r$n1] <- 0
      }
     }
-
+    print(m)
     n <- intersect(colnames(m), colnames(model_adj))
     m <- m[n,n]
     model_adj <- model_adj[n,n]
+    print(any(is.na(m)))
+    print(dim(model_adj))
     res <- BDgraph::compare(model_adj, m)
     res["MCC","estimate"]
   })

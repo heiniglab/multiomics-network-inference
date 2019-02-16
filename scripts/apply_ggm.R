@@ -108,7 +108,7 @@ if(ranges$seed == "meqtl") {
 }
 
 bdgraph$graph <- annotate.graph(bdgraph$graph, ranges, ppi_db, fcontext)
-bdgraph_no_priors_empty$graph <- annotate.graph(bdgraph_no_priors$graph,
+bdgraph_no_priors$graph <- annotate.graph(bdgraph_no_priors$graph,
                                                 ranges, ppi_db, fcontext)
 irafnet$graph <- annotate.graph(irafnet$graph, ranges, ppi_db, fcontext)
 genenet$graph <- annotate.graph(genenet$graph, ranges, ppi_db, fcontext)

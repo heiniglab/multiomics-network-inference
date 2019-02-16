@@ -35,7 +35,7 @@ source("scripts/validation.R")
 source("scripts/lib.R")
 
 # set some ggplot defaults
-theme_set(theme_bw())
+theme_set(theme_linedraw())
 
 # ------------------------------------------------------------------------------
 print("Get snakemake parameters.")
@@ -279,7 +279,7 @@ if (length(use) > 1) {
   g2_adj <- g2_adj[use, use]
 
   # calculate performance using the DBgraph method compare()
-  mcc <- compare(g_adj, g2_adj)["MCC", "estimate"]
+  mcc <- BDgraph::compare(g_adj, g2_adj)["MCC", "estimate"]
   print(paste0("MCC: ", format(mcc, digits = 3)))
 
   # the fraction of nodes retained in the overlap w.r.t. to the

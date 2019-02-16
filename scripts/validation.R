@@ -437,12 +437,9 @@ validate_gene2gene <- function(expr.data, g, all.genes){
        m[r$n1, r$n2] <- m[r$n2, r$n1] <- 0
      }
     }
-    print(m)
     n <- intersect(colnames(m), colnames(model_adj))
     m <- m[n,n]
     model_adj <- model_adj[n,n]
-    print(any(is.na(m)))
-    print(dim(model_adj))
     res <- BDgraph::compare(model_adj, m)
     res["MCC","estimate"]
   })

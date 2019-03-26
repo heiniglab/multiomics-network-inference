@@ -55,8 +55,8 @@ localrules:
 # ------------------------------------------------------------------------------
 # Include the rule-sets for the two individual analyses (cohort, simulation)
 # ------------------------------------------------------------------------------
-include: "snakemake_rules/cohort_data.sm"
-include: "snakemake_rules/simulation.sm"
+include: "workflows/cohort_data.sm"
+include: "workflows/simulation.sm"
 
 #-------------------------------------------------------------------------------
 # Overall target rule (both simulation and cohort study are executed).

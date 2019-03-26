@@ -20,7 +20,7 @@ rule simulate_data:
         benchmark:
                 "benchmarks/simulation/simulate-data/{sentinel}.bmk"
         script:
-                "../scripts/simulate-data.R"
+                "../scripts/simulation/simulate-data.R"
 
 #------------------------------------------------------------------------------
 # Apply ggm on simulated data
@@ -44,7 +44,7 @@ rule apply_ggm_simulation:
         benchmark:
                 "benchmarks/simulation/apply_ggm/{sentinel}-iter{iteration}.bmk"
         script:
-                "../scripts/apply-ggm-simulation.R"
+                "../scripts/simulation/apply-ggm-simulation.R"
 
 #------------------------------------------------------------------------------
 # Validate a simulation run
@@ -59,7 +59,7 @@ rule validate_ggm_simulation:
         log:
                 "logs/simulation/validate_ggm/{sentinel}-iter{iteration}.log"
         script:
-                "../scripts/validate-ggm-simulation.R"
+                "../scripts/simulation/validate-ggm-simulation.R"
 
 
 #------------------------------------------------------------------------------
@@ -83,6 +83,6 @@ TEMP = glob_wildcards(DSIM_FITS + "{sentinel}-iter{iteration}.RData")
 #       log:
 #               "logs/simulation/summarize_simulation.log"
 #       script:
-#               "../scripts/summarize-simulation.Rmd"
+#               "../scripts/simulation/summarize-simulation.Rmd"
 
 

@@ -1,9 +1,14 @@
+# ------------------------------------------------------------------------------
 #' Script based on snakemake input/output vars to simulate
 #' data for individual sentinels
 #'
 #' @author Johann Hawe
 #'
+# ------------------------------------------------------------------------------
 
+log <- file(snakemake@log[[1]], open="wt")
+sink(log)
+sink(log, type="message")
 
 # ------------------------------------------------------------------------------
 print("Prep libraries and source scripts.")
@@ -236,3 +241,10 @@ print("Saving results.")
 # ------------------------------------------------------------------------------
 save(file=fout, simulations, priors, ranges, nodes, data,
      runs, fdata, franges, fpriors)
+
+# ------------------------------------------------------------------------------
+print("SessionInfo:")
+# ------------------------------------------------------------------------------
+sessionInfo()
+sink()
+sink(type="message")

@@ -4,9 +4,9 @@
 RUNS = 100
 rule simulate_data:
         input:
-                data=DCOHORT_DATA + "lolipop/{sentinel}.rds",
-                ranges=DRANGES + "{sentinel}.rds",
-                priors=DPRIORS + "{sentinel}.rds"
+                data=DCOHORT_DATA + "lolipop/{sentinel}_meqtl.rds",
+                ranges=DRANGES + "{sentinel}_meqtl.rds",
+                priors=DPRIORS + "{sentinel}_meqtl.rds"
         output:
                 DSIM_DATA + "{sentinel}.RData"
         threads: 8
@@ -16,11 +16,15 @@ rule simulate_data:
                 sentinel="{sentinel}",
                 runs=RUNS
         log:
-                "logs/simulation/simulate-data/{sentinel}.log"
+                "logs/simulation/simulate_data/{sentinel}.log"
         benchmark:
-                "benchmarks/simulation/simulate-data/{sentinel}.bmk"
+                "benchmarks/simulation/simulate_data/{sentinel}.bmk"
         script:
                 "../scripts/simulation/simulate-data.R"
+
+rule all_simulate_data:
+	input:
+		expand(DSIM_DATA + "{sentinel}.RData", sentinel=MEQTL.sentinel)
 
 #------------------------------------------------------------------------------
 # Apply ggm on simulated data
@@ -29,22 +33,27 @@ ITERATIONS = range(1,RUNS+1)
 
 rule apply_ggm_simulation:
         input:
-                DSIM_DATA + "{sentinel}.RData",
+                data=DSIM_DATA + "{sentinel}.RData",
+                ppi_db=PPI_DB,
+		cpg_context = "results/current/cpg_context.rds"
         output:
                 DSIM_FITS + "{sentinel}-iter{iteration}.RData"
         params:
-                nriter=10000,
-                burnin=5000,
                 iteration="{iteration}"
         threads: 8
         resources:
-                mem_mb=5000
+                mem_mb=4500
         log:
                 "logs/simulation/apply_ggm/{sentinel}-iter{iteration}.log"
         benchmark:
                 "benchmarks/simulation/apply_ggm/{sentinel}-iter{iteration}.bmk"
         script:
                 "../scripts/simulation/apply-ggm-simulation.R"
+
+rule all_apply_ggm_simulation:
+	input:
+		expand(DSIM_FITS + "{sentinel}-iter{iteration}.RData", sentinel=MEQTL.sentinel,
+		iteration=ITERATIONS)
 
 #------------------------------------------------------------------------------
 # Validate a simulation run
@@ -60,7 +69,6 @@ rule validate_ggm_simulation:
                 "logs/simulation/validate_ggm/{sentinel}-iter{iteration}.log"
         script:
                 "../scripts/simulation/validate-ggm-simulation.R"
-
 
 #------------------------------------------------------------------------------
 # Target rule to validate all simulation runs

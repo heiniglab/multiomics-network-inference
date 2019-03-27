@@ -44,7 +44,7 @@ reg_net.models <- function() {
 reg_net <- function(data, priors, model, threads=1,
                     use_gstart=T, gstart=NULL, iter=10000, burnin=5000,
                     ntrees=1000, mtry=round(sqrt(ncol(data)-1)), npermut=5,
-                    irafnet.fdr=0.05, glasso.scale=1, glasso.lambda=0.1) {
+                    irafnet.fdr=0.05, glasso.lambda=1) {
 
   # load inference methods
   suppressPackageStartupMessages(library(GeneNet))
@@ -59,7 +59,7 @@ reg_net <- function(data, priors, model, threads=1,
 
   # for genenet and iRafNet, remove NAs
   data_no_nas <- data[,apply(data, 2, function(x) !anyNA(x))]
-  
+
   if(!is.null(priors)) {
     # we possibly lost some data when filtering for NAs, so we adjust priors too
     priors_no_nas <- priors[rownames(priors) %in% colnames(data_no_nas),
@@ -124,16 +124,16 @@ reg_net <- function(data, priors, model, threads=1,
   } else if("glasso" %in% model) {
     if(!is.null(priors)) {
       # for now we simply call using 1-priors as penalization
-      gl_out <- glasso(cov(data, use="na.or.complete"), 
-                     glasso.scale*(1 - priors))
+      gl_out <- glasso(cov(data, use="na.or.complete"),
+                       glasso.lambda*(1 - priors), penalize.diagonal=F)
     } else {
       gl_out <- glasso(cov(data, use="na.or.complete"),
-                       glasso.lambda)
+                       glasso.lambda, penalize.diagonal=F)
     }
-    # get the resulting precision matrix
-    fit <- gl_out$wi
-    rownames(fit) <- colnames(fit) <- colnames(data)
-    class(fit) <- c(class(fit), "glasso")
+    # set names on precision matrix
+    rownames(gl_out$wi) <- colnames(gl_out$wi) <- colnames(data)
+    class(gl_out) <- c(class(gl_out), "glasso")
+    fit <- gl_out
   }
 
   # now get the graph object
@@ -188,10 +188,11 @@ graph_from_fit <- function(ggm.fit,
                   edgemode = "undirected")
     g <- addEdge(net$node1, net$node2, g)
   } else if(inherits(ggm.fit, "glasso")) {
-    g <- graphNEL(colnames(ggm.fit),
+    pm <- ggm.fit$wi
+    g <- graphNEL(colnames(pm),
                   edgemode="undirected")
     # create edge matrix
-    temp <- melt(ggm.fit)
+    temp <- melt(pm)
     
     # convert back to characters for graphNEL
     temp$Var1 <- as.character(temp$Var1)
@@ -202,7 +203,7 @@ graph_from_fit <- function(ggm.fit,
 
     if(nrow(temp) > 0) {
       g <- addEdge(temp$Var1, temp$Var2, g)
-    }
+    }   
   }
 
   if(annotate) {
@@ -212,40 +213,101 @@ graph_from_fit <- function(ggm.fit,
   return(g)
 }
 
+# ------------------------------------------------------------------------------
+#' Fits the glasso models for a selection of lambdas and identifies the one
+#' no priors fit which is closest (edge number wise) to the prior model with
+#' no scaling
+# ------------------------------------------------------------------------------
+glasso_screen <- function(data, priors, threads, ranges, ppi_db, fcontext) {
+  require(doParallel)
+
+  lambdas <- seq(0.1,1,by=0.1)
+  res <- foreach(l = lambdas, .export=c("reg_net", "reg_net.models", "annotate.graph", "graph_from_fit",
+                                        "filter.edge.matrix", "get_tfbs_context"),
+                 .packages=c("reshape2", "glasso", "graph")) %dopar% {
+                   glasso <- reg_net(data, priors, "glasso", threads=threads, glasso.lambda=l)
+                   glasso$graph <- annotate.graph(glasso$graph, ranges, ppi_db, fcontext)
+
+                   # here we use the average penalty arising from the scaled prior matrix
+                   ut <- l * (1-priors[upper.tri(priors)])
+                   lambda <- sum(ut)/length(ut)
+                   glasso_no_priors <- reg_net(data, NULL, "glasso", glasso.lambda=lambda, threads=threads)
+                   glasso_no_priors$graph <- annotate.graph(glasso_no_priors$graph, ranges, ppi_db, fcontext)
+
+
+                   glassos <- list()
+                   n <- paste0("glasso_lambda", l)
+                   n2 <- paste0(n, "_no_priors")
+                   glassos[[n]] <- glasso
+                   glassos[[n2]] <- glasso_no_priors
+                   return(glassos)
+                 }
+  names(res) <- paste0("lambda", lambdas)
+
+  # we directly get the two main glasso results, i.e. the one with no modulation
+  # to the priors and the one with no priors which has similar number of edges
+  # NOTE: for additional evaluation possibilities, we also save all of the trained
+  # lasso models
+
+  gl <- res[["lambda1"]]$glasso_lambda1
+  ne <- numEdges(gl$graph)
+  closest_graph <- NA
+  edge_diff <- NA
+
+  for(l in names(res)) {
+    # select corresponding non_prior_graph
+    re <- res[[l]]
+    gnp <- re[[which(grepl(".*_no_priors", names(re)))]]
+    ed <- abs(ne - numEdges(gnp$graph))
+    if(is.na(edge_diff)) {
+      edge_diff <- ed
+      closest_graph <- gnp
+    } else {
+      if(ed < edge_diff) {
+        edge_diff <- ed
+        closest_graph <- gnp
+      }
+    }
+  }
+  glnp <- closest_graph
+
+  glasso_all <- res
+  return(list(glasso_all=glasso_all, glasso_no_priors = glnp, glasso = gl))
+}
 
 # ------------------------------------------------------------------------------
 #' Get a graph score summary to estimate how well the inferred graph structure
 #' fits our assumptions of the underlying regulatory mechanisms.
-#' 
+#'
 #' @param g The graph for which to get the score (igraph)
 #' @param sentinel The sentinel to be found in the graph
 #' @param ranges The ranges collection for the respective sentinel/locus
-#' 
+#'
 #' @author Johann Hawe <johann.hawe@helmholtz-muenchen.de>
 # ------------------------------------------------------------------------------
 get_graph_score <- function(g, sentinel, ranges, density=NULL) {
   require(igraph)
-  
+
   seed <- ranges$seed
-  
+
   # get graph score
   score <- 0
-  
+
   # keep only cluster with sentinel
   cl <- clusters(g)
   cn <- cl$membership[sentinel]
   subnodes <- names(cl$membership[cl$membership == cn])
   g <- induced_subgraph(g, subnodes)
-  
+
   # check whether we have any SNP gene.
   # if not, the score will be 0
   # otherwise proceed with check
   adj_sent <- igraph::neighbors(g, sentinel)$name
-  
+
   # get number of trans genes in our cluster
   v <- V(g)$name
   tg_in_v <- intersect(ranges$trans_genes$SYMBOL, v)
-  
+
   if(seed == "eqtl") {
     # weight for cis-genes
     X <- 0.5
@@ -255,13 +317,13 @@ get_graph_score <- function(g, sentinel, ranges, density=NULL) {
     } else {
       score <- score + X
     }
-    
+
     # define proportion to use for scoring
     cis_in_v <- intersect(ranges$snp_genes$SYMBOL, v)
     cis_not_sent <- setdiff(cis_in_v, cis_sent)
     Y_cis <- X / length(cis_in_v)
     Y_trans <- X / length(tg_in_v)
-    
+
     # check for cis genes which are not connected to the snp/any other
     # snp genes
     for (cis in cis_not_sent) {
@@ -270,14 +332,14 @@ get_graph_score <- function(g, sentinel, ranges, density=NULL) {
         score <- score - Y_cis
       }
     }
-    
+
     # check whether trans genes are directly connected to sentinel
     # score gets a penalty for each such instance
     tg_sent <- intersect(tg_in_v, adj_sent)
     for (i in tg_sent) {
       score <- score - Y_trans
     }
-    
+
     # now we investigate whether we can reach the trans genes
     # starting from the snp_genes. for this we first
     # remove the sentinel from the network
@@ -287,7 +349,7 @@ get_graph_score <- function(g, sentinel, ranges, density=NULL) {
         # we always remove all other trans genes than the current
         # one to avoid walking over other trans genes to reach it
         sg <- delete.vertices(g, setdiff(tg_in_v, trans))
-        
+
         # get path to trans_gene
         paths <-
           suppressWarnings(get.shortest.paths(sg, cis, trans))$vpath[[1]]
@@ -297,23 +359,23 @@ get_graph_score <- function(g, sentinel, ranges, density=NULL) {
       }
     }
   } else {
-    
-    # TODO: we could check whether sentinel is TF, then get fraction of 
+
+    # TODO: we could check whether sentinel is TF, then get fraction of
     # directly reachable trans genes
-    
+
     # fraction of reachable TGs via at least one TF or spath gene
     Y_trans <- 1/length(tg_in_v)
-    
+
     for(trans in tg_in_v) {
       # remove all other trans-genes to get only independently reachable TGs
       sg <- delete.vertices(g, setdiff(tg_in_v, trans))
-      
+
       paths <-
         suppressWarnings(get.shortest.paths(sg, sentinel, trans))$vpath[[1]]
-      
+
       # we need at least one TF or Spath gene on the path
       pgenes <- unique(c(ranges$tfs$SYMBOL, ranges$spath$SYMBOL))
-      
+
       if(length(paths) > 1 && any(pgenes %in% paths$name)) {
         score <- score + Y_trans
       }

@@ -1,42 +1,52 @@
+#' -----------------------------------------------------------------------------
+#' Apply the network inference using different models on simulated data
+#'
+#' @author Johann Hawe <johann.hawe@helmholtz-muenchen.de>
+#'
+#' @date Tue Mar 26 10:45:32 2019
+#' -----------------------------------------------------------------------------
+
 # ------------------------------------------------------------------------------
-# load needed libraries and source scripts
+print("Load libraries and source scripts")
 # ------------------------------------------------------------------------------
-suppressPackageStartupMessages(library(BDgraph,
-                                       lib="/storage/groups/epigenereg01/tools/2017/R/3.4/"))
 suppressPackageStartupMessages(library(GenomicRanges))
-suppressPackageStartupMessages(library(iRafNet))
-suppressPackageStartupMessages(library(GeneNet))
+library(pheatmap)
+library(doParallel)
+suppressPackageStartupMessages(library(igraph))
+suppressPackageStartupMessages(library(graph))
 
 source("scripts/lib.R")
-source("scripts/bdgraph-supplement.R")
 source("scripts/reg_net.R")
 
 # ------------------------------------------------------------------------------
-# Get snakemake input and load data
+print("Get snakemake input and load data.")
 # ------------------------------------------------------------------------------
-fdata <- snakemake@input[[1]]
+# inputs
+fdata <- snakemake@input$data
+fppi_db <- snakemake@input$ppi_db
+fcpg_context <- snakemake@input$cpg_context
+
+# outputs
 fout <- snakemake@output[[1]]
+
+# params
 threads <- snakemake@threads
+sim_iter <- as.numeric(snakemake@params$iteration)
 
-# number of simulation iterations performed
-iter <- as.numeric(snakemake@params$iteration)
-
-# currently not in used!
-#nriter <- as.numeric(snakemake@params$nriter)
-#burnin <- as.numeric(snakemake@params$burnin)
-
-#ntrees <- 1000
-#npermut <- 5
+# register clusters for multi-threading (used in iRafNet)
+cl <- makeCluster(threads)
+registerDoParallel(cl)
 
 # contains: simulations, ranges, priors, nodes, data, run
 load(fdata)
+ppi_db <- readRDS(fppi_db)
 
 # ------------------------------------------------------------------------------
 # we generated several graphs, which we all pcalculate models for now
 # ------------------------------------------------------------------------------
 
 # apply over the different runs/iterations
-simulated_data <- simulations[[iter]]
+simulated_data <- simulations[[sim_iter]]
 
 # for this run, apply over all simulated graphs (different randomization
 # degrees)
@@ -57,19 +67,18 @@ result <- lapply(names(simulated_data), function(n) {
   # obtain a start graph
   gstart <- get_gstart_from_priors(priors)
 
-  # ----------------------------------------------------------------------------
-  # Get model fits
-  # ----------------------------------------------------------------------------
+  # ------------------------------------------------------------------------------
+  print("Infer regulatory networks.")
+  # ------------------------------------------------------------------------------
+  print("Fitting model using glasso.")
+  gl <- glasso_screen(d, priors, threads, ranges, ppi_db, fcpg_context)
+  glasso <- gl$glasso
+  glasso_no_priors <- gl$glasso_no_priors
+  glasso_all <- gl$glasso_all
+  print("Done with glasso screen.")
+
   print("Fitting model using priors.")
   bdgraph <- reg_net(d, priors, "bdgraph", threads=threads)
-
-  print("Fitting model without priors without start graph")
-  bdgraph_empty <- reg_net(d, priors, "bdgraph",
-                               use_gstart = F, threads=threads)
-
-  print("Fitting model without priors with start graph")
-  bdgraph_no_priors <- reg_net(d, NULL, "bdgraph",
-                               gstart = gstart, threads=threads)
 
   print("Fitting model without priors using empty start graph.")
   bdgraph_no_priors_empty <- reg_net(d, NULL, "bdgraph",
@@ -81,19 +90,29 @@ result <- lapply(names(simulated_data), function(n) {
   print("Fitting model using GeneNet.")
   genenet <- reg_net(d, priors, "genenet", threads=threads)
 
+  # ------------------------------------------------------------------------------
+  print("Add custom annotations for the graphs.")
+  # ------------------------------------------------------------------------------
+  bdgraph$graph <- annotate.graph(bdgraph$graph, ranges, ppi_db, fcpg_context)
+  bdgraph_no_priors_empty$graph <- annotate.graph(bdgraph_no_priors_empty$graph,
+                                                  ranges, ppi_db, fcpg_context)
+  irafnet$graph <- annotate.graph(irafnet$graph, ranges, ppi_db, fcpg_context)
+  genenet$graph <- annotate.graph(genenet$graph, ranges, ppi_db, fcpg_context)
+
   # create result list
-  result <- list(ggm_fit = bdgraph$fit,
-                 ggm_fit_empty = bdgraph_empty$fit,
-                 ggm_fit_no_priors = bdgraph_no_priors$fit,
-                 ggm_fit_no_priors_empty = bdgraph_no_priors_empty$fit,
-                 irn_fit = irafnet$fit,
+  result <- list(bdgraph_fit = bdgraph$fit,
+                 bdgraph_no_priors_empty_fit = bdgraph_no_priors_empty$fit,
+                 irafnet_fit = irafnet$fit,
                  genenet_fit = genenet$fit,
-                 ggm_graph = bdgraph$graph,
-                 ggm_graph_empty = bdgraph_empty$graph,
-                 ggm_graph_no_priors = bdgraph_no_priors$graph,
-                 ggm_graph_no_priors_empty = bdgraph_no_priors_empty$graph,
-                 irn_graph = irafnet$graph,
-                 genenet_graph = genenet$graph)
+                 bdgraph = bdgraph$graph,
+                 bdgraph_no_priors_empty = bdgraph_no_priors_empty$graph,
+                 irafnet_graph = irafnet$graph,
+                 genenet_graph = genenet$graph,
+		 glasso_fit = glasso$fit,
+		 glasso = glasso$graph,
+		 glasso_no_priors_fit = glasso_no_priors$fit,
+		 glasso_no_priors = glasso_no_priors$graph,
+		 glasso_all = glasso_all)
 
   sim$fits <- result
 
@@ -104,3 +123,8 @@ names(result) <- names(simulated_data)
 
 print("Saving results.")
 save(file=fout, result, priors, runs)
+
+# ------------------------------------------------------------------------------
+print("SessionInfo:")
+# ------------------------------------------------------------------------------
+sessionInfo()

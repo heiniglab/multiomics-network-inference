@@ -26,16 +26,6 @@ get_link_priors <- function(ranges, nodes, ppi_db, fcpgcontext, fcpg_annot) {
   message("WARNING: Assuming single SNP in given data.")
   id <- nodes[grepl("^rs", nodes)]
 
-  # subset eqtl priors
-  if(id %in% gtex.eqtl$RS_ID_dbSNP135_original_VCF |
-     id %in% gtex.eqtl$RS_ID_dbSNP142_CHG37p13) {
-    gtex.eqtl <- gtex.eqtl[(gtex.eqtl$RS_ID_dbSNP135_original_VCF==id |
-                              gtex.eqtl$RS_ID_dbSNP142_CHG37p13==id), ]
-  } else {
-    cat("WARNING: Sentinel", id, "has no GTEx eQTL!\n")
-    gtex.eqtl <- NULL
-  }
-
   # ----------------------------------------------------------------------------
   # now build the prior matrix, set pseudo prior
   # ----------------------------------------------------------------------------
@@ -116,7 +106,7 @@ get_link_priors <- function(ranges, nodes, ppi_db, fcpgcontext, fcpg_annot) {
   # ----------------------------------------------------------------------------
   # iterate over each of the snp genes and set prior according to
   # gtex pre-calculated priors
-  if(exists("gtex.eqtl")) {
+  if(exists("gtex.eqtl") && !is.null(gtex.eqtl)) {
     snp_genes <- ranges$snp_genes$SYMBOL
     for(g in snp_genes) {
       # already filtered for sentinel id, just check gene

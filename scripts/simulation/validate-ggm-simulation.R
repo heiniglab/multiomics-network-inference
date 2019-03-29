@@ -44,24 +44,25 @@ temp <- lapply(names(result), function(n) {
   # ----------------------------------------------------------------------------
   # Get all fits
   # ----------------------------------------------------------------------------
-  ggm_fit <- r$fits$ggm_fit
-  ggm_fit_no_priors <- r$fits$ggm_fit_no_priors
-  ggm_fit_nor_priors_empty <- r$fits$ggm_fit_no_priors_empty
+  bdgraph_fit <- r$fits$bdgraph_fit
+  bdgraph_no_priors_fit <- r$fits$bdgraph_no_priors_empty_fit
+  glasso_adj <- as(r$fits$glasso, "matrix")
+  glasso_no_priors_adj <- as(r$fits$glasso_no_priors, "matrix")
   genenet_adj <- as(r$fits$genenet_graph,"matrix")
-  irn_adj <- as(r$fits$irn_graph,"matrix")
+  irafnet_adj <- as(r$fits$irafnet_graph,"matrix")
 
   # ----------------------------------------------------------------------------
   # use the bdgraph internal method to get spec/sens, f1 and MCC. Use the
   # original simulation object containing the ground truth graph
   # ----------------------------------------------------------------------------
-  perf <- t(compare(d, ggm_fit, ggm_fit_no_priors, ggm_fit_nor_priors_empty))
-  comparisons <- c("true", "ggm_fit", "ggm_fit_no_priors", "ggm_fit_no_priors_empty")
+  perf <- t(compare(d, bdgraph_fit, bdgraph_no_priors_fit, glasso_adj))
+  comparisons <- c("true", "bdgraph", "bdgraph_no_priors", "glasso")
   perf <- as.data.frame(perf)
   rownames(perf) <- paste(n, comparisons, sep="_")
 
   # same for iRafNet and GeneNet graphs
-  perf2 <- t(compare(d, genenet_adj, irn_adj))
-  comparisons <- c("true", "genenet_fit", "iRafNet_fit")
+  perf2 <- t(compare(d, glasso_no_priors_adj, genenet_adj, irafnet_adj))
+  comparisons <- c("true", "glasso_no_priors", "genenet", "iRafNet")
   perf2 <- as.data.frame(perf2)
   rownames(perf2) <- paste(n, comparisons, sep="_")
   # only one true graph (we combine in the next line...)

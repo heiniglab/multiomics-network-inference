@@ -62,17 +62,17 @@ temp <- lapply(names(result), function(n) {
 
   # same for iRafNet and GeneNet graphs
   perf2 <- t(compare(d, glasso_no_priors_adj, genenet_adj, irafnet_adj))
-  comparisons <- c("true", "glasso_no_priors", "genenet", "iRafNet")
+  comparisons2 <- c("true", "glasso_no_priors", "genenet", "iRafNet")
   perf2 <- as.data.frame(perf2)
-  rownames(perf2) <- paste(n, comparisons, sep="_")
+  rownames(perf2) <- paste(n, comparisons2, sep="_")
   # only one true graph (we combine in the next line...)
-  perf2 <- perf2[!rownames(perf2) %in% "true",]
+  perf2 <- perf2[!grepl("true", rownames(perf2)),]
   perf <- rbind(perf, perf2)
 
   # remember for easy plotting
   perf$rdegree <- r$rdegree
   perf$snp <- r$snp
-  perf$comparison <- comparisons
+  perf$comparison <- c(comparisons, comparisons2[-1])
   perf$iteration <- iteration
 
   # ----------------------------------------------------------------------------

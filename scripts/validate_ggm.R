@@ -3,7 +3,8 @@
 #' This script is used to validate already calculated ggm fits.
 #' The fitted ggm models are loaded and validated using the concept of individual
 #' link types, i.e. cpg-gene links, snp-gene links and gene-gene links.
-#' @autor Johann Hawe
+#'
+#'  @autor Johann Hawe
 #'
 # ------------------------------------------------------------------------------
 sink(snakemake@log[[1]], type = "output", split = T)
@@ -33,6 +34,7 @@ suppressPackageStartupMessages(library(ggplot2))
 source("scripts/go-enrichment.R")
 source("scripts/validation.R")
 source("scripts/lib.R")
+source("scripts/reg_net.R")
 
 # set some ggplot defaults
 theme_set(theme_linedraw())
@@ -192,6 +194,15 @@ gnodes <- graph::nodes(g)
 if (!sentinel %in% gnodes) {
   g <- graph::addNode(sentinel, g)
 }
+
+# ------------------------------------------------------------------------------
+print("Calculating graph score.")
+# ------------------------------------------------------------------------------
+# we use the (full) igraph object for this, will be filtered for the sentinel
+# cluster
+score <- get_graph_score(ig, sentinel, ranges)
+row <- c(row,
+         graph_score = score)
 
 # ------------------------------------------------------------------------------
 print("Defining entity sets (selected / not selected)")

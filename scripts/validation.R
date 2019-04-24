@@ -420,8 +420,9 @@ validate_gene2gene <- function(expr.data, g, all.genes){
 
     # get qvalue
     if(nrow(pvs)>10) {
+
       pvs <- cbind(pvs, qval=qvalue(pvs$pval,
-  				  lambda=seq(0.05,max(pvs$pval), 0.05))$qvalues)
+  				  lambda=seq(min(pvs$pval), max(pvs$pval)))$qvalues)
       use <- pvs$qval<0.05 & abs(pvs$cor)>0.3
     } else {
       pvs <- cbind(pvs, qval=rep(NA, nrow(pvs)))
@@ -538,8 +539,4 @@ validate_trans_genes <- function(teqtl, cgenes, tfs,
 
   # report fisher test results
   return(c(transEqtl_cgenes=f1,transEqtl_tfs=f2))
-}
-
-sigma.trace <- function(ggm.fit) {
-
 }

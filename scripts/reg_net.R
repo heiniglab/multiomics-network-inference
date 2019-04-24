@@ -193,7 +193,7 @@ graph_from_fit <- function(ggm.fit,
                   edgemode="undirected")
     # create edge matrix
     temp <- melt(pm)
-    
+
     # convert back to characters for graphNEL
     temp$Var1 <- as.character(temp$Var1)
     temp$Var2 <- as.character(temp$Var2)
@@ -203,7 +203,7 @@ graph_from_fit <- function(ggm.fit,
 
     if(nrow(temp) > 0) {
       g <- addEdge(temp$Var1, temp$Var2, g)
-    }   
+    }
   }
 
   if(annotate) {
@@ -282,6 +282,8 @@ glasso_screen <- function(data, priors, threads, ranges, ppi_db, fcontext) {
 #' @param g The graph for which to get the score (igraph)
 #' @param sentinel The sentinel to be found in the graph
 #' @param ranges The ranges collection for the respective sentinel/locus
+#' @param density optional. Used to adjust final score (the higher the density,
+#' the lower the score)
 #'
 #' @author Johann Hawe <johann.hawe@helmholtz-muenchen.de>
 # ------------------------------------------------------------------------------

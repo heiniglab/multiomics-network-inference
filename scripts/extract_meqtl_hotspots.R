@@ -79,7 +79,7 @@ toplot <- hotspots[!duplicated(sentinel.snp)]
 
 pdf(fout_plot)
 ggplot(aes(x=ntrans), data=toplot) + geom_histogram() +
-  ggtitle(paste0("Overview on number of trans CpGs for ", nrow(hotspots), " hotspots.")) +
+  ggtitle(paste0("Overview on number of trans CpGs for ", length(sents), " hotspots.")) +
   xlab("number of trans associations")
 dev.off()
 

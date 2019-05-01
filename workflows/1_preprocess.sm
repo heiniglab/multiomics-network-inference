@@ -134,6 +134,7 @@ rule extract_meqtl_hotspots:
 		lolipop_data = "results/current/ggmdata_lolipop.RData"
 	output:
 		plot=DHOTSPOTS + "meqtl_thres{hots_thres}/summary.pdf",
+		table=DHOTSPOTS + "meqtl_thres{hots_thres}/hotspots.tsv",
 		loci_dir=directory(DHOTSPOTS + "meqtl_thres{hots_thres}/loci/")
 	script:
 		"../scripts/extract_meqtl_hotspots.R"

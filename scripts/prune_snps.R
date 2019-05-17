@@ -33,6 +33,11 @@ feqtl <- snakemake@input$eqtl
 eqtl <- fread(paste0("zcat ", feqtl))
 # we also filter to fdr < fdrcutoff
 eqtl <- eqtl[eqtl$FDR < fdr_cutoff]
+
+# we noticed that there are not only trans eQTLs in this table, so filter for
+# distinct chromosome sbetween snp and gene
+eqtl <- eqtl[eqtl$SNPChr != eqtl$GeneChr]
+
 eqtl_by_chromosome <- split(eqtl, f=eqtl$SNPChr)
 
 fdosage <- snakemake@input$dosage
@@ -42,7 +47,6 @@ individuals <- read.table(findividuals, header=F)[,1]
 # output
 ffull <- snakemake@output$full
 fpruned <- snakemake@output$pruned
-
 
 # ------------------------------------------------------------------------------
 print("Pruning SNPs for all chromosomes.")

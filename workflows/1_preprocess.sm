@@ -25,7 +25,8 @@ rule prune_snps:
 		4
 	params:
 		ld_max_dist = 1e6,
-		r2_min = 0.2
+		r2_min = 0.2,
+		fdr_cutoff = 0.05
 	log:
 		"logs/prune_snps.log"
 	benchmark:
@@ -117,10 +118,11 @@ rule extract_eqtlgen_hotspots:
 	input:
 		eqtl="results/current/eqtlgen/pruned.rds",
 		kora_data = "results/current/ggmdata_kora.RData",
-		lolipop_data = "results/current/ggmdata_lolipop.RData"
+		lolipop_data = "results/current/ggmdata_lolipop.RData",
+		gene_annot = GENE_ANNOT
 	output:
 		plot=DHOTSPOTS + "eqtlgen_thres{hots_thres}/summary.pdf",
-		table=DHOTSPOTS + "meqtl_thres{hots_thres}/hotspots.tsv",
+		table=DHOTSPOTS + "eqtlgen_thres{hots_thres}/hotspots.tsv",
 		loci_dir=directory(DHOTSPOTS + "eqtlgen_thres{hots_thres}/loci/")
 	script:
 		"../scripts/extract_eqtlgen_hotspots.R"

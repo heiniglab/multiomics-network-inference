@@ -100,7 +100,9 @@ rule prepare_kora_data:
 #------------------------------------------------------------------------------
 rule prepare_lolipop_data:
         input:
-                lolipop="data/current/meQTLs/ggmdata_201017.RData"
+                lolipop="data/current/meQTLs/ggmdata_201017.RData",
+                lolipop_update="data/current/meQTLs/ggmdata_130319.RData"
+
         output: "results/current/ggmdata_lolipop.RData"
         resources:
                 mem_mb=2000
@@ -109,7 +111,7 @@ rule prepare_lolipop_data:
         benchmark:
                 "benchmarks/prepare-lolipop-data.bmk"
         script:
-                "scripts/prepare-lolipop-data.R"
+                "../scripts/prepare-lolipop-data.R"
 
 # ------------------------------------------------------------------------------
 # Extract eQTLgen hotspots

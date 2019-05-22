@@ -262,8 +262,8 @@ rule all_data:
         input:
                 expand(DCOHORT_DATA + "{cohort}/{sentinel}_meqtl.rds", 
                              sentinel=MEQTL.sentinel, cohort=COHORTS),
-                expand(DCOHORT_DATA + "kora/{sentinel}_eqtlgen.rds", 
-                               sentinel=EQTLGEN.sentinel)
+                expand(DCOHORT_DATA + "{cohort}/{sentinel}_eqtlgen.rds", 
+                               sentinel=EQTLGEN.sentinel, cohort=COHORTS)
         output:
                 DCOHORT_DATA + "summary.pdf"
         script:

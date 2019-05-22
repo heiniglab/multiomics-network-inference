@@ -39,7 +39,11 @@ ranges <- readRDS(franges)
 # the snp genes
 sgenes <- ranges$snp_genes$SYMBOL
 sgenes <- sgenes[sgenes %in% colnames(data)]
-
+if(length(sgenes) == 0) {
+  warning("No SNP genes in data matrix.")
+  saveRDS(file=fout, NULL)
+  q()
+}
 # the trans associated entities
 if(ranges$seed == "meqtl") {
   ta <- names(ranges$cpgs)

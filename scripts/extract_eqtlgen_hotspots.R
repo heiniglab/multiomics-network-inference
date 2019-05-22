@@ -38,8 +38,8 @@ print("Loading and processing data.")
 # ------------------------------------------------------------------------------
 load(fkora_data)
 available_snps <- colnames(geno)
-#load(flolipop_data)
-#available_snps <- intersect(available_snps, colnames(geno))
+load(flolipop_data)
+available_snps <- intersect(available_snps, colnames(geno))
 
 rm(geno,expr,meth,covars)
 gc()

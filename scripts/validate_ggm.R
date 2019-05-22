@@ -408,9 +408,12 @@ row <- c(row, val_g2g)
 print("GO enrichment.")
 # ------------------------------------------------------------------------------
 go <- validate_geneenrichment(gnodes)
-names(go) <- c("go_ids", "go_terms", "go_pvals", "go_qvals")
-row <- c(row, go)
-
+if(!is.null(go)) {
+  names(go) <- c("go_ids", "go_terms", "go_pvals", "go_qvals")
+  row <- c(row, go)
+} else {
+  row <- c(row, rep(NA, 4))
+}
 # write output file
 write.table(file=fout, t(row), col.names=T,
             row.names=F, quote=F, sep="\t")

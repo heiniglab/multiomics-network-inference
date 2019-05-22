@@ -63,6 +63,7 @@ rule all_ggm:
 		expand(DCOHORT_FITS + "lolipop/{sentinel}_meqtl.rds", sentinel=MEQTL.sentinel),
 		expand(DCOHORT_FITS + "kora/{sentinel}_meqtl.rds", sentinel=MEQTL.sentinel),
 		expand(DCOHORT_FITS + "kora/{sentinel}_eqtlgen.rds", sentinel=EQTLGEN.sentinel),
+		expand(DCOHORT_FITS + "lolipop/{sentinel}_eqtlgen.rds", sentinel=EQTLGEN.sentinel)
 		
 #------------------------------------------------------------------------------
 # Validate calculated ggms
@@ -101,21 +102,30 @@ rule validate_ggm:
         benchmark:
                 "benchmarks/validate_ggm/{cohort}/{sentinel}_{graph_type}_{seed}.bmk"
         resources:
-                mem_mb=7000
+                mem_mb=8000
         script:
                 "../scripts/validate_ggm.R"
+
+# get available subsets
+MEQTL_SUBSET_KORA = glob_wildcards(DCOHORT_FITS + "kora/{sentinel}_meqtl.rds")
+MEQTL_SUBSET_LOLIPOP = glob_wildcards(DCOHORT_FITS + "lolipop/{sentinel}_meqtl.rds")
+
+EQTLGEN_SUBSET = glob_wildcards(DCOHORT_FITS + "kora/{sentinel}_eqtlgen.rds")
 
 #------------------------------------------------------------------------------
 # Collect validation information in single file for different seeds
 #------------------------------------------------------------------------------
 rule summarize_validation_meqtl:
-        input: expand(DCOHORT_VAL + "{cohort}/{sentinel}_{graph_type}_meqtl.txt", sentinel=MEQTL.sentinel, graph_type=GTYPES, cohort=COHORTS)
+#        input: expand(DCOHORT_VAL + "{cohort}/{sentinel}_{graph_type}_meqtl.txt", sentinel=MEQTL.sentinel, graph_type=GTYPES, cohort=COHORTS)
+        input: expand(DCOHORT_VAL + "kora/{sentinel}_{graph_type}_meqtl.txt", sentinel=MEQTL_SUBSET_KORA.sentinel, graph_type=GTYPES),
+               expand(DCOHORT_VAL + "lolipop/{sentinel}_{graph_type}_meqtl.txt", sentinel=MEQTL_SUBSET_LOLIPOP.sentinel, graph_type=GTYPES)
         output: DCOHORT_VAL + "validation_all_meqtl.txt"
         shell:
                 "cat {input} | sort -r | uniq > {output}"
 
 rule summarize_validation_eqtlgen:
-        input: expand(DCOHORT_VAL + "{cohort}/{sentinel}_{graph_type}_eqtlgen.txt", sentinel=EQTLGEN.sentinel, graph_type=GTYPES, cohort="kora")
+#        input: expand(DCOHORT_VAL + "{cohort}/{sentinel}_{graph_type}_eqtlgen.txt", sentinel=EQTLGEN.sentinel, graph_type=GTYPES, cohort="kora")
+        input: expand(DCOHORT_VAL + "{cohort}/{sentinel}_{graph_type}_eqtlgen.txt", sentinel=EQTLGEN_SUBSET.sentinel, graph_type=GTYPES, cohort="kora")
         output: DCOHORT_VAL + "validation_all_eqtlgen.txt"
         shell:
                 "cat {input} | sort -r | uniq > {output}"

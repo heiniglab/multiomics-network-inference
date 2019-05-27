@@ -31,6 +31,7 @@ mediation <- function(data, snp, cis_genes, trans_assoc,
 
   d <- data[,c(snp,cis_genes,trans_assoc),drop=F]
 
+  print(length(cis_genes))
   # get large matrix of all coefficients for all combinations
   betas <- c()
   for(g in cis_genes) {
@@ -241,6 +242,8 @@ compare_mediation_results <- function(sentinel,
   df$gene <- names(med_pvals)
   df$significant_validation <- df$pvalue_validation <= cutoff
   df$significant_original <- df$pvalue_original <= cutoff
+
+  df <- df[complete.cases(df),,drop=F]
   df$significant <- unlist(lapply(1:nrow(df), function(i) {
 			  r <- df[i,,drop=T]
 			  if(r[["significant_validation"]] & r[["significant_original"]]){
@@ -394,7 +397,7 @@ validate_gene2gene <- function(expr.data, g, all.genes){
   results <- lapply(names(expr.data), function(ds) {
     # get the data set
     dset <- expr.data[[ds]]
-    dset <- dset[,colnames(dset) %in% gnodes]
+    dset <- dset[,colnames(dset) %in% gnodes,drop=F]
     if(ncol(dset) < 2) {
       return(NA)
     }
@@ -463,6 +466,8 @@ validate_geneenrichment <- function(gnodes) {
 
   # get only gene nodes
   gn <- gnodes[!grepl("^rs|^cg",gnodes)]
+
+  if(length(gn) < 2) return(NULL)
 
   # define background set
   # for now all possible symbols from the array annotation

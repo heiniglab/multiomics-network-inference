@@ -53,7 +53,7 @@ gene_annot$ids <- probes.from.symbols(gene_annot$SYMBOL,
                                       as.list=T)
 
 # load trans-eQTL
-eqtl = fread(feqtl)
+eqtl = fread(paste0("zcat ", feqtl))
 eqtl <- eqtl[eqtl$SNP == sentinel,]
 if(nrow(eqtl)<5) stop("Will only process hotspots with at least 5 associations.")
 

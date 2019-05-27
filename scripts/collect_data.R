@@ -406,7 +406,8 @@ ranges <- readRDS(franges)
 expr_probes = c(unlist(ranges$snp_genes$ids),
                 unlist(ranges$cpg_genes$ids),
                 unlist(ranges$tfs$ids),
-                unlist(ranges$spath$ids))
+                unlist(ranges$spath$ids),
+                unlist(ranges$trans_genes$ids))
 expr_probes <- unique(expr_probes)
 meth_probes <- names(ranges$cpgs)
 

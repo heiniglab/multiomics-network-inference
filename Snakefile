@@ -191,7 +191,8 @@ rule collect_ranges_eqtlgen:
                 tfbs_annot="results/current/tfbs_tss_annot.rds",
                 gene_annot = GENE_ANNOT
         output:
-                DRANGES + "{sentinel}_eqtlgen.rds"
+                ranges = DRANGES + "{sentinel}_eqtlgen.rds",
+                plot = DRANGES + "{sentinel}_eqtlgen.pdf"
         log:
                 "logs/collect_ranges_egen/{sentinel}.log"
         benchmark:
@@ -241,10 +242,6 @@ rule collect_data:
 	output:
 		DCOHORT_DATA + "{cohort}/{sentinel}_{seed}.rds",
 		DCOHORT_DATA + "{cohort}/{sentinel}_raw_{seed}.rds"
-	threads: 2
-	params:
-		cohort="{cohort}",
-		sentinel="{sentinel}"
 	log:
 		"logs/collect_data/{cohort}/{sentinel}_{seed}.log"
 	benchmark:

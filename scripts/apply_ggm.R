@@ -46,6 +46,15 @@ registerDoParallel(cl)
 print("Load and prepare data.")
 # ------------------------------------------------------------------------------
 data <- readRDS(fdata)
+
+# remove (rare) all-NA cases. This can happen due to scaling of all-zero entities,
+# which can arise due to a very large number of cis-meQTLs which effects get 
+# removed from the CpGs during data preprocessing.
+# NOTE: we could possibly handle this differently? Seems that these particular 
+# cpgs are highly influenced by genetic effects?
+use <- apply(data,2,function(x) (sum(is.na(x)) / length(x)) < 1)
+data <- data[,use]
+
 priors <- readRDS(fpriors)
 
 # filter for available data in priros

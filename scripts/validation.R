@@ -45,7 +45,9 @@ mediation <- function(data, snp, cis_genes, trans_assoc,
 
     # snp-trans_assoc and cis_gene-trans_assoc
     for(ta in trans_assoc) {
-
+      if(grepl("-", ta)){
+        ta <- paste0("`",ta,"`")
+      }
       snp.trans_assoc <- lm(paste0(ta,"~",snp), data=d)
       snp.trans_assoc <- coefficients(snp.trans_assoc)[snp]
 

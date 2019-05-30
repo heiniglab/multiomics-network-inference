@@ -110,7 +110,8 @@ rule validate_ggm:
 MEQTL_SUBSET_KORA = glob_wildcards(DCOHORT_FITS + "kora/{sentinel}_meqtl.rds")
 MEQTL_SUBSET_LOLIPOP = glob_wildcards(DCOHORT_FITS + "lolipop/{sentinel}_meqtl.rds")
 
-EQTLGEN_SUBSET = glob_wildcards(DCOHORT_FITS + "kora/{sentinel}_eqtlgen.rds")
+EQTLGEN_SUBSET_KORA = glob_wildcards(DCOHORT_FITS + "kora/{sentinel}_eqtlgen.rds")
+EQTLGEN_SUBSET_LOLIPOP = glob_wildcards(DCOHORT_FITS + "lolipop/{sentinel}_eqtlgen.rds")
 
 #------------------------------------------------------------------------------
 # Collect validation information in single file for different seeds
@@ -125,7 +126,8 @@ rule summarize_validation_meqtl:
 
 rule summarize_validation_eqtlgen:
 #        input: expand(DCOHORT_VAL + "{cohort}/{sentinel}_{graph_type}_eqtlgen.txt", sentinel=EQTLGEN.sentinel, graph_type=GTYPES, cohort="kora")
-        input: expand(DCOHORT_VAL + "{cohort}/{sentinel}_{graph_type}_eqtlgen.txt", sentinel=EQTLGEN_SUBSET.sentinel, graph_type=GTYPES, cohort="kora")
+        input: expand(DCOHORT_VAL + "kora/{sentinel}_{graph_type}_eqtlgen.txt", sentinel=EQTLGEN_SUBSET_KORA.sentinel, graph_type=GTYPES),
+               expand(DCOHORT_VAL + "lolipop/{sentinel}_{graph_type}_eqtlgen.txt", sentinel=EQTLGEN_SUBSET_LOLIPOP.sentinel, graph_type=GTYPES)
         output: DCOHORT_VAL + "validation_all_eqtlgen.txt"
         shell:
                 "cat {input} | sort -r | uniq > {output}"

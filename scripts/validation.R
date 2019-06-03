@@ -35,17 +35,16 @@ mediation <- function(data, snp, cis_genes, trans_assoc,
   # get large matrix of all coefficients for all combinations
   betas <- c()
   for(g in cis_genes) {
-    if(grepl("-", g)){
+    if(grepl("-|7SK", g)){
       g <- paste0("`",g,"`")
     }
-
     # snp-gene
     snp.cis_gene <- lm(paste0(g, "~",snp), data=d)
     snp.cis_gene <- coefficients(snp.cis_gene)[snp]
 
     # snp-trans_assoc and cis_gene-trans_assoc
     for(ta in trans_assoc) {
-      if(grepl("-", ta)){
+      if(grepl("-|7SK", ta)){
         ta <- paste0("`",ta,"`")
       }
       snp.trans_assoc <- lm(paste0(ta,"~",snp), data=d)
@@ -91,15 +90,13 @@ mediation <- function(data, snp, cis_genes, trans_assoc,
   # get the correlation results for the estimated against the
   # observed betas
   result <- lapply(cis_genes, function(g){
-    if(grepl("-", g)){
+    if(grepl("-|7SK", g)){
       g <- paste0("`",g,"`")
     }
 
     d <- betas[betas$cis_gene == g,]
-
     d1 <- d[,"snp.trans_assoc"]
     d2 <- d[,"snp.trans_assoc.hat"]
-
     fit <- lm(d2~d1)
     r <- cor.test(d1, d2)
     cor <- r$estimate

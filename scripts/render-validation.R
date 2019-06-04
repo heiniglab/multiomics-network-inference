@@ -17,12 +17,16 @@ library(scales)
 library(knitr)
 library(gridExtra)
 library(graph)
+library(cowplot)
+library(patchwork)
+library(data.table)
+
 source("scripts/lib.R")
 cols <- set_defaultcolors()
 
 # prepare some ggplot stuff
 sfm <- scale_fill_manual(values=cols)
-theme_set(theme_bw())
+#theme_set(theme_bw())
 
 # ------------------------------------------------------------------------------
 # Get snakemake params if available
@@ -41,11 +45,15 @@ fmediation_perc <- snakemake@output$mediation_perc
 fmediation_distr <- snakemake@output$mediation_distr
 fperf <- snakemake@output$perf
 
+# params
+seed <- snakemake@wildcards$seed
+isMEQTL <- seed == "meqtl"
+
 # ------------------------------------------------------------------------------
 # load the large result table for all loci
 # TODO we currently remove the results for the GO enrichment
 # ------------------------------------------------------------------------------
-tab <- read.table(fsummary, header=T, sep="\t", stringsAsFactors=F)
+tab <- fread(fsummary)
 
 # ------------------------------------------------------------------------------
 # create some basic plots of the gene counts
@@ -61,46 +69,46 @@ toplot <- tab[,c("sentinel", "cohort", "graph_type",
 toplot$snp_in_network <- !is.na(toplot[,"snp_cluster"])
 
 # whether the SNP has been selected or not
-gp1 <- ggplotGrob(ggplot(data=toplot, aes(snp_in_network)) + geom_histogram(stat="count") +
+gp1 <- ggplot(data=toplot, aes(snp_in_network)) + geom_histogram(stat="count") +
   facet_grid(cohort ~ graph_type) + sfm +
-  ggtitle("Number of networks in which the SNP has been selected at all"))
+  ggtitle("Number of networks in which the SNP has been selected at all")
 
 # show the distribution of number of nodes per network
-gp2 <- ggplotGrob(ggplot(data=toplot, aes(number_nodes)) + geom_histogram() +
+gp2 <- ggplot(data=toplot, aes(number_nodes)) + geom_histogram() +
   facet_grid(cohort ~ graph_type) + sfm +
-  ggtitle("Distribution of the number of nodes in the networks"))
+  ggtitle("Distribution of the number of nodes in the networks")
 
 # show the distribution of number of edges per network
-gp3 <- ggplotGrob(ggplot(data=toplot, aes(number_edges)) + geom_histogram() +
+gp3 <- ggplot(data=toplot, aes(number_edges)) + geom_histogram() +
   facet_grid(cohort ~ graph_type) + sfm +
-  ggtitle("Distribution of the number of edges in the graph"))
+  ggtitle("Distribution of the number of edges in the graph")
 
 # show the distribution of graph_densities network
-gp4 <- ggplotGrob(ggplot(data=toplot, aes(graph_density)) + geom_histogram() +
+gp4 <- ggplot(data=toplot, aes(graph_density)) + geom_histogram() +
   facet_grid(cohort ~ graph_type) + sfm +
-  ggtitle("Distribution of graph densities over all networks", "density= 2*|E| / |V|*(|V|-1)"))
+  ggtitle("Distribution of graph densities over all networks", "density= 2*|E| / |V|*(|V|-1)")
 
 # show the distribution of resulting clusters (number of clusters, largest cluster size)
 cluster_ratios <- c()
 for(i in 1:nrow(toplot)) {
   # get cluster ratio
-  cluster_sizes <- toplot[i,"cluster_sizes"]
+  cluster_sizes <- unlist(toplot[i,"cluster_sizes"])
   largest_cluster <- sort(as.numeric(strsplit(cluster_sizes, ",")[[1]]), decreasing = T)[1]
   cluster_ratios <- c(cluster_ratios,
                       largest_cluster/toplot[i,"number_nodes"])
 }
-toplot$cluster_ratio <- cluster_ratios
+toplot$cluster_ratio <- unlist(cluster_ratios)
 
 # summarize the first four plots in one file
-ggsave(plot=grid.arrange(gp1, gp2, gp3, gp4, ncol=2),
+ggsave(plot=(gp1 + gp2) / (gp3 + gp4),
        file=fstats,
        width=12,
        height=8)
 
 # save the cluster ratios plot individually
-gp <- ggplotGrob(ggplot(data=toplot, aes(cluster_ratio)) + geom_histogram() +
+gp <- ggplot(data=toplot, aes(cluster_ratio)) + geom_histogram() +
   facet_grid(cohort ~ graph_type) + sfm +
-  ggtitle("Ratio of the amount of nodes in the largest clusters vs all nodes in the network"))
+  ggtitle("Ratio of the amount of nodes in the largest clusters vs all nodes in the network")
 ggsave(plot=gp,
        file=fcratios,
        width=10, height=10)
@@ -121,27 +129,33 @@ toplot$spath_ratio <- toplot$spath_selected / toplot$spath
 
 # snp gene ratio
 use <- toplot$snp_genes_selected>0
-ggp1 <- ggplotGrob(ggplot(data=toplot[use,,drop=F], aes(snp_gene_ratio)) + geom_histogram() +
+ggp1 <- ggplot(data=toplot[use,,drop=F], aes(snp_gene_ratio)) + geom_histogram() +
   facet_grid(cohort ~ graph_type) + sfm +
-  ggtitle("Ratio of number of selected SNP-genes vs all SNP-genes"))
-# cpg gene ratio
-use <- toplot$cpg_genes_selected>0
-ggp2 <- ggplotGrob(ggplot(data=toplot[use,,drop=F], aes(cpg_gene_ratio)) + geom_histogram() +
-  facet_grid(cohort ~ graph_type) + sfm +
-  ggtitle("Ratio of number of selected CpG-genes vs all CpG-genes"))
+  ggtitle("Ratio of number of selected SNP-genes vs all SNP-genes")
+
+if(isMEQTL) {
+  # cpg gene ratio
+  use <- toplot$cpg_genes_selected>0
+  ggp2 <- ggplot(data=toplot[use,,drop=F], aes(cpg_gene_ratio)) + geom_histogram() +
+    facet_grid(cohort ~ graph_type) + sfm +
+    ggtitle("Ratio of number of selected CpG-genes vs all CpG-genes")
+} else {
+  ggp2 <- plot_spacer()
+}
+
 # tf ratio
 use <- toplot$tfs_selected>0
-ggp3 <- ggplotGrob(ggplot(data=toplot[use,,drop=F], aes(tf_ratio)) + geom_histogram() +
+ggp3 <- ggplot(data=toplot[use,,drop=F], aes(tf_ratio)) + geom_histogram() +
   facet_grid(cohort ~ graph_type) + sfm +
-  ggtitle("Ratio of number of selected TFs vs all TFs"))
+  ggtitle("Ratio of number of selected TFs vs all TFs")
 # spath ratio
 use <- toplot$spath_selected>0
-ggp4 <- ggplotGrob(ggplot(data=toplot[use,,drop=F], aes(spath_ratio)) + geom_histogram() +
+ggp4 <- ggplot(data=toplot[use,,drop=F], aes(spath_ratio)) + geom_histogram() +
   facet_grid(cohort ~ graph_type) +sfm +
-  ggtitle("Ratio of number of selected shortest path genes vs all shortest path genes"))
+  ggtitle("Ratio of number of selected shortest path genes vs all shortest path genes")
 
 # arrange and plot
-ggsave(plot=grid.arrange(ggp1, ggp2, ggp3, ggp4, ncol=2),
+ggsave(plot=(ggp1 + ggp2) / (ggp3 + ggp4),
        file=fgene_types,
        width=12, height=8)
 

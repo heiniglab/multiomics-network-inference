@@ -26,6 +26,10 @@ extraction can also be done individually:
 snakemake -s workflows/1_extract_hotspots.sm all
 ```
 
+> NOTE: For some of the hotspots, none of the respective SNP genes have any expression
+> probes in our data. We have to remove them manually. The list of SNPs is:
+> rs57743634,rs17420384,rs2295981,rs7924137,rs1570038,rs57743634,rs2685252
+
 There are several meta targets to obtain intermediate results.
 
 ### Generate ranges overview
@@ -59,8 +63,9 @@ executing. Cohort and simulation study can be run separately by using either the
 including both studies the *all* rule is used:
 
 ```{bash}
-nohup nice snakemake -u cluster.config --jobs=100 --local-cores=10 \
-           --cluster "qsub -pe smp {threads} -hard -l job_mem={resources.mem_mb}M \
-           -q {cluster.q} -cwd -V -o {log} -e {log} -N {cluster.N}" all & 
+nohup nice snakemake -w 10 -k -u cluster.config --jobs=200 --local-cores=10 \
+  --cluster "qsub -pe smp {threads} -hard -l job_mem={resources.mem_mb}M \
+  -q {cluster.q} -cwd -V -o {log} -e {log} -N {cluster.N}" --restart-times 3 
+  all_cohort > all_cohort.out &
 ```
 

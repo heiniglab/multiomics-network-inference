@@ -28,7 +28,7 @@ rule mediation_analysis:
 	benchmark:
 		"benchmarks/mediation_analysis/{cohort}/{sentinel}_{seed}.bmk"
 	script:
-		"../scripts/mediation_analysis.R"
+		"../scripts/mediation.R"
 
 #------------------------------------------------------------------------------
 # Apply ggm on collected data and priors for a sentinel
@@ -104,7 +104,7 @@ rule validate_ggm:
         resources:
                 mem_mb=8000
         script:
-                "../scripts/validate_ggm.R"
+                "../scripts/validation.R"
 
 # get available subsets
 #MEQTL_SUBSET_KORA = glob_wildcards(DCOHORT_FITS + "kora/{sentinel}_meqtl.rds")

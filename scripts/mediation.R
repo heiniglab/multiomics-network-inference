@@ -15,7 +15,7 @@ print("Load libraries and source scripts")
 # ------------------------------------------------------------------------------
 suppressPackageStartupMessages(library(GenomicRanges))
 source("scripts/lib.R")
-source("scripts/validation.R")
+source("scripts/mediation_methods.R")
 
 # ------------------------------------------------------------------------------
 print("Get snakemake params")

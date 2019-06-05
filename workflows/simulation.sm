@@ -19,7 +19,7 @@ rule simulate_data:
                 runs=RUNS,
                 time="04:00:00"
         conda:
-		"envs/bioR.yaml"
+                "envs/bioR.yaml"
         log:
                 "logs/simulation/simulate_data/{sentinel}.log"
         benchmark:
@@ -50,7 +50,7 @@ rule apply_ggm_simulation:
         resources:
                 mem_mb=4500
         conda:
-		"envs/bioR.yaml"
+                "envs/bioR.yaml"
         log:
                 "logs/simulation/apply_ggm/{sentinel}-iter{iteration}.log"
         benchmark:
@@ -78,7 +78,7 @@ rule validate_ggm_simulation:
                 iteration="{iteration}",
                 time="00:10:00"
         conda:
-		"envs/bioR.yaml"
+                "envs/bioR.yaml"
         log:
                 "logs/simulation/validate_ggm/{sentinel}-iter{iteration}.log"
         script:
@@ -99,7 +99,7 @@ rule validate_subset:
 #------------------------------------------------------------------------------
 rule gather_simulation_results:
 	input:
-		expand(DSIM_VALIDATION + "{sentinel}-iter{iter}.txt", sentinel=LISTS.sentinel, iter=ITERATIONS)
+		expand(DSIM_VALIDATION + "{sentinel}-iter{iter}.txt", sentinel=MEQTL.sentinel, iter=ITERATIONS)
 	output:
 		"results/current/biogrid/simulation/validation/"
 	shell:

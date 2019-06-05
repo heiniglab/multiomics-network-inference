@@ -1,3 +1,5 @@
+localrules: all_simulate_data,all_apply_ggm_simulation
+
 #------------------------------------------------------------------------------
 # Simulate ground truth and data for simulation study
 #------------------------------------------------------------------------------
@@ -14,7 +16,10 @@ rule simulate_data:
                 mem_mb=1200
         params:
                 sentinel="{sentinel}",
-                runs=RUNS
+                runs=RUNS,
+                time="04:00:00"
+        conda:
+		"envs/bioR.yaml"
         log:
                 "logs/simulation/simulate_data/{sentinel}.log"
         benchmark:
@@ -39,10 +44,13 @@ rule apply_ggm_simulation:
         output:
                 DSIM_FITS + "{sentinel}-iter{iteration}.RData"
         params:
-                iteration="{iteration}"
+                iteration="{iteration}",
+                time="24:00:00"
         threads: 8
         resources:
                 mem_mb=4500
+        conda:
+		"envs/bioR.yaml"
         log:
                 "logs/simulation/apply_ggm/{sentinel}-iter{iteration}.log"
         benchmark:
@@ -63,8 +71,14 @@ rule validate_ggm_simulation:
                 DSIM_FITS + "{sentinel}-iter{iteration}.RData"
         output:
                 DSIM_VALIDATION + "{sentinel}-iter{iteration}.txt"
+        threads: 1
+        resources:
+                mem_mb=200
         params:
-                iteration="{iteration}"
+                iteration="{iteration}",
+                time="00:10:00"
+        conda:
+		"envs/bioR.yaml"
         log:
                 "logs/simulation/validate_ggm/{sentinel}-iter{iteration}.log"
         script:
@@ -83,6 +97,16 @@ rule validate_subset:
 #------------------------------------------------------------------------------
 # Create simulation report
 #------------------------------------------------------------------------------
+rule gather_simulation_results:
+	input:
+		expand(DSIM_VALIDATION + "{sentinel}-iter{iter}.txt", sentinel=LISTS.sentinel, iter=ITERATIONS)
+	output:
+		"results/current/biogrid/simulation/validation/"
+	shell:
+		"""
+		cat {input} | sort -r | uniq > {output}
+		"""
+
 #rule summarize_simulation:
 #       input:
 #               expand(DSIM_VALIDATION + "{sentinel}-iter{iter}.txt", sentinel=TEMP.sentinel, iter=TEMP.iteration)

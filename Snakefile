@@ -10,6 +10,13 @@
 
 configfile: "config.json"
 
+# rule used to configure R environment (ie install needed packages)
+rule config_r:
+	conda:
+		"envs/bioR.yaml"
+	script:
+		"scripts/config_R.R"
+
 # -----------------------------------------------------------------------------
 # include the hotspot extraction workflow which extracts all the sentinels
 # for eqtlgen and meqtl as well as additional data prep
@@ -83,6 +90,8 @@ rule convert_cpg_context:
 		"data/current/cpgs_with_chipseq_context_100.RData"
 	output:
 		"results/current/cpg_context.rds"
+	conda:
+		"envs/bioR.yaml"
 	script:
 		"scripts/convert_cpg_context.R"
 
@@ -104,13 +113,16 @@ rule create_priors:
 		eqtl_priors=protected("results/current/" + PPI_NAME + "/gtex.eqtl.priors.rds")
 	threads: 1
 	params:
-		plot_dir = "results/current/" + PPI_NAME + "/plots/"
+		plot_dir = "results/current/" + PPI_NAME + "/plots/",
+		time = "16:00:00"
+	resources:
+		mem_mb=45000
+	conda:
+		"envs/bioR.yaml"
 	log:
 		"logs/create_priors.log"
 	benchmark:
 		"benchmarks/create_priors.bmk"
-	resources:
-		mem_mb=45000
 	script:
 		"scripts/create_priors.R"
 
@@ -126,6 +138,8 @@ rule create_stringdb:
 		PPI_DB_STRING
 	log:
 		"logs/create_stringdb.log"
+	conda:
+		"envs/bioR.yaml"
 	benchmark:
 		"benchmarks/create_stringdb.bmk"
 	script:
@@ -141,6 +155,8 @@ rule create_biogrid:
 		gene_annot = GENE_ANNOT
 	output:
 		PPI_DB_BIOGRID
+	conda:
+		"envs/bioR.yaml"
 	script:
 		"scripts/create_biogrid.R"
 
@@ -154,6 +170,8 @@ rule create_cosmo_splits:
 		trans="results/current/trans-cosmopairs_combined_151216.rds",
 		cis="results/current/cis-cosmopairs_combined_151216.rds",
 		longrange="results/current/longrange-cosmopairs_combined_151216.rds"
+	conda:
+		"envs/bioR.yaml"
 	script:
 		"scripts/create-cosmo-splits.R"
 
@@ -170,13 +188,17 @@ rule collect_ranges:
 		gene_annot = GENE_ANNOT
 	output: 
 		DRANGES + "{sentinel}_meqtl.rds"
+	threads: 1
+	resources:
+		mem_mb=2300
+	params:
+		time="01:00:00"
+	conda:
+		"envs/bioR.yaml"
 	log: 
 		"logs/collect_ranges/{sentinel}_meqtl.log"
 	benchmark: 
 		"benchmarks/collect_ranges/{sentinel}_meqtl.bmk"
-	threads: 1
-	resources:
-		mem_mb=2300
 	script:
 		"scripts/collect_ranges.R"
 
@@ -193,13 +215,17 @@ rule collect_ranges_eqtlgen:
         output:
                 ranges = DRANGES + "{sentinel}_eqtlgen.rds",
                 plot = DRANGES + "{sentinel}_eqtlgen.pdf"
+        threads: 1
+        resources:
+                mem_mb=2300
+        params:
+                time="01:00:00"
+        conda:
+                "envs/bioR.yaml"
         log:
                 "logs/collect_ranges_egen/{sentinel}.log"
         benchmark:
                 "benchmarks/collect_ranges_egen/{sentinel}.bmk"
-        threads: 1
-        resources:
-                mem_mb=2300
         script:
                 "scripts/collect_ranges_eqtl.R"
 
@@ -226,6 +252,8 @@ rule annotate_tss_with_tf:
                 gene_annot = GENE_ANNOT
         output:
                 tfbs_annot="results/current/tfbs_tss_annot.rds"
+        conda:
+                "envs/bioR.yaml"
         script:
                 "scripts/annotate_tss_with_tf.R"
 
@@ -242,12 +270,17 @@ rule collect_data:
 	output:
 		DCOHORT_DATA + "{cohort}/{sentinel}_{seed}.rds",
 		DCOHORT_DATA + "{cohort}/{sentinel}_raw_{seed}.rds"
+	threads: 1
+	resources:
+		mem_mb=20000
+	conda:
+		"envs/bioR.yaml"
+	params:
+		time="01:00:00"
 	log:
 		"logs/collect_data/{cohort}/{sentinel}_{seed}.log"
 	benchmark:
 		"benchmarks/collect_data/{cohort}/{sentinel}_{seed}.bmk"
-	resources:
-		mem_mb=20000
 	script:
 		"scripts/collect_data.R"
 
@@ -280,13 +313,17 @@ rule collect_priors:
 	output: 
 		DPRIORS + "{sentinel}_{seed}.rds",
 		DPRIORS + "{sentinel}_{seed}.pdf"
-	log:
-		"logs/collect_priors/{sentinel}_{seed}.log"
 	threads: 1
-	benchmark:
-		"benchmarks/collect_priors/{sentinel}_{seed}.bmk"
 	resources:
 		mem_mb=12000
+	conda:
+		"envs/bioR.yaml"
+	params:
+		time="02:00:00"
+	log:
+		"logs/collect_priors/{sentinel}_{seed}.log"
+	benchmark:
+		"benchmarks/collect_priors/{sentinel}_{seed}.bmk"
 	script:
 		"scripts/collect_priors.R"
 

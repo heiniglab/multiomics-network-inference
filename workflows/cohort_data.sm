@@ -1,12 +1,15 @@
+localrules: all_cohort, summarize_validation_eqtlgen, summarize_validation_meqtl,
+            generate_dot, render_validation, all_ggm, all_summarize_validation
+
 #-------------------------------------------------------------------------------
 # Target rule to run the complete cohort study.
 # Note: this runs a long time and should definitely be executed on a cluster
 #-------------------------------------------------------------------------------
 rule all_cohort:
         input:
-                DCOHORT_VAL + "stat_overview_meqtl.pdf",
+                DCOHORT_VAL + "validation_all_eqtlgen.txt",
+                DCOHORT_VAL + "validation_all_meqtl.txt",
                 DRANGES + "summary.pdf",
-                DCOHORT_VAL + "stat_overview_eqtlgen.pdf",
                 DRANGES + "summary.pdf",
 
 #------------------------------------------------------------------------------
@@ -23,6 +26,8 @@ rule mediation_analysis:
 	threads: 1
 	resources:
 		mem_mb=600
+	params:
+		time="00:20:00"
 	log:
 		"logs/mediation_analysis/{cohort}/{sentinel}_{seed}.log"
 	benchmark:
@@ -46,8 +51,10 @@ rule apply_ggm:
                 summary_file=DCOHORT_FITS + "{cohort}/{sentinel}_{seed}.pdf",
                 gstart_file=DCOHORT_FITS + "{cohort}/{sentinel}_{seed}_gstart.pdf"
         threads: 8
+        params:
+                time="24:00:00"
         resources:
-                mem_mb=1000
+                mem_mb=1500
         benchmark:
                 "benchmarks/apply_ggm/{sentinel}_{cohort}_{seed}.bmk"
         log:
@@ -87,31 +94,25 @@ rule validate_ggm:
                 lolipop_fit=DCOHORT_FITS + "lolipop/{sentinel}_{seed}.rds",
 		mediation_kora=DMEDIATION + "kora/{sentinel}_{seed}.rds",
 		mediation_lolipop=DMEDIATION + "lolipop/{sentinel}_{seed}.rds"
-        params:
-                mediation_cutoff=0.05
         output:
                 DCOHORT_VAL + "{cohort}/{sentinel}_{graph_type}_{seed}.txt",
 		mediation_summary_plot=DCOHORT_VAL + "{cohort}/{sentinel}_{graph_type}_{seed}_mediation.pdf",
 		graphdot=DCOHORT_VAL + "{cohort}/{sentinel}_{graph_type}_{seed}_graphplot.dot",
 		graphpdf=DCOHORT_VAL + "{cohort}/{sentinel}_{graph_type}_{seed}_graphplot.pdf"
+        params:
+                mediation_cutoff=0.05,
+                time="01:00:00"
         wildcard_constraints:
                 graph_type = GTYPES_CONSTR
-        log:
-                "logs/validate_ggm/{cohort}/{sentinel}_{graph_type}_{seed}.log"
         threads: 1
-        benchmark:
-                "benchmarks/validate_ggm/{cohort}/{sentinel}_{graph_type}_{seed}.bmk"
         resources:
                 mem_mb=8000
+        log:
+                "logs/validate_ggm/{cohort}/{sentinel}_{graph_type}_{seed}.log"
+        benchmark:
+                "benchmarks/validate_ggm/{cohort}/{sentinel}_{graph_type}_{seed}.bmk"
         script:
                 "../scripts/validation.R"
-
-# get available subsets
-#MEQTL_SUBSET_KORA = glob_wildcards(DCOHORT_FITS + "kora/{sentinel}_meqtl.rds")
-#MEQTL_SUBSET_LOLIPOP = glob_wildcards(DCOHORT_FITS + "lolipop/{sentinel}_meqtl.rds")
-
-#EQTLGEN_SUBSET_KORA = glob_wildcards(DCOHORT_FITS + "kora/{sentinel}_eqtlgen.rds")
-#EQTLGEN_SUBSET_LOLIPOP = glob_wildcards(DCOHORT_FITS + "lolipop/{sentinel}_eqtlgen.rds")
 
 #------------------------------------------------------------------------------
 # Collect validation information in single file for different seeds
@@ -125,12 +126,20 @@ rule summarize_validation_meqtl:
                 "cat {input} | sort -r | uniq > {output}"
 
 rule summarize_validation_eqtlgen:
-        input: expand(DCOHORT_VAL + "{cohort}/{sentinel}_{graph_type}_eqtlgen.txt", sentinel=EQTLGEN.sentinel, graph_type=GTYPES, cohort="kora")
-#        input: expand(DCOHORT_VAL + "kora/{sentinel}_{graph_type}_eqtlgen.txt", sentinel=EQTLGEN_SUBSET_KORA.sentinel, graph_type=GTYPES),
-#               expand(DCOHORT_VAL + "lolipop/{sentinel}_{graph_type}_eqtlgen.txt", sentinel=EQTLGEN_SUBSET_LOLIPOP.sentinel, graph_type=GTYPES)
-        output: DCOHORT_VAL + "validation_all_eqtlgen.txt"
+#        input: expand(DCOHORT_VAL + "{cohort}/{sentinel}_{graph_type}_eqtlgen.txt", sentinel=EQTLGEN.sentinel, graph_type=GTYPES, cohort="kora")
+        input: 
+                kora=expand(DCOHORT_VAL + "kora/{sentinel}_{graph_type}_eqtlgen.txt", sentinel=EQTLGEN.sentinel, graph_type=GTYPES),
+                lolipop=expand(DCOHORT_VAL + "lolipop/{sentinel}_{graph_type}_eqtlgen.txt", sentinel=EQTLGEN.sentinel, graph_type=GTYPES)
+        output: 
+                kora=temp(DCOHORT_VAL + "eqtl_gen_kora.tmp"),
+                lolipop=temp(DCOHORT_VAL + "eqtl_gen_lolipop.tmp"),
+                all=DCOHORT_VAL + "validation_all_eqtlgen.txt"
         shell:
-                "cat {input} | sort -r | uniq > {output}"
+                """
+		cat {input.kora} | sort -r | uniq > {output.kora}
+		cat {input.lolipop} | sort -r | uniq > {output.lolipop}
+                cat {output.kora} {output.lolipop} | sort -r | uniq > {output.all}
+		"""
 
 rule all_summarize_validation:
 	input:

@@ -14,6 +14,7 @@ cd $WDIR
 ```
 
 ## Snakemake pipeline
+
 The analysis is implemented as a snakemake pipeline.
 Both the simulation and the cohort-data based analyses are integrated in a single workflow,
 although split into separate snakemake files, and both rely on the subworkflow located under
@@ -69,3 +70,15 @@ nohup nice snakemake -w 10 -k -u cluster.config --jobs=200 --local-cores=18 \
   all_cohort > all_cohort.out &
 ```
 
+## Conda environment usage
+
+A general conda environment is defined in *envs/bioR.yaml". This environment
+has been linked to all rules which are based on R scripts.
+To execute the pipelin using conda, you have to specify the *--use-conda*
+parameter in the snakemake call.
+
+> NOTE: Some packages were not able to be installed via Conda. It is absolutely
+> necessary to make an initial call to snakemake which installs remaining 
+> packages like so: **snakemake --use-conda config_r** .
+> NOTE 2: Be aware that if you set any repository paths on startup of R 
+> you might want to adjust that for usage with the conda environment

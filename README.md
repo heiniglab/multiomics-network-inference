@@ -64,7 +64,7 @@ executing. Cohort and simulation study can be run separately by using either the
 including both studies the *all* rule is used:
 
 ```{bash}
-nohup nice snakemake -w 10 -k -u cluster.config --jobs=200 --local-cores=18 \
+nohup nice snakemake -w 10 -k -u configs/cluster.json --jobs=200 --local-cores=18 \
   --cluster "qsub -pe smp {threads} -hard -l job_mem={resources.mem_mb}M \
   -q {cluster.q} -cwd -V -o {log} -e {log} -N {cluster.N}" --restart-times 4 \
   all_cohort > all_cohort.out &
@@ -82,3 +82,19 @@ parameter in the snakemake call.
 > packages like so: **snakemake --use-conda config_r** .
 > NOTE 2: Be aware that if you set any repository paths on startup of R 
 > you might want to adjust that for usage with the conda environment
+
+## Slurm test
+
+Below we give an a example snakemake call which utilizes the new 
+SLURM cluster environment
+
+> NOTE: this call uses conda, in our case that means that we first
+# have to reset our R_LIBS (i.e. *export R_LIBS=":"*)
+> NOTE 2: for the SLURM to work, we have to log in into IRIS
+
+```{bash}
+nohup nice snakemake --use-conda -u configs/slurm.config --jobs=100 --local-cores=1 --cluster \
+  "sbatch -t {cluster.time} -c {cluster.cpu} --mem-per-cpu {cluster.mem} \
+      -p {cluster.partition} -o {cluster.log} -e {cluster.log}" results/current/peaks/BH1-1_peaks.narrowPeak &
+
+```

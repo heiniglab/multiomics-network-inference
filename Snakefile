@@ -8,7 +8,7 @@
 # @author: Johann Hawe <johann.hawe@helmholtz-muenchen.de>
 # ------------------------------------------------------------------------------
 
-configfile: "config.json"
+configfile: "configs/workflow.json"
 
 # rule used to configure R environment (ie install needed packages)
 rule config_r:
@@ -27,7 +27,7 @@ subworkflow preprocess:
     snakefile:
         "workflows/1_preprocess.sm"
     configfile:
-        "./config.json"
+        "./configs/workflow.json"
 
 # -----------------------------------------------------------------------------
 # Insert global vars

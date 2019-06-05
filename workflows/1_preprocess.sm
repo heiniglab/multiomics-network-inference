@@ -1,4 +1,4 @@
-configfile: "config.json"
+configfile: "configs/workflow.json"
 
 include: "common.sm"
 

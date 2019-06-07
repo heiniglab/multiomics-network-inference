@@ -297,6 +297,8 @@ get_graph_score <- function(g, sentinel, ranges, density=NULL) {
 
   # keep only cluster with sentinel
   cl <- clusters(g)
+  if(!sentinel %in% names(cl$membership)) return(0)
+
   cn <- cl$membership[sentinel]
   subnodes <- names(cl$membership[cl$membership == cn])
   g <- induced_subgraph(g, subnodes)

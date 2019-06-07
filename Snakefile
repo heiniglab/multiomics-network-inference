@@ -1,4 +1,3 @@
-	
 #------------------------------------------------------------------------------
 # Master Snakefile for the bayesian GGM project.
 # So far we have essentially to sub-workflows: application of ggm on cohort data

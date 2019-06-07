@@ -48,9 +48,9 @@ print("Load and prepare data.")
 data <- readRDS(fdata)
 
 # remove (rare) all-NA cases. This can happen due to scaling of all-zero entities,
-# which can arise due to a very large number of cis-meQTLs which effects get 
+# which can arise due to a very large number of cis-meQTLs which effects get
 # removed from the CpGs during data preprocessing.
-# NOTE: we could possibly handle this differently? Seems that these particular 
+# NOTE: we could possibly handle this differently? Seems that these particular
 # cpgs are highly influenced by genetic effects?
 use <- apply(data,2,function(x) (sum(is.na(x)) / length(x)) < 1)
 data <- data[,use]
@@ -102,7 +102,7 @@ glasso <- reg_net(data, priors, "glasso", threads=threads)
 print("Fitting model using glasso, no priors.")
 ut <- 1-priors[upper.tri(priors)]
 lambda <- sum(ut)/length(ut)
-glasso_no_priors <- reg_net(data, NULL, "glasso", glasso.lambda=lambda, 
+glasso_no_priors <- reg_net(data, NULL, "glasso", glasso.lambda=lambda,
                             threads=threads)
 
 # ------------------------------------------------------------------------------
@@ -123,7 +123,7 @@ irafnet$graph <- annotate.graph(irafnet$graph, ranges, ppi_db, fcontext)
 genenet$graph <- annotate.graph(genenet$graph, ranges, ppi_db, fcontext)
 
 glasso$graph <- annotate.graph(glasso$graph, ranges, ppi_db, fcontext)
-glasso$graph_no_priors <- annotate.graph(glasso_no_priors$graph, 
+glasso$graph_no_priors <- annotate.graph(glasso_no_priors$graph,
                                          ranges, ppi_db, fcontext)
 
 # ------------------------------------------------------------------------------

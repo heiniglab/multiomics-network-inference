@@ -136,7 +136,7 @@ validate_gene2gene <- function(expr.data, g, all.genes){
       pvs <- cbind(pvs, qval=qvalue(pvs$pval,
   				  lambda=seq(min(pvs$pval), max(pvs$pval)))$qvalues)
     } else {
-      pvs <- cbind(pvs, qval=p.adjust(pbs, "BH"))
+      pvs <- cbind(pvs, qval=p.adjust(pvs, "BH"))
     }
     use <- pvs$qval<0.05 & abs(pvs$cor)>0.3
     # fill matrix

@@ -144,6 +144,9 @@ row <- c(sentinel = sentinel,
 print("Preparing fit and validation data.")
 # ------------------------------------------------------------------------------
 g <- fits[[cohort]][[graph_type]]
+ds <- graph::degree(g)
+keep <- names(ds[ds>0])
+g <- subGraph(keep, g)
 
 print("Plotting graph.")
 pdf(fgraphpdf)
@@ -196,7 +199,7 @@ keep <- cl$membership == which.max(cl$csize)
 keep <- names(cl$membership[keep])
 g <- graph::subGraph(keep, g)
 
-# the nodes retained in the fitted graph model
+# the nodes retained in the fitted graph model in the largest CC
 gnodes <- graph::nodes(g)
 if (!sentinel %in% gnodes) {
   g <- graph::addNode(sentinel, g)
@@ -225,11 +228,10 @@ data_val[, snp] <- as.integer(as.character(data_val[, snp]))
 data_fit[, snp] <- as.integer(as.character(data_fit[, snp]))
 if(ranges$seed == "meqtl") {
   trans_entities <- intersect(dnodes, names(ranges$cpgs))
-  trans_entities_selected <- cpgs[cpgs %in% gnodes]
 } else {
   trans_entities <- intersect(dnodes,  ranges$trans_genes$SYMBOL)
-  trans_entities_selected <- trans_entities[trans_entities %in% gnodes]
 }
+trans_entities_selected <- trans_entities[trans_entities %in% gnodes]
 
 all_genes <- dnodes[!grepl("^rs|^cg", dnodes)]
 sgenes <- intersect(dnodes, ranges$snp_genes$SYMBOL)
@@ -253,12 +255,14 @@ if(ranges$seed == "meqtl") {
   }
 } else {
   cgenes_selected <- c()
-  if(length(trans_entities_selected) > 0) {
-    tfs_selected <- tfs[tfs %in% unlist(adj(g, trans_entities_selected))]
-  } else {
-    tfs_selected <- c()
-  }
 }
+
+if(length(trans_entities_selected) > 0) {
+  tfs_selected <- tfs[tfs %in% unlist(adj(g, trans_entities_selected))]
+} else {
+  tfs_selected <- c()
+}
+
 # the shortest path genes
 spath <- ranges$spath$SYMBOL
 spath_selected <- spath[spath %in% gnodes]
@@ -431,10 +435,12 @@ print("GO enrichment.")
 go <- validate_geneenrichment(gnodes)
 if(!is.null(go)) {
   names(go) <- c("go_ids", "go_terms", "go_pvals", "go_qvals")
-  row <- c(row, go)
 } else {
-  row <- c(row, rep(NA, 4))
+  go <- rep(NA, 4)
+  names(go) <- c("go_ids", "go_terms", "go_pvals", "go_qvals")
 }
+row <- c(row, go)
+
 # write output file
 write.table(file=fout, t(row), col.names=T,
             row.names=F, quote=F, sep="\t")

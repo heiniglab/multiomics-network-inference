@@ -290,7 +290,7 @@ validation dataset VS the original dataset (on which models were calculated)") +
   # fraction of all SNP genes significant in both datasets
   frac <- length(which(df$significant=="both"))/nrow(df)
   # fraction of validation significant SNP genes significant in original dataset
-  frac2 <- length(which(df$significant=="both")) /
+  frac2 <- length(which(df$significant=="both" | df$significant == "original")) / 
     length(which(df$significant=="both" | df$significant=="validation"))
 
   return(c(mediation_cross_cohort_correlation=corr,

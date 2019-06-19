@@ -118,26 +118,41 @@ rule validate_ggm:
 # Collect validation information in single file for different seeds
 #------------------------------------------------------------------------------
 rule summarize_validation_meqtl:
-        input: expand(DCOHORT_VAL + "{cohort}/{sentinel}_{graph_type}_meqtl.txt", sentinel=MEQTL.sentinel, graph_type=GTYPES, cohort=COHORTS)
-#        input: expand(DCOHORT_VAL + "kora/{sentinel}_{graph_type}_meqtl.txt", sentinel=MEQTL_SUBSET_KORA.sentinel, graph_type=GTYPES),
-#               expand(DCOHORT_VAL + "lolipop/{sentinel}_{graph_type}_meqtl.txt", sentinel=MEQTL_SUBSET_LOLIPOP.sentinel, graph_type=GTYPES)
-        output: DCOHORT_VAL + "validation_all_meqtl.txt"
-        shell:
-                "cat {input} | sort -r | uniq > {output}"
-
-rule summarize_validation_eqtlgen:
-#        input: expand(DCOHORT_VAL + "{cohort}/{sentinel}_{graph_type}_eqtlgen.txt", sentinel=EQTLGEN.sentinel, graph_type=GTYPES, cohort="kora")
         input: 
-                kora=expand(DCOHORT_VAL + "kora/{sentinel}_{graph_type}_eqtlgen.txt", sentinel=EQTLGEN.sentinel, graph_type=GTYPES),
-                lolipop=expand(DCOHORT_VAL + "lolipop/{sentinel}_{graph_type}_eqtlgen.txt", sentinel=EQTLGEN.sentinel, graph_type=GTYPES)
+                kora=expand(DCOHORT_VAL + "kora/{sentinel}_{graph_type}_meqtl.txt", sentinel=MEQTL.sentinel, graph_type=GTYPES),
+                lolipop=expand(DCOHORT_VAL + "lolipop/{sentinel}_{graph_type}_meqtl.txt", sentinel=MEQTL.sentinel, graph_type=GTYPES)
         output: 
-                kora=temp(DCOHORT_VAL + "eqtl_gen_kora.tmp"),
-                lolipop=temp(DCOHORT_VAL + "eqtl_gen_lolipop.tmp"),
-                all=DCOHORT_VAL + "validation_all_eqtlgen.txt"
+                kora=temp(DCOHORT_VAL + "meqtl_kora.tmp"),
+                lolipop=temp(DCOHORT_VAL + "meqtl_lolipop.tmp"),
+                all=DCOHORT_VAL + "validation_all_meqtl.txt"
         shell:
                 """
 		cat {input.kora} | sort -r | uniq > {output.kora}
 		cat {input.lolipop} | sort -r | uniq > {output.lolipop}
+                cat {output.kora} {output.lolipop} | sort -r | uniq > {output.all}
+                """
+
+#------------------------------------------------------------------------------
+# Get all validation results for eQTLgen in a single file.
+#
+# NOTE: going via the params/pattern approach is necessary. Otherwise
+# the 'argument list' for cat is too long and we get an error
+#------------------------------------------------------------------------------
+rule summarize_validation_eqtlgen:
+        input: 
+                kora=expand(DCOHORT_VAL + "kora/{sentinel}_{graph_type}_eqtlgen.txt", sentinel=EQTLGEN.sentinel, graph_type=GTYPES),
+                lolipop=expand(DCOHORT_VAL + "lolipop/{sentinel}_{graph_type}_eqtlgen.txt", sentinel=EQTLGEN.sentinel, graph_type=GTYPES)
+        output: 
+                kora=temp(DCOHORT_VAL + "eqtlgen_kora.tmp"),
+                lolipop=temp(DCOHORT_VAL + "eqtlgen_lolipop.tmp"),
+                all=DCOHORT_VAL + "validation_all_eqtlgen.txt"
+        params:
+                kora_files = DCOHORT_VAL + "kora/*_eqtlgen.txt",
+                lolipop_files = DCOHORT_VAL + "lolipop/*_eqtlgen.txt"
+        shell:
+                """
+		cat {params.kora_files} | sort -r | uniq > {output.kora}
+		cat {params.lolipop_files} | sort -r | uniq > {output.lolipop}
                 cat {output.kora} {output.lolipop} | sort -r | uniq > {output.all}
 		"""
 

@@ -197,8 +197,9 @@ print("Getting largest CC for validation.")
 # ------------------------------------------------------------------------------
 keep <- cl$membership == which.max(cl$csize)
 keep <- names(cl$membership[keep])
-g <- graph::subGraph(keep, g)
-
+if(!is.null(keep)) {
+  g <- graph::subGraph(keep, g)
+}
 # the nodes retained in the fitted graph model in the largest CC
 gnodes <- graph::nodes(g)
 if (!sentinel %in% gnodes) {

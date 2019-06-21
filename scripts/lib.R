@@ -8,8 +8,8 @@
 #' @author Johann Hawe
 # ------------------------------------------------------------------------------
 set_defaultcolors <- function() {
-  suppressPackageStartupMessages(library(wesanderson))
-  cols <- wes_palette(n=5, "FantasticFox1")
+  library(RColorBrewer)
+  cols <- brewer.pal(n=5, name="Set2")
   return(cols)
 }
 

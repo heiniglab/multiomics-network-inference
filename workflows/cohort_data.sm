@@ -107,6 +107,8 @@ rule validate_ggm:
         threads: 1
         resources:
                 mem_mb=8000
+        conda:
+                "../envs/bioR.yaml"
         log:
                 "logs/validate_ggm/{cohort}/{sentinel}_{graph_type}_{seed}.log"
         benchmark:

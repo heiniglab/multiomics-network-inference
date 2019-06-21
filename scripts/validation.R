@@ -22,9 +22,7 @@ suppressPackageStartupMessages(library(igraph))
 suppressPackageStartupMessages(library(graph))
 suppressPackageStartupMessages(library(data.table))
 suppressPackageStartupMessages(library(GenomicRanges))
-suppressPackageStartupMessages(library(TxDb.Hsapiens.UCSC.hg19.knownGene))
 suppressPackageStartupMessages(library(qvalue))
-suppressPackageStartupMessages(library(Homo.sapiens))
 suppressPackageStartupMessages(library(illuminaHumanv3.db))
 suppressPackageStartupMessages(library(ggplot2))
 library(cowplot)
@@ -83,30 +81,19 @@ geo <- fread(fgeo,
 colnames(geo)[1] <- "symbol"
 setkey(geo, symbol)
 
-#print("Loading KORA eQTL.")
-#kora_ceqtl <- fread(fciseqtl_kora, sep = "\t",
-#                    header = T)
-#kora_teqtl <- fread(ftranseqtl_kora, sep = "\t",
-#                    header = T)
-
 print("Loading Joehanes eQTL.")
-# load cis-eQTL data
 ceqtl <- fread(paste0("zcat ", fciseqtl_joehanes),
                sep = ",")
 # get only cis eqtls defined in the paper
 ceqtl <- ceqtl[ceqtl$Is_Cis == 1]
 print(paste0("Loaded ", nrow(ceqtl), " cis-eQTL"))
 
-# load the trans-eQTL dataset
+# trans eQTL
 teqtl <- fread(paste0("zcat ", ftranseqtl_joehanes),
                sep = ",")
-
-# sanity check
 print(paste0("Loaded ", nrow(teqtl), " trans-eQTL"))
 
 # load the bonder cis-eQTMs for cpg-gene validation
-# TODO we could use those for prior definitions, then use the ROADMAP
-# chromhmm states for validation...
 eqtms <- fread(fbonder_eqtm, data.table = F)
 
 # ------------------------------------------------------------------------------
@@ -125,6 +112,7 @@ kdata <- kdata[,use]
 use <- apply(ldata,2,function(x) (sum(is.na(x)) / length(x)) < 1)
 ldata <- ldata[,use]
 
+# load ranges
 ranges <- readRDS(franges)
 
 # ------------------------------------------------------------------------------
@@ -143,54 +131,54 @@ row <- c(sentinel = sentinel,
 # ------------------------------------------------------------------------------
 print("Preparing fit and validation data.")
 # ------------------------------------------------------------------------------
-g <- fits[[cohort]][[graph_type]]
-ds <- graph::degree(g)
-keep <- names(ds[ds>0])
-g <- subGraph(keep, g)
-
-print("Plotting graph.")
-pdf(fgraphpdf)
-temp <- plot.ggm(g, sentinel, T, dot.out = fgraphdot)
-dev.off()
+graph <- fits[[cohort]][[graph_type]]
 
 # we get the according dataset on which to validate
 if ("lolipop" %in% cohort) {
   # ggm calculated on lolipop, validate on kora
   data_val <- kdata
   data_fit <- ldata
+  cohort_val <- "kora"
 } else {
   # assume kora cohort, validate on lolipop
   data_val <- ldata
   data_fit <- kdata
+  cohort_val <- "lolipop"
 }
+
 # dnodes -> full set of possible nodes
 dnodes <- colnames(data_val)
 
 # ------------------------------------------------------------------------------
 print("Getting basic stats (number nodes, number edges, graph density)")
 # ------------------------------------------------------------------------------
-nn <- numNodes(g)
-ne <- numEdges(g)
+nn <- numNodes(graph)
+ne <- numEdges(graph)
 gd <- (ne * 2) / (nn * (nn - 1))
 row <- c(row, number_nodes=nn, number_edges=ne, graph_density=gd)
 
 # ------------------------------------------------------------------------------
 print("Getting cluster information")
 # ------------------------------------------------------------------------------
-ig = igraph::graph_from_graphnel(g)
+# get all clusters in the graph
+ig = igraph::graph_from_graphnel(graph)
 cl = clusters(ig)
 ncluster <- cl$no
 scluster <- paste(cl$csize, collapse = ",")
 
 # remember snp membership
 snp_cluster <- NA
+snp_cluster_size <- NA
 if (sentinel %in% names(cl$membership)) {
   snp_cluster <- cl$membership[sentinel]
   snp_cluster_size <- cl$csize[snp_cluster]
-  snp_cluster <- paste0(snp_cluster, "-", snp_cluster_size)
 }
+
 row <- c(row,
-         cluster=ncluster, cluster_sizes=scluster, snp_cluster=snp_cluster)
+         cluster=ncluster,
+         cluster_sizes=scluster,
+         snp_cluster=snp_cluster,
+         snp_cluster_size=snp_cluster_size)
 
 # ------------------------------------------------------------------------------
 print("Getting largest CC for validation.")
@@ -198,13 +186,16 @@ print("Getting largest CC for validation.")
 keep <- cl$membership == which.max(cl$csize)
 keep <- names(cl$membership[keep])
 if(!is.null(keep)) {
-  g <- graph::subGraph(keep, g)
+  graph_maxcluster <- graph::subGraph(keep, graph)
 }
+
+print("Plotting graph.")
+pdf(fgraphpdf)
+temp <- plot.ggm(graph_maxcluster, sentinel, T, dot.out = fgraphdot)
+dev.off()
+
 # the nodes retained in the fitted graph model in the largest CC
-gnodes <- graph::nodes(g)
-if (!sentinel %in% gnodes) {
-  g <- graph::addNode(sentinel, g)
-}
+gnodes <- graph::nodes(graph_maxcluster)
 
 # ------------------------------------------------------------------------------
 print("Calculating graph score.")
@@ -221,23 +212,34 @@ print("Defining entity sets (selected / not selected)")
 
 # for now, filter only for those nodes for which data was available
 # should change once we update the data matrix...
-gnodes <- gnodes[gnodes %in% dnodes]
+#gnodes <- gnodes[gnodes %in% dnodes]
 
 # get names of all entities, total and selected by ggm
 snp <- sentinel
 data_val[, snp] <- as.integer(as.character(data_val[, snp]))
 data_fit[, snp] <- as.integer(as.character(data_fit[, snp]))
+
 if(ranges$seed == "meqtl") {
   trans_entities <- intersect(dnodes, names(ranges$cpgs))
 } else {
-  trans_entities <- intersect(dnodes,  ranges$trans_genes$SYMBOL)
+  trans_entities <- intersect(dnodes, ranges$trans_genes$SYMBOL)
 }
 trans_entities_selected <- trans_entities[trans_entities %in% gnodes]
 
 all_genes <- dnodes[!grepl("^rs|^cg", dnodes)]
 sgenes <- intersect(dnodes, ranges$snp_genes$SYMBOL)
-if (!is.na(snp_cluster)) {
-  sgenes_selected <- sgenes[sgenes %in% unlist(adj(g, snp))]
+if (snp %in% gnodes) {
+  sgenes_selected <- sgenes[sgenes %in% unlist(adj(graph_maxcluster, snp))]
+  # snp genes also have to be connected to trans entities without traversing
+  # the snp itself
+  graph_temp <- subGraph(setdiff(gnodes, snp), graph_maxcluster)
+  igraph_temp <- igraph::graph_from_graphnel(graph_temp)
+  paths <-
+    suppressWarnings(get.shortest.paths(igraph_temp, sgenes_selected,
+                                        intersect(V(igraph_temp)$name,
+                                                  trans_entities_selected)))$vpath[[1]]
+
+  sgenes_selected <- intersect(sgenes_selected, paths$name)
 } else {
   sgenes_selected <- c()
 }
@@ -250,7 +252,8 @@ tfs <- intersect(dnodes, ranges$tfs$SYMBOL)
 if(ranges$seed == "meqtl") {
   # selected cpg genes and TFs
   if (length(trans_entities_selected) > 0) {
-    cgenes_selected <- cgenes[cgenes %in% unlist(adj(g, trans_entities_selected))]
+    cgenes_selected <- cgenes[cgenes %in% unlist(adj(graph_maxcluster,
+                                                     trans_entities_selected))]
   } else {
     cgenes_selected <- c()
   }
@@ -259,7 +262,8 @@ if(ranges$seed == "meqtl") {
 }
 
 if(length(trans_entities_selected) > 0) {
-  tfs_selected <- tfs[tfs %in% unlist(adj(g, trans_entities_selected))]
+  tfs_selected <- tfs[tfs %in% unlist(adj(graph_maxcluster,
+                                          trans_entities_selected))]
 } else {
   tfs_selected <- c()
 }
@@ -288,35 +292,29 @@ row <- c(
 # ------------------------------------------------------------------------------
 print("Using MCC to check how well graph replicated across cohorts.")
 # ------------------------------------------------------------------------------
-if ("lolipop" %in% cohort) {
-  cohort2 <- "kora"
-} else {
-  cohort2 <- "lolipop"
-}
-
 # get graph fit on other cohort
-g2 <- fits[[cohort2]][[graph_type]]
+graph_val <- fits[[cohort_val]][[graph_type]]
 
 # compare with largest connected component only
-g2 <- get_largest_cc(g2)
-if (!sentinel %in% graph::nodes(g2)) {
-  g2 <- graph::addNode(sentinel, g2)
-}
+#g2 <- get_largest_cc(g2)
+#if (!sentinel %in% graph::nodes(g2)) {
+#  g2 <- graph::addNode(sentinel, g2)
+#}
 
 # get adjacency matrices
-g_adj <- as(g, "matrix")
-g2_adj <- as(g2, "matrix")
+g_adj <- as(graph, "matrix")
+g_val_adj <- as(graph_val, "matrix")
 
 # ensure that we have the same nodes only in all graphs.
 # this might somewhat change results, but otherwise we
 # cant compute the MCC properly.
-use <- intersect(colnames(g_adj), colnames(g2_adj))
+use <- intersect(colnames(g_adj), colnames(g_val_adj))
 if (length(use) > 1) {
   g_adj <- g_adj[use, use]
-  g2_adj <- g2_adj[use, use]
+  g_val_adj <- g_val_adj[use, use]
 
   # calculate performance using the DBgraph method compare()
-  mcc <- BDgraph::compare(g_adj, g2_adj)["MCC", "estimate"]
+  mcc <- BDgraph::compare(g_adj, g_val_adj)["MCC", "estimate"]
   print(paste0("MCC: ", format(mcc, digits = 3)))
 
   # the fraction of nodes retained in the overlap w.r.t. to the
@@ -342,16 +340,17 @@ row <-
     mediation.summary(med_val, sgenes, sgenes_selected, mediation_cutoff))
 
 # we also check the correspondence of the correlation values for all genes
+med_comparison <- compare_mediation_results(
+  sentinel,
+  med_val,
+  med_fit,
+  sgenes_selected,
+  mediation_cutoff,
+  fmediation_summary_plot
+)
+
 row <- c(
-  row,
-  compare_mediation_results(
-    sentinel,
-    med_val,
-    med_fit,
-    sgenes_selected,
-    mediation_cutoff,
-    fmediation_summary_plot
-  )
+  row, med_comparison
 )
 
 # ------------------------------------------------------------------------------
@@ -399,11 +398,17 @@ teqtlsub <-
 if (nrow(teqtlsub) < 1) {
   warning("Sentinel " %+% sentinel %+% " not available in trans-eQTL data.")
   # report NA in stats file
-  row <- c(row, transEqtl_cgenes=NA, transEqtl_tfs=NA)
+  row <- c(row, transEqtl_tgenes=NA, transEqtl_tfs=NA)
 } else {
-  row <- c(row,
-           validate_trans_genes(teqtlsub, cgenes, tfs,
-                                cgenes_selected, tfs_selected))
+  if(seed == "meqtl") {
+    row <- c(row,
+             validate_trans_genes(teqtlsub, cgenes, tfs,
+                                  cgenes_selected, tfs_selected))
+  } else {
+    row <- c(row,
+             validate_trans_genes(teqtlsub, trans_entities, tfs,
+                                  trans_entities_selected, tfs_selected))
+  }
 }
 
 # we can also count how many of the identified cpg
@@ -426,21 +431,21 @@ colnames(geosub) <- geo_sym
 
 # list of all expr datasets
 expr.data <- list(geo = geosub, cohort = data_val[, all_genes, drop = F])
-val_g2g <- validate_gene2gene(expr.data, g, all_genes)
+val_g2g <- validate_gene2gene(expr.data, graph_maxcluster, all_genes)
 names(val_g2g) <- c("geo_gene_gene", "cohort_gene_gene")
 row <- c(row, val_g2g)
 
 # ------------------------------------------------------------------------------
 print("GO enrichment.")
 # ------------------------------------------------------------------------------
-go <- validate_geneenrichment(gnodes)
-if(!is.null(go)) {
-  names(go) <- c("go_ids", "go_terms", "go_pvals", "go_qvals")
-} else {
-  go <- rep(NA, 4)
-  names(go) <- c("go_ids", "go_terms", "go_pvals", "go_qvals")
-}
-row <- c(row, go)
+#go <- validate_geneenrichment(gnodes)
+#if(!is.null(go)) {
+#  names(go) <- c("go_ids", "go_terms", "go_pvals", "go_qvals")
+#} else {
+#  go <- rep(NA, 4)
+#  names(go) <- c("go_ids", "go_terms", "go_pvals", "go_qvals")
+#}
+#row <- c(row, go)
 
 # write output file
 write.table(file=fout, t(row), col.names=T,

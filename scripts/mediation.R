@@ -63,6 +63,7 @@ if(ranges$seed == "meqtl") {
 ta <- ta[ta %in% colnames(data)]
 print("Number of trans entities:")
 print(length(ta))
+
 # ------------------------------------------------------------------------------
 print("Performing mediation analysis.")
 # ------------------------------------------------------------------------------

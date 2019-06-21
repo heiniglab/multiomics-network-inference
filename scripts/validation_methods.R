@@ -212,30 +212,31 @@ validate_geneenrichment <- function(gnodes) {
 #'
 #' @return Fisher pvalues for the two contingency table tests
 #'
-validate_trans_genes <- function(teqtl, cgenes, tfs,
-                                 cgenes.selected, tfs.selected) {
+validate_trans_genes <- function(teqtl, trans_genes, tfs,
+                                 trans_genes.selected, tfs.selected) {
 
   # analyze the cpggenes, total and selected
-  teqtl.cgenes <- cgenes[cgenes %in% unlist(strsplit(teqtl$Transcript_GeneSymbol, "\\|"))]
-  teqtl.cgenes.selected <- intersect(teqtl.cgenes, cgenes.selected)
+  teqtl.tgenes <- trans_genes[trans_genes %in%
+                                unlist(strsplit(teqtl$Transcript_GeneSymbol, "\\|"))]
+  teqtl.tgenes.selected <- intersect(teqtl.tgenes, trans_genes.selected)
 
   # analyze the tfs, total and selected
   teqtl.tfs <- tfs[tfs %in% unlist(strsplit(teqtl$Transcript_GeneSymbol, "\\|"))]
   teqtl.tfs.selected <- intersect(teqtl.tfs, tfs.selected)
 
-  cat("CpG genes: ", cgenes, "\n")
-  cat("CpG genes with trans-eQTL: ", teqtl.cgenes, "\n")
-  cat("selected CpG genes with trans-eQTL: ", teqtl.cgenes.selected, "\n")
+  cat("Trans genes: ", trans_genes, "\n")
+  cat("Trans genes with trans-eQTL: ", teqtl.tgenes, "\n")
+  cat("selected CpG genes with trans-eQTL: ", teqtl.tgenes.selected, "\n")
 
   cat("TFs: ", tfs, "\n")
   cat("TFs with trans-eQTL: ", teqtl.tfs, "\n")
   cat("selected TFs with trans-eQTL: ", teqtl.tfs.selected, "\n")
 
   # create matrix for fisher test
-  cont <- matrix(c(length(teqtl.cgenes),length(teqtl.cgenes.selected),
-                   length(cgenes),length(cgenes.selected)),
+  cont <- matrix(c(length(teqtl.tgenes),length(teqtl.tgenes.selected),
+                   length(trans_genes),length(trans_genes.selected)),
                  nrow=2,ncol=2, byrow = T)
-  cat("confusion matrix for cgenes:\n")
+  cat("confusion matrix for trans genes:\n")
   rownames(cont) <- c("teqtl", "no teqtl")
   colnames(cont) <- c("not selected", "selected")
   f1 <- fisher.test(cont)$p.value
@@ -250,5 +251,5 @@ validate_trans_genes <- function(teqtl, cgenes, tfs,
   f2 <- fisher.test(cont)$p.value
 
   # report fisher test results
-  return(c(transEqtl_cgenes=f1,transEqtl_tfs=f2))
+  return(c(transEqtl_tgenes=f1,transEqtl_tfs=f2))
 }

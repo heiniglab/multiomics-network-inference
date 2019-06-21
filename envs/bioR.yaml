@@ -15,6 +15,7 @@ dependencies:
   - r-matrix
   - bioconductor-GenomicFeatures
   - bioconductor-graph
+  - bioconductor-qvalue
   - bioconductor-RBGL
   - bioconductor-rtracklayer
   - bioconductor-FDb.InfiniumMethylation.hg19

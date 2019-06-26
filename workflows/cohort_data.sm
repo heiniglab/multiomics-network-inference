@@ -85,8 +85,8 @@ rule validate_ggm:
                 geo="data/current/archs4/whole_blood/expression_matrix_norm_peer.tsv",
                 cis_kora="data/current/kora/eqtl/cis-full.tsv",
                 trans_kora="data/current/kora/eqtl/trans-full.tsv",
-                cis_joehanes="data/current/joehanes-2017/eqtls/eqtl-gene-annot_cis-only_logFDR2.txt.gz",
-                trans_joehanes="data/current/joehanes-2017/eqtls/eqtl-gene-annot_trans-only_logFDR10.txt.gz",
+                cis_joehanes="data/current/joehanes-2017/eqtls/eqtl-gene-annot_cis-only_logFDR2.txt",
+                trans_joehanes="data/current/joehanes-2017/eqtls/eqtl-gene-annot_trans-only_logFDR10.txt",
                 bonder_eqtm="data/current/bonder-et-al-2017/2015_09_02_cis_eQTMsFDR0.05-CpGLevel.txt",
                 kora_data=DCOHORT_DATA + "kora/{sentinel}_{seed}.rds",
                 lolipop_data=DCOHORT_DATA + "lolipop/{sentinel}_{seed}.rds",
@@ -95,24 +95,22 @@ rule validate_ggm:
 		mediation_kora=DMEDIATION + "kora/{sentinel}_{seed}.rds",
 		mediation_lolipop=DMEDIATION + "lolipop/{sentinel}_{seed}.rds"
         output:
-                DCOHORT_VAL + "{cohort}/{sentinel}_{graph_type}_{seed}.txt",
-		mediation_summary_plot=DCOHORT_VAL + "{cohort}/{sentinel}_{graph_type}_{seed}_mediation.pdf",
-		graphdot=DCOHORT_VAL + "{cohort}/{sentinel}_{graph_type}_{seed}_graphplot.dot",
-		graphpdf=DCOHORT_VAL + "{cohort}/{sentinel}_{graph_type}_{seed}_graphplot.pdf"
+                DCOHORT_VAL + "{cohort}/{sentinel}_{seed}.txt",
+		mediation_summary_plot=DCOHORT_VAL + "{cohort}/{sentinel}_{seed}_mediation.pdf"
+#		graphdot=DCOHORT_VAL + "{cohort}/{sentinel}_{seed}_graphplot.dot",
+#		graphpdf=DCOHORT_VAL + "{cohort}/{sentinel}_{seed}_graphplot.pdf"
         params:
                 mediation_cutoff=0.05,
                 time="01:00:00"
-        wildcard_constraints:
-                graph_type = GTYPES_CONSTR
-        threads: 1
+        threads: 6
         resources:
-                mem_mb=8000
+                mem_mb=4000
         conda:
                 "../envs/bioR.yaml"
         log:
-                "logs/validate_ggm/{cohort}/{sentinel}_{graph_type}_{seed}.log"
+                "logs/validate_ggm/{cohort}/{sentinel}_{seed}.log"
         benchmark:
-                "benchmarks/validate_ggm/{cohort}/{sentinel}_{graph_type}_{seed}.bmk"
+                "benchmarks/validate_ggm/{cohort}/{sentinel}_{seed}.bmk"
         script:
                 "../scripts/validation.R"
 
@@ -121,8 +119,8 @@ rule validate_ggm:
 #------------------------------------------------------------------------------
 rule summarize_validation_meqtl:
         input: 
-                kora=expand(DCOHORT_VAL + "kora/{sentinel}_{graph_type}_meqtl.txt", sentinel=MEQTL.sentinel, graph_type=GTYPES),
-                lolipop=expand(DCOHORT_VAL + "lolipop/{sentinel}_{graph_type}_meqtl.txt", sentinel=MEQTL.sentinel, graph_type=GTYPES)
+                kora=expand(DCOHORT_VAL + "kora/{sentinel}_meqtl.txt", sentinel=MEQTL.sentinel),
+                lolipop=expand(DCOHORT_VAL + "lolipop/{sentinel}_meqtl.txt", sentinel=MEQTL.sentinel)
         output: 
                 kora=temp(DCOHORT_VAL + "meqtl_kora.tmp"),
                 lolipop=temp(DCOHORT_VAL + "meqtl_lolipop.tmp"),
@@ -142,8 +140,8 @@ rule summarize_validation_meqtl:
 #------------------------------------------------------------------------------
 rule summarize_validation_eqtlgen:
         input: 
-                kora=expand(DCOHORT_VAL + "kora/{sentinel}_{graph_type}_eqtlgen.txt", sentinel=EQTLGEN.sentinel, graph_type=GTYPES),
-                lolipop=expand(DCOHORT_VAL + "lolipop/{sentinel}_{graph_type}_eqtlgen.txt", sentinel=EQTLGEN.sentinel, graph_type=GTYPES)
+                kora=expand(DCOHORT_VAL + "kora/{sentinel}_eqtlgen.txt", sentinel=EQTLGEN.sentinel),
+                lolipop=expand(DCOHORT_VAL + "lolipop/{sentinel}_eqtlgen.txt", sentinel=EQTLGEN.sentinel)
         output: 
                 kora=temp(DCOHORT_VAL + "eqtlgen_kora.tmp"),
                 lolipop=temp(DCOHORT_VAL + "eqtlgen_lolipop.tmp"),

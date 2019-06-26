@@ -253,3 +253,57 @@ validate_trans_genes <- function(teqtl, trans_genes, tfs,
   # report fisher test results
   return(c(transEqtl_tgenes=f1,transEqtl_tfs=f2))
 }
+
+#' -----------------------------------------------------------------------------
+#' Plot the Rho progression for an individual glasso model
+#'
+#' @param gl_model the glasso model containing the loglikelihood progression
+#' as 'll_progression'
+#' -----------------------------------------------------------------------------
+plot_glasso_progression <- function(gl_model) {
+  require(ggplot2)
+  require(reshape2)
+
+  toplot <- melt(gl_model$rho_progression)
+  toplot$measure <- unlist(lapply(strsplit(as.character(toplot$X2), "_"), "[[", 1))
+  toplot$rho <- unlist(lapply(strsplit(as.character(toplot$X2), "_"), "[[", 2))
+
+  ggplot(toplot) +
+    geom_boxplot(aes(x=rho, y=value), outlier.shape=NA) +
+    facet_wrap(measure ~ ., nrow=3, scales="free_y") +
+    scale_x_discrete(breaks=colnames(loglikes)[seq(1,length(rholist), by=10)]) +
+    theme(axis.text.x = element_text(angle=-90, vjust=0.5)) +
+    labs(title=paste0("Rho screening evaluation. (best rho=",
+                      gl_model$rho_best,
+                      ")"),
+         y="value",
+         x="rho")
+}
+
+#' -----------------------------------------------------------------------------
+#' Plot the parameter progression for a genie3 fitted model
+#'
+#' @param model the GENIE3 model containing the loglikelihood progression
+#' as 'logLiks' and the KS-pvalue progression as 'KS_ps' (both named by weights)
+#'
+#' -----------------------------------------------------------------------------
+plot_genie_progression <- function(model) {
+
+  require(ggplot2)
+  require(reshape2)
+  require(cowplot)
+
+  # combine data
+  df <- cbind.data.frame(likelihood = model$logLiks,
+                         KS_pv = model$KS_ps,
+                         weight = names(model$logLiks),
+                         stringsAsFactors=F)
+  toplot <- melt(df, id.vars = "weight")
+
+  toplot$weight <- as.numeric(sapply(strsplit(toplot$weight, "="), "[[", 2))
+  ggplot(toplot, aes(x=weight, y=value)) +
+    facet_wrap(variable ~ ., ncol=1, scales="free_y") +
+    geom_line() +
+    labs(title="Progression of parameters for different \nGENIE3 weight cutoffs")
+
+}

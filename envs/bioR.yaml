@@ -1,4 +1,5 @@
 name: rbase
+
 channels:
  - r
  - conda-forge
@@ -6,13 +7,17 @@ channels:
  - defaults
 
 dependencies:
-  - r=3.4.1
-  - bioconductor-GenomicRanges=1.28.6
+  - r=3.5.1
+  - bioconductor-GenomicRanges=1.34.0
   - r-tidyverse
   - r-reshape2
   - r-cowplot
   - r-data.table
   - r-matrix
+  - r-batchtools
+  - r-cvtools
+  - r-dorng
+  - bioconductor-genie3
   - bioconductor-GenomicFeatures
   - bioconductor-graph
   - bioconductor-qvalue

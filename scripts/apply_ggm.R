@@ -64,9 +64,6 @@ ranges <- readRDS(franges)
 # load PPI DB
 ppi_db <- readRDS(fppi_db)
 
-# create the start graph for the GGM algorithm
-gstart <- get_gstart_from_priors(priors)
-
 # ------------------------------------------------------------------------------
 # for catching the genenet summary plots, we open the pdf connection here
 # ------------------------------------------------------------------------------
@@ -75,72 +72,12 @@ pdf(fsummary_plot)
 # ------------------------------------------------------------------------------
 print("Infer regulatory networks.")
 # ------------------------------------------------------------------------------
-print("Fitting bdgraph using priors.")
-bdgraph <- reg_net(data, priors, "bdgraph", threads=threads)
-
-#print("Fitting model with priors without start graph")
-#bdgraph_empty <- reg_net(d, priors, "bdgraph",
-#                         use_gstart = F, threads=threads)
-
-#print("Fitting model without priors with start graph")
-#bdgraph_no_priors <- reg_net(d, NULL, "bdgraph",
-#                             gstart = gstart, threads=threads)
-
-print("Fitting bdgraph without priors.")
-bdgraph_no_priors <- reg_net(data, NULL, "bdgraph",
-                             use_gstart = F, threads=threads)
-
-print("Fitting model using iRafNet.")
-irafnet <- reg_net(data, priors, "irafnet", threads=threads)
-
-print("Fitting model using GeneNet.")
-genenet <- reg_net(data, priors, "genenet", threads=threads)
-
-print("Fitting model using glasso.")
-glasso <- reg_net(data, priors, "glasso", threads=threads)
-
-print("Fitting model using glasso, no priors.")
-ut <- 1-priors[upper.tri(priors)]
-lambda <- sum(ut)/length(ut)
-glasso_no_priors <- reg_net(data, NULL, "glasso", glasso.lambda=lambda,
-                            threads=threads)
-
-# ------------------------------------------------------------------------------
-print("Add custom annotations for the graphs.")
-# ------------------------------------------------------------------------------
-# determine the context to be used
-# (meqtl -> chipseq context; eqtl -> tss context)
 if(ranges$seed == "meqtl") {
   fcontext <- fcpg_context
 } else {
   fcontext <- ftss_context
 }
-
-bdgraph$graph <- annotate.graph(bdgraph$graph, ranges, ppi_db, fcontext)
-bdgraph_no_priors$graph <- annotate.graph(bdgraph_no_priors$graph,
-                                                ranges, ppi_db, fcontext)
-irafnet$graph <- annotate.graph(irafnet$graph, ranges, ppi_db, fcontext)
-genenet$graph <- annotate.graph(genenet$graph, ranges, ppi_db, fcontext)
-
-glasso$graph <- annotate.graph(glasso$graph, ranges, ppi_db, fcontext)
-glasso$graph_no_priors <- annotate.graph(glasso_no_priors$graph,
-                                         ranges, ppi_db, fcontext)
-
-# ------------------------------------------------------------------------------
-print("Create result list.")
-# ------------------------------------------------------------------------------
-result <- list(bdgraph_fit = bdgraph$fit,
-               bdgraph_fit_no_priors = bdgraph_no_priors$fit,
-               irn_fit = irafnet$fit,
-               genenet_fit = genenet$fit,
-               bdgraph = bdgraph$graph,
-               bdgraph_no_priors = bdgraph_no_priors$graph,
-               irafnet = irafnet$graph,
-               genenet = genenet$graph,
-               glasso_fit = glasso$fit,
-               glasso = glasso$graph,
-               glasso_no_priors_fit = glasso$fit,
-               glasso_no_priors = glasso$graph)
+result <- infer_all_graphs(data, priors, ranges, fcontext, ppi_db, threads)
 
 # ------------------------------------------------------------------------------
 print("Done with model fitting. Finishing up.")

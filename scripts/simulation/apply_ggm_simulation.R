@@ -64,9 +64,6 @@ result <- lapply(names(simulated_data), function(n) {
     priors <- sim$priors
   }
 
-  # obtain a start graph
-  gstart <- get_gstart_from_priors(priors)
-
   # ----------------------------------------------------------------------------
   print("Infer regulatory networks.")
   # ----------------------------------------------------------------------------

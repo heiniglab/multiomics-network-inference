@@ -293,17 +293,9 @@ plot_genie_progression <- function(model) {
   require(reshape2)
   require(cowplot)
 
-  # combine data
-  df <- cbind.data.frame(likelihood = model$logLiks,
-                         KS_pv = model$KS_ps,
-                         weight = names(model$logLiks),
-                         stringsAsFactors=F)
-  toplot <- melt(df, id.vars = "weight")
-
-  toplot$weight <- as.numeric(sapply(strsplit(toplot$weight, "="), "[[", 2))
+  toplot <- melt(model$fit$pl_fits, id.vars = "weight")
   ggplot(toplot, aes(x=weight, y=value)) +
-    facet_wrap(variable ~ ., ncol=1, scales="free_y") +
+    facet_wrap(~variable, ncol=2, scales="free_y") +
     geom_line() +
-    labs(title="Progression of parameters for different \nGENIE3 weight cutoffs")
-
+    geom_vline(xintercept = model$fit$best_weight, color="red")
 }

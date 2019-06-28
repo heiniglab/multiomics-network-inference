@@ -205,7 +205,7 @@ graph_from_fit <- function(ggm.fit,
     }
   } else if(inherits(ggm.fit, "genie3")) {
     g <- get_genie3_graph(ggm.fit$nodes,
-                          ggm.fit$model,
+                          ggm.fit$linklist,
                           ggm.fit$best_weight)
   }
 
@@ -538,11 +538,11 @@ glasso_cv <- function(data, priors = NULL, k=5,
 #' @param threshold The treshold to be applied in GENIE3's \code{getLinkList}
 #'
 #' -----------------------------------------------------------------------------
-get_genie3_graph <- function(nodes, model, threshold) {
+get_genie3_graph <- function(nodes, linklist, threshold) {
   require(graph)
-  require(GENIE3)
 
-  edges <- getLinkList(model, threshold = threshold)
+  edges <- subset(linklist, weight >= threshold)
+
   if(nrow(edges) > 0) {
     g <- graph::graphNEL(nodes,
                   edgemode="undirected")
@@ -564,21 +564,21 @@ get_genie3_graph <- function(nodes, model, threshold) {
 #'
 #' @param data The data matrix (n x p)
 #' @param threads The number of threads to be used
+#' @param rsquare.cut Which rsquare cutoff to use when determining the best
+#' GENIE3 weights to generate the final network. Default: 0.9
+#' @param nbreaks The number of breaks to use when discretizing the degree
+#' distribution / getting its frequencies. Default: 20
 #'
 #' -----------------------------------------------------------------------------
-genie3 <- function(data, threads=1) {
+genie3 <- function(data, threads=1, rsquare.cut = 0.8, nbreaks = 20) {
   require(GENIE3)
   require(igraph)
   require(parallel)
 
-  print(paste0("Using ", threads, " threads."))
-
   # we expect a n x p matrix, genie3 needs a p x n matrix
   model <- GENIE3(t(data), nCores = threads)
-
-  all_link_weights <- sort(unique(getLinkList(model, threshold = 0)$weight))
-  print("Summary of link weights:")
-  print(summary(all_link_weights))
+  linklist <- getLinkList(model, threshold = 0)
+  all_link_weights <- sort(unique(linklist$weight))
 
   lw <- length(all_link_weights)
   # get a subset to check if needed
@@ -587,29 +587,68 @@ genie3 <- function(data, threads=1) {
   }
 
   print(paste0("Checking ", length(all_link_weights), " weights."))
-  print("Summary of link weights:")
-  print(summary(all_link_weights))
 
   # we can use igraph packages 'fit_power_law' to fit the degree distribution
   # to a power law distr for each weight cutoff
   fits <- mclapply(all_link_weights, function(weight) {
-    g <- get_genie3_graph(colnames(data), model, weight)
+    g <- get_genie3_graph(colnames(data), linklist, weight)
     ds <- graph::degree(g)
-    # fit pwer law
-    fit <- igraph::fit_power_law(ds+1)
+    if(var(ds) == 0) return(NULL)
+
+    ds1 <- ds + 1
+    # fit power law
+    fit <- igraph::fit_power_law(ds1)
+
+    # get the correlation between log10(p(k)) and log10(k)
+    # taken from: https://github.com/cran/WGCNA/blob/master/R/Functions.R
+    # function: scaleFreeFitIndex
+
+    # devide degrees into bins and get the respective frequencies
+    discretized = cut(ds, nbreaks)
+    dk = as.vector(tapply(ds, discretized, mean))
+    pdk = as.vector(tapply(ds, discretized, length)/length(ds))
+    pdk = ifelse(is.na(pdk), 0, pdk)
+
+    breaks1 = seq(from = min(ds), to = max(ds),
+                  length = nbreaks + 1)
+    hist1 = hist(ds, breaks = breaks1, plot = FALSE, right = TRUE)
+    dk2 = hist1$mids
+    dk = ifelse(is.na(dk), dk2, dk)
+    dk = ifelse(dk == 0, dk2, dk)
+
+    # get logs of degree distr and frequency, then calculate their linear fits
+    log_dk = as.vector(log10(dk))
+    log_pdk= as.numeric(log10(pdk + 1e-09))
+    lm1 = lm(log_pdk ~ log_dk)
+    r2 <- summary(lm1)$r.squared
+    beta <- lm1$coefficients["log_dk"]
+
+    # we need a negative slope for a 'plausible' network
+    if(beta > 0) r2 <- r2*(-1)
+
+    # get the mean node connectivity
+    mcon <- mean(sum(ds-1)) / 2
+
     # return ll of fitted distr
-    c(ll=fit$logLik, ks_p=fit$KS.p)
+    c(weight=weight, ll=fit$logLik, ks_p=fit$KS.p, alpha=fit$alpha,
+      beta=beta, r2=r2, mcon=mcon)
   }, mc.cores=threads)
 
-  lls <- unlist(lapply(fits, "[[", "ll"))
-  names(lls) <- paste0("weight=", all_link_weights)
-  ks_p <- unlist(lapply(fits, "[[", "ks_p"))
-  names(ks_p) <- paste0("weight=", all_link_weights)
+  fits <- do.call(rbind.data.frame, fits)
+  colnames(fits) <- c("weight", "ll", "ks_p", "alpha", "beta", "r2", "mcon")
+  rownames(fits) <- paste0("weight=", fits$weight)
 
-  # get best weight (highest KS_p and heighest weight for that)
-  best_weights <- all_link_weights[lls == max(lls)]
-  best_weight <- best_weights[which.max(best_weights)]
+  # get best weight (r2>=cutoff, then highest mean connectivity)
+  fits_r2 <- subset(fits, r2 >= rsquare.cut)
+  if(nrow(fits_r2) < 1) {
+    # didn't find a cutoff, so we take the maximum r2
+    warning(paste0("No R^2 above ", rsquare.cut))
+    fits_r2 <- subset(fits, r2 == max(r2))
+  }
+  fits_mcon <- subset(fits_r2, mcon == max(mcon))
+  fits_beta <- fits_mcon[which.min(-1 - fits$beta),]
+  best_weight <- fits_beta$weight
 
-  return(list(model=model, nodes=colnames(data),
-              best_weight=best_weight, logLiks=lls, KS_ps=ks_p))
+  return(list(model=model, nodes=colnames(data), linklist = linklist,
+              best_weight=best_weight, pl_fits = fits))
 }

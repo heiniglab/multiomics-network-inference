@@ -109,16 +109,16 @@ get.gene.annotation <- function(drop.nas=TRUE, version=19) {
 load_gene_annotation <- function(fgene_annot) {
   require(data.table)
   require(GenomicRanges)
-  
+
   # load gene annotation
   ga <- fread(fgene_annot)
-  
+
   # file format is: chr origin type start stop U strand U add_info
   colnames(ga) <- c("chr", "origin", "type", "start", "stop", "score", "strand",
-                    "frame", "info") 
+                    "frame", "info")
   # extract ranges
   ra <- with(ga, GRanges(chr, IRanges(start, stop), strand))
-  
+
   # extract the additional attributes and merge with ranges object
   attrs <- strsplit(ga$info, ";")
   gene_id <- sapply(attrs, function(x) { sapply(strsplit(x[grepl("gene_id",x)], " "), "[[", 2) })
@@ -327,7 +327,7 @@ plot.ggm <- function(g, id, plot.on.device=T, dot.out=NULL, ...){
   sentinel_cluster <- cl$membership[names(cl$membership) == id]
   keep = nodes(g)[cl$membership == sentinel_cluster]
   g = subGraph(keep, g)
-  
+
   # the remaining nodes
   n <- keep
 
@@ -1872,9 +1872,42 @@ summarize <- function(m, symbols){
 #' @author Johann Hawe <johann.hawe@helmholtz-muenchen.de>
 #'
 # ------------------------------------------------------------------------------
-scan_snps <- function(ranges, dosage_file, individuals) {
+scan_snps <- function(ranges, dosage_file, individuals, tempdir=tempdir()) {
 
-  # create system command using tabix...
+  stop("This script caused major problems last time we used it. Has to be adjusted
+       before running the whole pipeline again!")
+
+  # Code below is a differen try to obtaining the genotypes (for a large number
+  # snps, ~2e6, which could be further explored)
+
+  # require(Rsamtools)
+  # chrs <- unique(as.character(seqnames(ranges)))
+  #
+  # res <- lapply(chrs, function(chr) {
+  #   ra <- ranges[as.character(seqnames(ranges)) == chr]
+  #   ra <- reduce(ra, min.gapwidth = 1e3)
+  #   dat <- scanTabix(dosage_file, ra)
+  #   if(inherits(data, "try-error")){
+  #     cat("No SNPs found in specified regions.\n")
+  #     return(data.frame())
+  #   } else {
+  #     data <- dat[!duplicated(dat[,2]),,drop=F]
+  #     message(paste("Processed", nrow(dat), "SNPs." ))
+  #
+  #     # process the genotype information to get numerics
+  #     for(i in 6:ncol(data)){
+  #       data[,i] <- (as.numeric(data[,i]))
+  #     }
+  #
+  #     ## create colnames using individual codes
+  #     colnames(data)<- c("chr", "name", "pos", "orig", "alt", individuals)
+  #     rownames(data) <- data$name
+  #
+  #     return(data[,6:ncol(data)])
+  #   }
+  # })
+
+  # create system command for tabix
   ranges.str <- paste(ranges, collapse=" ")
 
   # for very large ranges-objects (e.g. several thousand ranges)
@@ -1882,8 +1915,8 @@ scan_snps <- function(ranges, dosage_file, individuals) {
   # to work, neither does calling tabix via the system() command.
   # therefore we create a temp bash file (tf), which we call using R
   # the output (tf2) is then read using fread
-  tf <- tempfile()
-  tf2 <- tempfile()
+  tf <- tempfile(tmpdir = tempdir)
+  tf2 <- tempfile(tmpdir = tempdir)
   cmd <- paste0("tabix ", dosage_file, " ", ranges.str, " > ", tf2)
   cat(cmd, file=tf, append = F)
   system(paste0("sh ", tf))

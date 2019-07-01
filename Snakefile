@@ -207,7 +207,7 @@ rule collect_ranges:
 #------------------------------------------------------------------------------
 rule collect_ranges_eqtlgen:
         input:
-                eqtl="data/current/eqtl_gen/trans-eQTL_significant_20181017.txt.gz",
+                eqtl="data/current/eqtl_gen/trans-eQTL_significant_20181017.txt",
                 ppi=PPI_DB,
                 tfbs_annot="results/current/tfbs_tss_annot.rds",
                 gene_annot = GENE_ANNOT

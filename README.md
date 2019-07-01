@@ -64,7 +64,7 @@ executing. Cohort and simulation study can be run separately by using either the
 including both studies the *all* rule is used:
 
 ```{bash}
-nohup nice snakemake -w 10 -k -u configs/cluster.json --jobs=200 --local-cores=18 \
+nohup nice snakemake --use-conda -w 10 -k -u configs/cluster.json --jobs=200 --local-cores=18 \
   --cluster "qsub -pe smp {threads} -hard -l job_mem={resources.mem_mb}M \
   -q {cluster.q} -cwd -V -o {log} -e {log} -N {cluster.N}" --restart-times 4 \
   all_cohort > all_cohort.out &

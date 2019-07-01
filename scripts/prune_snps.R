@@ -27,6 +27,8 @@ ld_max_dist <- as.numeric(snakemake@params$ld_max_dist)
 r2_min <- as.numeric(snakemake@params$r2_min)
 threads <- snakemake@threads
 fdr_cutoff <- as.numeric(snakemake@params$fdr_cutoff)
+tempdir <- snakemake@params$tempdir
+print(paste0("using ", tempdir, " as temp directory."))
 
 # input
 feqtl <- snakemake@input$eqtl
@@ -65,7 +67,7 @@ full <- mclapply(names(eqtl_by_chromosome), function(chr) {
   snps <- unique(snps)
 
   # get KORA genotypes
-  geno <- scan_snps(snps, fdosage, individuals)
+  geno <- scan_snps(snps, fdosage, individuals, tempdir=tempdir)
 
   # remove SNPs for which we do not have any genotypes
   snps <- snps[names(snps)[names(snps) %in% rownames(geno)]]

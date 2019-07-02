@@ -4,12 +4,14 @@ channels:
  - r
  - conda-forge
  - bioconda
+ - anaconda
  - defaults
 
 dependencies:
   - r=3.5.1
-  - bioconductor-GenomicRanges=1.34.0
+  - r-pheatmap
   - r-tidyverse
+  - r-igraph
   - r-reshape2
   - r-cowplot
   - r-data.table
@@ -17,6 +19,9 @@ dependencies:
   - r-batchtools
   - r-cvtools
   - r-dorng
+  - r-fdrtool
+  - r-doparallel
+  - bioconductor-GenomicRanges=1.34.0
   - bioconductor-genie3
   - bioconductor-GenomicFeatures
   - bioconductor-graph
@@ -31,3 +36,7 @@ dependencies:
   - bioconductor-s4vectors
   - bioconductor-organismdbi
   - bioconductor-rgraphviz
+  - bioconductor-homo.sapiens
+  - bioconductor-illuminahumanv3.db
+  - bioconductor-preprocesscore
+  - bioconductor-sva

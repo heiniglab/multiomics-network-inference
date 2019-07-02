@@ -55,6 +55,8 @@ rule apply_ggm:
                 time="24:00:00"
         resources:
                 mem_mb=1500
+        conda:
+                "../envs/bioR.yaml"
         benchmark:
                 "benchmarks/apply_ggm/{sentinel}_{cohort}_{seed}.bmk"
         log:

@@ -45,13 +45,7 @@ reg_net <- function(data, priors, model, threads=1,
                     use_gstart=T, gstart=NULL, iter=10000, burnin=5000,
                     ntrees=1000, mtry=round(sqrt(ncol(data)-1)), npermut=5,
                     irafnet.fdr=0.05, glasso.lambda=1) {
-
-  # load inference methods
-  suppressPackageStartupMessages(library(GeneNet))
-  suppressPackageStartupMessages(library(BDgraph))
-  suppressPackageStartupMessages(library(iRafNet))
-  suppressPackageStartupMessages(library(glasso))
-  suppressPackageStartupMessages(library(GENIE3))
+  require(doParallel)
 
   # get available models
   ms <- reg_net.models()
@@ -69,48 +63,73 @@ reg_net <- function(data, priors, model, threads=1,
   }
   # check which model to build
   if("genenet" %in% model){
-    pcors <- ggm.estimate.pcor(data_no_nas)
+    require(GeneNet)
+
+    # for some reason, this method yields a sporadic error. testing in an R
+    # console, we found that this also appears within the same session in e.g.
+    # two subsequent calls: one with error, one withou.  it seems the error is rather
+    # rare, so we can essentially 'wait' for it to disappear..
+    pcors <- try({ggm.estimate.pcor(data.matrix(data_no_nas))})
+    while(inherits(pcors, "try-error")) {
+      pcors <- try({ggm.estimate.pcor(data.matrix(data_no_nas))})
+    }
+
     fit <- network.test.edges(pcors, plot = F)
     fit$node1 <- colnames(data_no_nas)[fit$node1]
     fit$node2 <- colnames(data_no_nas)[fit$node2]
     class(fit) <- c(class(fit), "genenet")
   } else if("bdgraph" %in% model) {
-    # do we have priors?
+    require(BDgraph)
+    # check some conditions before applying the model
+    # no priors
     if(is.null(priors)) {
+      # set default uniform prior
+      bdpriors <- 0.5
+
       # build without priors, nevertheless, we could have a custom start graph
       if(use_gstart) {
         if(is.null(gstart)) {
           stop("Start graph must be provided if no priors are given.")
         }
-        fit <- bdgraph(data, method = "gcgm",
-                       iter = iter, burnin = burnin, g.start=gstart,
-                       save = T, cores=threads)
       } else {
-        fit <- bdgraph(data, method = "gcgm",
-                       iter = iter, burnin = burnin,
-                       save = T, cores=threads)
+        gstart <- "empty"
       }
-    } else {
-      # we have priors, check whether to use the prior based start graph
+    } else { # we have priors
+      bdpriors <- priors
+
+      # check whether to use the prior based start graph
       if(use_gstart) {
-        gstart <- get_gstart_from_priors(priors)
-        fit <- bdgraph(data, method = "gcgm",
-                       iter = iter, burnin = burnin,
-                       g.prior = priors, g.start = gstart,
-                       save = T, cores=threads)
+        gstart <- get_gstart_from_priors(bdpriors)
       } else {
-        # use priors, but no specific start graph
-        fit <- bdgraph(data, method = "gcgm",
-                       iter = iter, burnin = burnin,
-                       g.prior = priors, g.start="empty",
-                       save = T, cores=threads)
+        gstart <- "empty"
       }
+    }
+    # perform the model fitting
+    # as for GeneNet, we have some random hiccups using this methods atm.
+    # probably this is a problem between genenet and bdgraph package versions
+    # for now, we apply the same solution as for genenet -> run until no error...
+    fit <- try({bdgraph(data, method = "gcgm", g.prior = bdpriors,
+                   iter = iter, burnin = burnin,
+                   g.start = gstart,
+                   save = T, cores=threads)})
+    while(inherits(fit, "try-error")) {
+      fit <- try({bdgraph(data, method = "gcgm", g.prior = bdpriors,
+                          iter = iter, burnin = burnin,
+                          g.start = gstart,
+                          save = T, cores=threads)})
     }
 
     # plot convergence info for any case
     ggm_summary <- summary(fit)
 
   } else if("irafnet" %in% model) {
+    require(iRafNet)
+
+    if(threads > 1) {
+      cl <- makeCluster(threads)
+      registerDoParallel(cl)
+    }
+
     irn_out <- iRafNet(data_no_nas, priors_no_nas, ntrees, mtry, colnames(data_no_nas),
                        threads=threads)
     irn_perm_out <- Run_permutation(data_no_nas, priors_no_nas,
@@ -119,9 +138,14 @@ reg_net <- function(data, priors, model, threads=1,
     fit <- iRafNet_network(irn_out, irn_perm_out, TH = irafnet.fdr)
     fit <- list(fit=fit, nodes=colnames(data_no_nas))
     class(fit) <- c(class(fit), "irafnet")
+
+    if(threads > 1) {
+      stopCluster(cl)
+    }
   } else if("custom" %in% model) {
     stop("Sorry, custom model is not yet implemented.")
   } else if("glasso" %in% model) {
+    require(glasso)
     if(!is.null(priors)) {
       # for now we simply call using 1-priors as penalization
       gl_out <- glasso_cv(data, priors, threads = threads)
@@ -131,6 +155,7 @@ reg_net <- function(data, priors, model, threads=1,
     class(gl_out) <- c(class(gl_out), "glasso")
     fit <- gl_out
   } else if("genie3" %in% model) {
+    require(GENIE3)
     fit <- genie3(data_no_nas, threads = threads)
     class(fit) <- c(class(fit), "genie3")
   }
@@ -666,18 +691,8 @@ genie3 <- function(data, threads=1, rsquare.cut = 0.8, nbreaks = 20) {
 #' -----------------------------------------------------------------------------
 infer_all_graphs <- function(data, priors, ranges, fcontext, ppi_db, threads=1) {
 
-  print("Fitting bdgraph using priors.")
-  bdgraph <- reg_net(data, priors, "bdgraph", threads=threads)
-
-  print("Fitting bdgraph without priors.")
-  bdgraph_no_priors <- reg_net(data, NULL, "bdgraph",
-                               use_gstart = F, threads=threads)
-
-  print("Fitting model using iRafNet.")
-  irafnet <- reg_net(data, priors, "irafnet", threads=threads)
-
   print("Fitting model using GeneNet.")
-  genenet <- reg_net(data, priors, "genenet", threads=threads)
+  genenet <- reg_net(data, NULL, "genenet", threads=threads)
 
   print("Fitting model using glasso.")
   glasso <- reg_net(data, priors, "glasso", threads=threads)
@@ -687,6 +702,16 @@ infer_all_graphs <- function(data, priors, ranges, fcontext, ppi_db, threads=1) 
 
   print("Fitting model using genie3.")
   genie3 <- reg_net(data, NULL, "genie3", threads=threads)
+
+  print("Fitting bdgraph using priors.")
+  bdgraph <- reg_net(data, priors, "bdgraph", threads=threads)
+
+  print("Fitting bdgraph without priors.")
+  bdgraph_no_priors <- reg_net(data, NULL, "bdgraph",
+                               use_gstart = F, threads=threads)
+
+  print("Fitting model using iRafNet.")
+  irafnet <- reg_net(data, priors, "irafnet", threads=threads)
 
   # ----------------------------------------------------------------------------
   print("Add custom annotations for the graphs.")

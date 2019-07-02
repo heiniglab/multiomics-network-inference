@@ -13,10 +13,9 @@ sink(log, type="message")
 print("Prepare libraries and source scripts.")
 # ------------------------------------------------------------------------------
 library(pheatmap)
-library(doParallel)
 suppressPackageStartupMessages(library(GenomicRanges))
-suppressPackageStartupMessages(library(igraph))
-suppressPackageStartupMessages(library(graph))
+library(igraph)
+library(graph)
 source("scripts/lib.R")
 source("scripts/reg_net.R")
 
@@ -39,8 +38,6 @@ fgstart_plot <- snakemake@output$gstart_file
 
 # params
 threads <- snakemake@threads
-cl <- makeCluster(threads)
-registerDoParallel(cl)
 
 # ------------------------------------------------------------------------------
 print("Load and prepare data.")
@@ -79,19 +76,10 @@ if(ranges$seed == "meqtl") {
 }
 result <- infer_all_graphs(data, priors, ranges, fcontext, ppi_db, threads)
 
-# ------------------------------------------------------------------------------
-print("Done with model fitting. Finishing up.")
-# ------------------------------------------------------------------------------
-
-# plot the start graph as a matrix
-pheatmap(gstart, cex=0.7, main="start graph",
-         filename=fgstart_plot,
-         cex=0.7)
-
 dev.off()
 
 # ------------------------------------------------------------------------------
-print("Plotting done. Saving results.")
+print("All done. Saving results.")
 # ------------------------------------------------------------------------------
 saveRDS(file=fout, result)
 

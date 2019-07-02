@@ -121,6 +121,7 @@ genes_sroi <- subsetByOverlaps(gene_annot, sroi, ignore.strand=T)
 
 # get genes near our cpg regions
 genes_by_cpg <- get.nearby.ranges(croi, promoters(gene_annot))
+names(genes_by_cpg) <- names(croi)
 # get original ranges (not promoters)
 genes_by_cpg <- lapply(names(genes_by_cpg), function(cg) {
   gs <- genes_by_cpg[[cg]]
@@ -199,3 +200,8 @@ if(!is.null(tfs)){
 result$seed <- "meqtl"
 
 saveRDS(file=ofile, result)
+
+# ------------------------------------------------------------------------------
+print("SessionInfo:")
+# ------------------------------------------------------------------------------
+sessionInfo()

@@ -479,58 +479,13 @@ filter.edge.matrix <- function(g, em){
   return(out)
 }
 
-#' Get  STRING interactions (only experimental and db supported)
-#'
-#' Loads the STRING db saved on disc to a graph R object.
-#' Uses a caching mechanism for faster loading of the graph information
-#'
-#' @return nothing
-#'
-#' Gets ranges in one object close by a set of other ranges
-#'
-#' Gets the first ranges in subject, which are up-/down-stream and overlapping
-#' a range in the query
-#'
-#' @param query ranges for which to get nearby genes
-#' @param subject ranges in which to look for nearby genes
-#'
-#' @return Either the idx of the hits in the subject if idxs=T, or the identified ranges (idxs=F)
-#'
-get.nearby.ranges <- function(query, subject) {
-
-  nearby <- function(q,s){
-    # get preceding, following and ovberlapping instances of any range in query within subject ranges
-    pre <- precede(q, s, select="all", ignore.strand=T)
-    fol <- follow(q, s, select="all", ignore.strand=T)
-    ove <- findOverlaps(q, s, select="all", ignore.strand=T)
-    # combine hits
-    h <- unique(c(subjectHits(pre), subjectHits(fol), subjectHits(ove)))
-
-    return(list(hits=h, ranges=s[h]))
-  }
-
-  #return a list, where each query gets its nearby ranges annotated with their distance
-  res <- lapply(query, function(q) {
-    n <- nearby(q, subject)
-    if(length(n$hits)>0){
-      n$ranges$distance <- rep(-1, times=length(n$ranges))
-      for(i in 1:length(n$ranges)) {
-        d <- distance(q,n$ranges[i])
-        n$ranges[i]$distance <- d
-      }
-      return(n$ranges)
-    } else {
-      return(NULL)
-    }
-  });
-  return(res);
-}
-
+#' -----------------------------------------------------------------------------
 #' Quantile normalization
 #'
 #' @param x ngenes x nsamples matrix to be normalized
 #' @return quantile normalized matrix
 #' @export
+#' -----------------------------------------------------------------------------
 normalize.quantile <- function(x) {
   x = as.matrix(x)
   o = apply(x, 2, order)
@@ -887,6 +842,7 @@ get_gstart_from_priors <- function(priors){
   return(out)
 }
 
+#' -----------------------------------------------------------------------------
 #' Normalize external (geuvadis, gtex) expression data
 #'
 #' @param data The expression matrix to normalize, expecting
@@ -897,9 +853,10 @@ get_gstart_from_priors <- function(priors){
 #'
 #' @author Johann Hawe
 #'
+#' -----------------------------------------------------------------------------
 normalize.expression <- function(data) {
   library(preprocessCore)
-  library(peer)
+  library(sva)
 
   # quantile normalize
   scaled = normalize.quantiles(t(data))
@@ -911,11 +868,14 @@ normalize.expression <- function(data) {
     r = rank(x, ties.method="random")
     qnorm(r / (length(x) + 1))
   }
-  transformed <- apply(scaled, 1, stdnorm)
 
-  # remove peer factors
-  corrected <- correct.peer(transformed, Nk = 10)
-  colnames(corrected) <- colnames(transformed)
+  # gets p x n matrix
+  transformed <- apply(scaled, 1, stdnorm)
+  pca <- prcomp(transformed)$x[,1:10]
+
+  # remove first 10 pcs
+  corrected <- resid(lm(transformed ~ pca))
+
   return(corrected)
 }
 

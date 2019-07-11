@@ -44,7 +44,7 @@ reg_net.models <- function() {
 reg_net <- function(data, priors, model, threads=1,
                     use_gstart=T, gstart=NULL, iter=10000, burnin=5000,
                     ntrees=1000, mtry=round(sqrt(ncol(data)-1)), npermut=5,
-                    irafnet.fdr=0.05, glasso.lambda=1) {
+                    irafnet.fdr=0.05) {
   require(doParallel)
 
   # get available models
@@ -242,72 +242,6 @@ graph_from_fit <- function(ggm.fit,
 }
 
 # ------------------------------------------------------------------------------
-#' Fits the glasso models for a selection of lambdas and identifies the one
-#' no priors fit which is closest (edge number wise) to the prior model with
-#' no scaling
-#'
-#' DEPRECATED: use glasso_cv instead!
-# ------------------------------------------------------------------------------
-glasso_screen <- function(data, priors, threads, ranges, ppi_db, fcontext) {
-  warning("Method glasso_screen is deprecated. Use glasso_cv instead!")
-
-  require(doParallel)
-
-  lambdas <- seq(0.1,1,by=0.1)
-  res <- foreach(l = lambdas, .export=c("reg_net", "reg_net.models", "annotate.graph", "graph_from_fit",
-                                        "filter.edge.matrix", "get_tfbs_context"),
-                 .packages=c("reshape2", "glasso", "graph")) %dopar% {
-                   glasso <- reg_net(data, priors, "glasso", threads=threads, glasso.lambda=l)
-                   glasso$graph <- annotate.graph(glasso$graph, ranges, ppi_db, fcontext)
-
-                   # here we use the average penalty arising from the scaled prior matrix
-                   ut <- l * (1-priors[upper.tri(priors)])
-                   lambda <- sum(ut)/length(ut)
-                   glasso_no_priors <- reg_net(data, NULL, "glasso", glasso.lambda=lambda, threads=threads)
-                   glasso_no_priors$graph <- annotate.graph(glasso_no_priors$graph, ranges, ppi_db, fcontext)
-
-
-                   glassos <- list()
-                   n <- paste0("glasso_lambda", l)
-                   n2 <- paste0(n, "_no_priors")
-                   glassos[[n]] <- glasso
-                   glassos[[n2]] <- glasso_no_priors
-                   return(glassos)
-                 }
-  names(res) <- paste0("lambda", lambdas)
-
-  # we directly get the two main glasso results, i.e. the one with no modulation
-  # to the priors and the one with no priors which has similar number of edges
-  # NOTE: for additional evaluation possibilities, we also save all of the trained
-  # lasso models
-
-  gl <- res[["lambda1"]]$glasso_lambda1
-  ne <- numEdges(gl$graph)
-  closest_graph <- NA
-  edge_diff <- NA
-
-  for(l in names(res)) {
-    # select corresponding non_prior_graph
-    re <- res[[l]]
-    gnp <- re[[which(grepl(".*_no_priors", names(re)))]]
-    ed <- abs(ne - numEdges(gnp$graph))
-    if(is.na(edge_diff)) {
-      edge_diff <- ed
-      closest_graph <- gnp
-    } else {
-      if(ed < edge_diff) {
-        edge_diff <- ed
-        closest_graph <- gnp
-      }
-    }
-  }
-  glnp <- closest_graph
-
-  glasso_all <- res
-  return(list(glasso_all=glasso_all, glasso_no_priors = glnp, glasso = gl))
-}
-
-# ------------------------------------------------------------------------------
 #' Get a graph score summary to estimate how well the inferred graph structure
 #' fits our assumptions of the underlying regulatory mechanisms.
 #'
@@ -501,7 +435,8 @@ glasso_cv <- function(data, priors = NULL, k=5,
     n <- nrow(S_test)
 
     # check all rhos
-    # NOTE: we can't use glassopath since we want to include the prior information
+    # NOTE: we can't use glassopath since we want to include the prior
+    # information
     unlist(mclapply(rholist, function(rho) {
       if(!is.null(priors)) {
         gl <- glasso(S_train, rho = rho*(1-priors),

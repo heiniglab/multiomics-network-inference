@@ -28,12 +28,21 @@ rule mediation_analysis:
 		mem_mb=600
 	params:
 		time="00:20:00"
+	conda:
+		"../envs/bioR.yaml"
 	log:
 		"logs/mediation_analysis/{cohort}/{sentinel}_{seed}.log"
 	benchmark:
 		"benchmarks/mediation_analysis/{cohort}/{sentinel}_{seed}.bmk"
 	script:
 		"../scripts/mediation.R"
+
+rule all_mediation:
+	input:
+		expand(DMEDIATION + "kora/{sentinel}_eqtlgen.rds", sentinel=EQTLGEN.sentinel),
+		expand(DMEDIATION + "kora/{sentinel}_meqtl.rds", sentinel=MEQTL.sentinel),
+		expand(DMEDIATION + "lolipop/{sentinel}_eqtlgen.rds", sentinel=EQTLGEN.sentinel),
+		expand(DMEDIATION + "lolipop/{sentinel}_meqtl.rds", sentinel=MEQTL.sentinel)
 
 #------------------------------------------------------------------------------
 # Apply ggm on collected data and priors for a sentinel

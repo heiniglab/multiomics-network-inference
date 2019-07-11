@@ -95,26 +95,15 @@ rule validate_subset:
 #       input: expand(DSIM_VALIDATION + "{sentinel}-iter{iter}.txt", sentinel=LISTS.sentinel, iter=ITERATIONS)
 
 #------------------------------------------------------------------------------
-# Create simulation report
+# Get a summary file for all iterations and sentinels in the simulation study
 #------------------------------------------------------------------------------
-rule gather_simulation_results:
+rule all_simulation:
 	input:
 		expand(DSIM_VALIDATION + "{sentinel}-iter{iter}.txt", sentinel=MEQTL.sentinel, iter=ITERATIONS)
 	output:
-		"results/current/biogrid/simulation/validation/"
+		"results/current/biogrid/simulation/validation/validation.tsv"
 	shell:
 		"""
 		cat {input} | sort -r | uniq > {output}
 		"""
-
-#rule summarize_simulation:
-#       input:
-#               expand(DSIM_VALIDATION + "{sentinel}-iter{iter}.txt", sentinel=TEMP.sentinel, iter=TEMP.iteration)
-#       output:
-#               "results/current/simulation/simulation.html"
-#       log:
-#               "logs/simulation/summarize_simulation.log"
-#       script:
-#               "../scripts/simulation/summarize-simulation.Rmd"
-
 

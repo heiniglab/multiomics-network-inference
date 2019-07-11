@@ -13,7 +13,7 @@ sink(log, type="message")
 # ------------------------------------------------------------------------------
 print("Load libraries and source scripts")
 # ------------------------------------------------------------------------------
-suppressPackageStartupMessages(library(GenomicRanges))
+library(GenomicRanges)
 source("scripts/lib.R")
 source("scripts/mediation_methods.R")
 

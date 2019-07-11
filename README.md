@@ -34,6 +34,7 @@ snakemake -s workflows/1_extract_hotspots.sm all
 There are several meta targets to obtain intermediate results.
 
 ### Generate ranges overview
+
 The call below creates all hotspots networks as 'ranges' objects/files and generates
 a summary plot.
 
@@ -42,6 +43,7 @@ nohup nice snakemake -j 10 -k all_ranges &
 ```
 
 ### Generate data overview
+
 This call collects and normalized all cohort data for the created ranges objects and
 generates an overview plot.
 
@@ -50,6 +52,7 @@ nohup nice snakemake -j 10 -k all_data &
 ```
 
 ### Generate overview on GGM fits
+
 This generates all ranges and data collections and fits different GGMs to the data
 
 ```{bash}
@@ -57,6 +60,7 @@ nohup nice snakemake -j 10 --res mem_mb=80000 -k all_ggm &
 ```
 
 ### Running the complete cohort data pipeline and cluster execution
+
 The below code can be used to run the full network inference pipeline on a SGE cluster,
 althrough the cluster configuration (cluster.config) should be adjusted before 
 executing. Cohort and simulation study can be run separately by using either the 
@@ -64,10 +68,27 @@ executing. Cohort and simulation study can be run separately by using either the
 including both studies the *all* rule is used:
 
 ```{bash}
-nohup nice snakemake --use-conda -w 10 -k -u configs/cluster.json --jobs=200 --local-cores=18 \
+nohup nice snakemake --use-conda -w 10 -k -u configs/cluster.json --jobs=100 --local-cores=18 \
   --cluster "qsub -pe smp {threads} -hard -l job_mem={resources.mem_mb}M \
   -q {cluster.q} -cwd -V -o {log} -e {log} -N {cluster.N}" --restart-times 4 \
   all_cohort > all_cohort.out &
+```
+
+### Executing the simulation study
+
+We implemented a simulation study, were we generate ground truth graphs as well
+as noisy priors in order to compare inference methods with respect to 1) their 
+general performance to recover the ground truth network 2) how much they are 
+influenced by the exisiting prior information and noise therein. The target rule
+for this simulation study is `all_simulation`.
+
+```{bash
+
+nohup nice snakemake --use-conda -w 10 -k -u configs/cluster.json --jobs=100 --local-cores=18 \
+  --cluster "qsub -pe smp {threads} -hard -l job_mem={resources.mem_mb}M \
+  -q {cluster.q} -cwd -V -o {log} -e {log} -N {cluster.N}" --restart-times 4 \
+  all_simulation > all_simulation.out &
+
 ```
 
 ## Conda environment usage

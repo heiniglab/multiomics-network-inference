@@ -331,4 +331,5 @@ rule collect_priors:
 #------------------------------------------------------------------------------
 rule all_priors:
 	input: 
-		expand(DPRIORS + "{sentinel}.pdf", sentinel=MEQTL.sentinel)
+		expand(DPRIORS + "{sentinel}_meqtl.pdf", sentinel=MEQTL.sentinel),
+		expand(DPRIORS + "{sentinel}_eqtlgen.pdf", sentinel=EQTLGEN.sentinel)

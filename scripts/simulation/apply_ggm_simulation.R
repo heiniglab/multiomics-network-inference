@@ -33,10 +33,6 @@ fout <- snakemake@output[[1]]
 threads <- snakemake@threads
 sim_iter <- as.numeric(snakemake@params$iteration)
 
-# register clusters for multi-threading (used in iRafNet)
-cl <- makeCluster(threads)
-registerDoParallel(cl)
-
 # contains: simulations, ranges, priors, nodes, data, run
 load(fdata)
 ppi_db <- readRDS(fppi_db)

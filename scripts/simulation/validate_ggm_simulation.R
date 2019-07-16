@@ -6,13 +6,12 @@
 #' @author Johann Hawe
 #'
 # ------------------------------------------------------------------------------
-
 sink(file=snakemake@log[[1]])
 
 # ------------------------------------------------------------------------------
 # load needed libraries and source scripts
 # ------------------------------------------------------------------------------
-library(BDgraph, lib="/storage/groups/epigenereg01/tools/2017/R/3.4")
+library(BDgraph)
 library(GenomicRanges)
 source("scripts/lib.R")
 

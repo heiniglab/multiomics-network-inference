@@ -43,30 +43,35 @@ temp <- lapply(names(result), function(n) {
   # ----------------------------------------------------------------------------
   # Get all fits
   # ----------------------------------------------------------------------------
-  bdgraph_fit <- r$fits$bdgraph_fit
-  bdgraph_no_priors_fit <- r$fits$bdgraph_no_priors_empty_fit
+  bdgraph_adj <- as(r$fits$bdgraph, "matrix")
+  bdgraph_no_priors_adj <- as(r$fits$bdgraph_no_priors, "matrix")
   glasso_adj <- as(r$fits$glasso, "matrix")
   glasso_no_priors_adj <- as(r$fits$glasso_no_priors, "matrix")
-  genenet_adj <- as(r$fits$genenet_graph,"matrix")
-  irafnet_adj <- as(r$fits$irafnet_graph,"matrix")
+  genenet_adj <- as(r$fits$genenet,"matrix")
+  irafnet_adj <- as(r$fits$irafnet,"matrix")
+  genie3_adj <- as(r$fits$genie3, "matrix")
+
+  gs <- list(bdgraph=bdgraph_adj,
+             bdgraph_no_priors=bdgraph_no_priors_adj,
+             glasso=glasso_adj,
+             glasso_no_priors=glasso_no_priors_adj,
+             genenet=genenet_adj,
+             irafnet=irafnet_adj,
+             genie3=genie3_adj)
 
   # ----------------------------------------------------------------------------
   # use the bdgraph internal method to get spec/sens, f1 and MCC. Use the
   # original simulation object containing the ground truth graph
   # ----------------------------------------------------------------------------
-  perf <- t(compare(d, bdgraph_fit, bdgraph_no_priors_fit, glasso_adj))
-  comparisons <- c("true", "bdgraph", "bdgraph_no_priors", "glasso")
-  perf <- as.data.frame(perf)
-  rownames(perf) <- paste(n, comparisons, sep="_")
+  perf <- lapply(names(gs), function(g) {
+    perf <- t(compare(d, gs[[g]]))
+    comparisons <- c("true", g)
+    perf <- as.data.frame(perf)
+    rownames(perf) <- paste(n, comparisons, sep="_")
+    perf <- perf[!grepl("true", rownames(perf)),]
+  })
 
-  # same for iRafNet and GeneNet graphs
-  perf2 <- t(compare(d, glasso_no_priors_adj, genenet_adj, irafnet_adj))
-  comparisons2 <- c("true", "glasso_no_priors", "genenet", "iRafNet")
-  perf2 <- as.data.frame(perf2)
-  rownames(perf2) <- paste(n, comparisons2, sep="_")
-  # only one true graph (we combine in the next line...)
-  perf2 <- perf2[!grepl("true", rownames(perf2)),]
-  perf <- rbind(perf, perf2)
+  perf <- do.call(rbind.data.frame, perf)
 
   # remember for easy plotting
   perf$rdegree <- r$rdegree

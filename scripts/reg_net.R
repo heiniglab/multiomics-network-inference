@@ -659,26 +659,26 @@ infer_all_graphs <- function(data, priors, ranges, fcontext, ppi_db, threads=1) 
   genie3$graph <- annotate.graph(genie3$graph, ranges, ppi_db, fcontext)
 
   glasso$graph <- annotate.graph(glasso$graph, ranges, ppi_db, fcontext)
-  glasso$graph_no_priors <- annotate.graph(glasso_no_priors$graph,
+  glasso_no_priors$graph <- annotate.graph(glasso_no_priors$graph,
                                            ranges, ppi_db, fcontext)
 
   # ----------------------------------------------------------------------------
   print("Create result list.")
   # ----------------------------------------------------------------------------
   result <- list(bdgraph_fit = bdgraph$fit,
-                 bdgraph_fit_no_priors = bdgraph_no_priors$fit,
+                 bdgraph_no_priors_fit = bdgraph_no_priors$fit,
                  bdgraph = bdgraph$graph,
                  bdgraph_no_priors = bdgraph_no_priors$graph,
-                 irn_fit = irafnet$fit,
+                 irafnet_fit = irafnet$fit,
                  genenet_fit = genenet$fit,
                  irafnet = irafnet$graph,
                  genenet = genenet$graph,
                  glasso_fit = glasso$fit,
                  glasso = glasso$graph,
-                 glasso_no_priors_fit = glasso$fit,
-                 glasso_no_priors = glasso$graph,
-                 genie3_fit <- genie3$fit,
-                 genie3 <- genie3$graph)
+                 glasso_no_priors_fit = glasso_no_priors$fit,
+                 glasso_no_priors = glasso_no_priors$graph,
+                 genie3_fit = genie3$fit,
+                 genie3 = genie3$graph)
 
   return(result)
 }

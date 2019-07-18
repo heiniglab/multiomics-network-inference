@@ -138,7 +138,7 @@ if ("lolipop" %in% cohort) {
 
 graph_types <- c("bdgraph", "bdgraph_no_priors",
                  "genenet", "irafnet",
-                 "glasso", "glasso_no_priors")
+                 "glasso", "glasso_no_priors", "genie3")
 
 valid <- mclapply(graph_types, function(graph_type) {
   print(paste0("Validating ", cohort, " fit for '", graph_type , "' graph fit."))

@@ -34,7 +34,6 @@ ftss_context <- snakemake@input[["tss_context"]]
 # output
 fout <- snakemake@output$fit
 fsummary_plot <- snakemake@output$summary_file
-fgstart_plot <- snakemake@output$gstart_file
 
 # params
 threads <- snakemake@threads

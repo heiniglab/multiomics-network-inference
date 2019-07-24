@@ -216,9 +216,9 @@ compare_mediation_results <- function(sentinel,
                                       mediation2,
                                       sgenes_selected,
                                       cutoff,
-                                      fout) {
+                                      fout=NULL) {
   require(ggplot2)
-  require(reshape)
+  require(reshape2)
   library(cowplot)
 
   # get mediation correlations for all genes
@@ -257,40 +257,40 @@ compare_mediation_results <- function(sentinel,
     }
   }))
   df$model_selected <- ifelse(df$gene %in% sgenes_selected, "yes", "no")
-  df <- reshape::melt(df, measure.vars=1:2, variable.name="dataset")
+  df <- reshape2::melt(df, measure.vars=1:2, variable.name="dataset")
 
   # add plotting x-lab proxy
   df = transform(df,
-                 dvariable = as.numeric(variable) + runif(length(variable),
+                 dvariable = as.numeric(dataset) + runif(length(dataset),
                                                           -0.2,
                                                           0.2))
 
   # create summary plot
-  gp <- ggplot(data=df, aes(y=value, x=variable))
-  gp <- gp + geom_violin(draw_quantiles=.5) +
-    geom_point(aes(color=significant, x=dvariable, shape=model_selected), size=3) +
-    scale_color_brewer(palette = "Set2") +
-    geom_line(aes(group=gene, x=dvariable), linetype="dotted")+
-    geom_text(aes(label=gene), size=2.5, nudge_x=-0.4,
-              data=subset(df, variable=="correlation_validation")) +
-    ggtitle(paste0("Mediation correlation values for ", sentinel, "."),
-            "Shown are the distributions of correlation values over all SNP genes,
-validation dataset VS the original dataset (on which models were calculated)") +
-    theme(plot.title = element_text(hjust = 0)) + background_grid(major = "xy")
+  #gp <- ggplot(data=df, aes(y=value, x=dataset))
+  #gp <- gp + geom_violin(draw_quantiles=.5) +
+  #  geom_point(aes(color=significant, x=dvariable, shape=model_selected), size=3) +
+  #  scale_color_brewer(palette = "Set2") +
+  #  geom_line(aes(group=gene, x=dvariable), linetype="dotted")+
+  #  geom_text(aes(label=gene), size=2.5, nudge_x=-0.4,
+  #            data=subset(df, dataset=="correlation_validation")) +
+  #  ggtitle(paste0("Mediation correlation values for ", sentinel, "."),
+  #          "Shown are the distributions of correlation values over all SNP genes,
+#validation dataset VS the original dataset (on which models were calculated)") +
+  #  theme(plot.title = element_text(hjust = 0)) + background_grid(major = "xy")
 
   # save to file
-  ggsave(file=fout,
-         plot=gp)
+  #ggsave(file=fout,
+  #       plot=gp)
 
   # return the correlation of mediation correlations between the two datasets
   # and the fraction of significant mediations in validation set also
   # significant in original dataset
   corr <- cor(med_correlations, med_correlations2)
-  df <- subset(df, variable=="correlation_validation")
+  df <- subset(df, dataset=="correlation_validation")
   # fraction of all SNP genes significant in both datasets
   frac <- length(which(df$significant=="both"))/nrow(df)
   # fraction of validation significant SNP genes significant in original dataset
-  frac2 <- length(which(df$significant=="both" | df$significant == "original")) / 
+  frac2 <- length(which(df$significant=="both" | df$significant == "original")) /
     length(which(df$significant=="both" | df$significant=="validation"))
 
   return(c(mediation_cross_cohort_correlation=corr,

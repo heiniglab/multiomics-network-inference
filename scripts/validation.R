@@ -26,6 +26,7 @@ suppressPackageStartupMessages(library(qvalue))
 suppressPackageStartupMessages(library(illuminaHumanv3.db))
 suppressPackageStartupMessages(library(ggplot2))
 library(parallel)
+library(reshape2)
 library(cowplot)
 
 source("scripts/go-enrichment.R")
@@ -44,6 +45,11 @@ franges <- snakemake@input[["ranges"]]
 flolipop_data <- snakemake@input[["lolipop_data"]]
 fkora_fit <- snakemake@input[["kora_fit"]]
 flolipop_fit <- snakemake@input[["lolipop_fit"]]
+
+# contain the 'old' fits, i.e. old glasso and w/o genie3
+fkora_fit_old <- snakemake@input[["kora_fit_old"]]
+flolipop_fit_old <- snakemake@input[["lolipop_fit_old"]]
+
 fgtex <- snakemake@input[["gtex"]]
 fgeo <- snakemake@input[["geo"]]
 fciseqtl_kora <- snakemake@input[["cis_kora"]]
@@ -58,7 +64,6 @@ fmediation_lolipop <- snakemake@input[["mediation_lolipop"]]
 threads <- snakemake@threads
 sentinel <- snakemake@wildcards$sentinel
 mediation_cutoff <- snakemake@params$mediation_cutoff
-graph_type <- snakemake@wildcards$graph_type
 cohort <- snakemake@wildcards$cohort
 
 # output
@@ -66,9 +71,7 @@ cohort <- snakemake@wildcards$cohort
 fout <- snakemake@output[[1]]
 
 # additional outputs, mostly plots
-fmediation_summary_plot <- snakemake@output$mediation_summary_plot
-fgraphdot <- snakemake@output[["graphdot"]]
-fgraphpdf <- snakemake@output[["graphpdf"]]
+#fmediation_summary_plot <- snakemake@output$mediation_summary_plot
 
 # ------------------------------------------------------------------------------
 print("Loading data.")
@@ -121,7 +124,12 @@ print("Loading GGM fits.")
 # ------------------------------------------------------------------------------
 kfit <- readRDS(fkora_fit)
 lfit <- readRDS(flolipop_fit)
-fits <- list(kora = kfit, lolipop = lfit)
+
+kfit_old <- readRDS(fkora_fit_old)
+lfit_old <- readRDS(flolipop_fit_old)
+
+fits <- list(kora = kfit, lolipop = lfit,
+             kora_old=kfit_old, lolipop_old=lfit_old)
 
 # we get the according dataset on which to validate
 if ("lolipop" %in% cohort) {
@@ -147,17 +155,22 @@ valid <- mclapply(graph_types, function(graph_type) {
            cohort = cohort,
            graph_type = graph_type)
 
-  # ------------------------------------------------------------------------------
+  # ----------------------------------------------------------------------------
   print("Preparing fit.")
-  # ------------------------------------------------------------------------------
-  graph <- fits[[cohort]][[graph_type]]
+  # ----------------------------------------------------------------------------
+  # those were adjusted and newly fitted
+  if(graph_type %in% c("glasso", "glasso_no_priors", "genie3")) {
+    graph <- fits[[cohort]][[graph_type]]
+  } else {
+    graph <- fits[[paste0(cohort, "_old")]][[graph_type]]
+  }
 
   # dnodes -> full set of possible nodes
   dnodes <- colnames(data_val)
 
-  # ------------------------------------------------------------------------------
+  # ----------------------------------------------------------------------------
   print("Getting basic stats (number nodes, number edges, graph density)")
-  # ------------------------------------------------------------------------------
+  # ----------------------------------------------------------------------------
   nn <- numNodes(graph)
   ne <- numEdges(graph)
   gd <- (ne * 2) / (nn * (nn - 1))
@@ -195,11 +208,6 @@ valid <- mclapply(graph_types, function(graph_type) {
     graph_maxcluster <- graph::subGraph(keep, graph)
   }
 
-#  print("Plotting graph.")
-#  pdf(fgraphpdf)
-#  temp <- plot.ggm(graph_maxcluster, sentinel, T, dot.out = fgraphdot)
-#  dev.off()
-
   # the nodes retained in the fitted graph model in the largest CC
   gnodes <- graph::nodes(graph_maxcluster)
 
@@ -208,7 +216,7 @@ valid <- mclapply(graph_types, function(graph_type) {
   # ------------------------------------------------------------------------------
   # we use the (full) igraph object for this, will be filtered for the sentinel
   # cluster
-  score <- get_graph_score(ig, sentinel, ranges)
+  score <- get_graph_score(ig, sentinel, ranges, gd)
   row <- c(row,
            graph_score = score)
 
@@ -304,7 +312,12 @@ valid <- mclapply(graph_types, function(graph_type) {
   print("Using MCC to check how well graph replicated across cohorts.")
   # ------------------------------------------------------------------------------
   # get graph fit on other cohort
-  graph_val <- fits[[cohort_val]][[graph_type]]
+  # those were adjusted and newly fitted
+  if(graph_type %in% c("glasso", "glasso_no_priors", "genie3")) {
+    graph_val <- fits[[cohort_val]][[graph_type]]
+  } else {
+    graph_val <- fits[[paste0(cohort_val, "_old")]][[graph_type]]
+  }
 
   # compare with largest connected component only
   #g2 <- get_largest_cc(g2)
@@ -325,17 +338,23 @@ valid <- mclapply(graph_types, function(graph_type) {
     g_val_adj <- g_val_adj[use, use]
 
     # calculate performance using the DBgraph method compare()
-    mcc <- BDgraph::compare(g_adj, g_val_adj)["MCC", "estimate"]
+    comp <- BDgraph::compare(g_adj, g_val_adj)
+    f1 <- comp["F1-score", "estimate1"]
+    mcc <- comp["MCC", "estimate1"]
+
     print(paste0("MCC: ", format(mcc, digits = 3)))
+    print(paste0("F1: ", format(f1, digits = 3)))
 
     # the fraction of nodes retained in the overlap w.r.t. to the
     # total number of possible nodes
     common_nodes <- ncol(g_adj)
     mcc_frac <- common_nodes / ncol(data_val)
-    row <- c(row, cross_cohort_mcc=mcc, cross_cohort_mcc_frac=mcc_frac,
+    row <- c(row, cross_cohort_f1=f1, cross_cohort_mcc=mcc,
+             cross_cohort_mcc_frac=mcc_frac,
              common_nodes=common_nodes)
   } else {
-    row <- c(row, cross_cohort_mcc=NA, cross_cohort_mcc_frac=NA,
+    row <- c(row, cross_cohort_f1=NA, cross_cohort_mcc=NA,
+             cross_cohort_mcc_frac=NA,
              common_nodes=NA)
   }
 
@@ -359,8 +378,7 @@ valid <- mclapply(graph_types, function(graph_type) {
     med_val,
     med_fit,
     sgenes_selected,
-    mediation_cutoff,
-    fmediation_summary_plot
+    mediation_cutoff
   )
 
   row <- c(

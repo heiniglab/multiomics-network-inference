@@ -152,7 +152,7 @@ validate_gene2gene <- function(expr.data, g, all.genes){
     m <- m[n,n]
     model_adj <- model_adj[n,n]
     res <- BDgraph::compare(model_adj, m)
-    res["MCC","estimate"]
+    res["MCC","estimate1"]
   })
   names(results) <- names(expr.data)
   # report MCC for each dataset

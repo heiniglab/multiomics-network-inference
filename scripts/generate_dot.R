@@ -21,23 +21,33 @@ print("Getting snakemake params.")
 #------------------------------------------------------------------------------
 
 # get in and output
-ffit <- snakemake@input[[1]]
+ffit <- snakemake@input$new
+ffit_old <- snakemake@input$old
+
 fout <- snakemake@output[[1]]
 
 # get wildcards
 graph_type <- snakemake@wildcards$graph_type
 sentinel <- snakemake@wildcards$sentinel
+cohort <- snakemake@wildcards$cohort
 
 # define available graph types
-gtypes <- c("graph", "graph_no_priors", "genenet")
+gtypes <- c("bdgraph", "bdgraph_no_priors", "genenet", "irafnet", 
+            "glasso", "glasso_no_priors", "genie3")
 if(!graph_type %in% gtypes) {
   stop(paste0("Graph type not supported: ", graph_type))
 }
+print("Using graph type:")
+print(graph_type)
 
 #------------------------------------------------------------------------------
 print("Loading data.")
 #------------------------------------------------------------------------------
-fits <- readRDS(ffit)
+if(graph_type %in% c("glasso", "glasso_no_priors", "genie3")) {
+  fits <- readRDS(ffit)
+} else {
+  fits <- readRDS(ffit_old)
+}
 g <- fits[[graph_type]]
 
 print("Loaded graph:")
@@ -46,5 +56,7 @@ print(g)
 #------------------------------------------------------------------------------
 print("Creating the dot file.")
 #------------------------------------------------------------------------------
-attrs <- plot.ggm(g, sentinel, plot.on.device=F, dot.out=fout)
+attrs <- plot.ggm(g, sentinel, graph.title=paste0(c(sentinel, cohort, graph_type), 
+                                                  collapse="|"), 
+                  plot.on.device=F, dot.out=fout)
 

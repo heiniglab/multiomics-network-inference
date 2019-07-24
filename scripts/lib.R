@@ -297,7 +297,7 @@ annotate.graph <- function(g, ranges, ppi_db, fcontext){
 #' @author Johann Hawe
 #'
 #' -----------------------------------------------------------------------------
-plot.ggm <- function(g, id, plot.on.device=T, dot.out=NULL, ...){
+plot.ggm <- function(g, id, graph.title=id, plot.on.device=T, dot.out=NULL, ...){
   suppressPackageStartupMessages(library(igraph))
   suppressPackageStartupMessages(library(graph))
   suppressPackageStartupMessages(library(Rgraphviz))
@@ -347,7 +347,8 @@ plot.ggm <- function(g, id, plot.on.device=T, dot.out=NULL, ...){
   # prepare plot-layout
   attrs <- list(node=list(fixedsize=TRUE, fontsize=14,
                           style="filled", fontname="helvetica"),
-                graph=list(overlap="false", root=id[1], outputorder="edgesfirst"))
+                graph=list(overlap="false", root=id[1], outputorder="edgesfirst",
+                           label=graph.title, labelloc="top", labeljust="right"))
 
   shape = rep("ellipse", numNodes(g))
   names(shape) = n
@@ -1913,4 +1914,82 @@ scan_snps <- function(ranges, dosage_file, individuals, tempdir=tempdir()) {
 
     return(data[,6:ncol(data)])
   }
+}
+
+#' -----------------------------------------------------------------------------
+#' Get all GWAS traits which were mapped to a specific SNP. Also checks SNPs in
+#' LD of the provided SNP (defined via rsquared cutoff)
+#'
+#' @param snp The snp rsID for which to get GWAS hits
+#' @param gwas_table The loaded gwas table. Needs columns 'DISEASE.TRAIT' and
+#' SNPS
+#' @param ld.rsquared Rsquared cutoff to be used in SNiPA to get LD SNPs.
+#' Default: 0.95
+#' @param collapse Whether to collapse the result traits in a single string.
+#' Default: TRUE
+#'
+#' @author Johann Hawe
+#' -----------------------------------------------------------------------------
+get_gwas_traits <- function(snp, gwas_table, ld.rsquared=0.95, collapse=TRUE) {
+  # we might miss a hit in which would be in close LD -> get such possible
+  # ids via snipa
+  snipa_result <- snipa.get.ld.by.snp(snp, rsquare=ld.rsquared)
+  aliases <- setdiff(snipa_result$RSALIAS, NA)
+  if(length(aliases) > 0) {
+    ld_snps <- c(snipa_result$RSID,
+                 unlist(strsplit(aliases, ",")),
+                 snp)
+  } else {
+    ld_snps <- c(snp, snipa_result$RSID)
+  }
+  ld_snps <- unique(ld_snps)
+
+  # gather gwas traits for SNPs within this LD block
+  gwas_sub <- subset(gwas, SNPS %in% ld_snps)
+  if(nrow(gwas_sub) > 0) {
+    if(collapse) {
+      paste0(gwas_sub$DISEASE.TRAIT, collapse="|")
+    } else {
+      gwas_sub$DISEASE.TRAIT
+    }
+  } else {
+    NA
+  }
+}
+
+#' -----------------------------------------------------------------------------
+#' For a list of SNPs, generates a data.frame containing associated GWAS traits
+#'
+#' Considers proxy SNPs in LD to the supplied SNPs
+#'
+#' @param snps Vector of SNP rsIDs
+#' @param fgwas The file containing the GWAS catalog (ebi)
+#'
+#' @author Johann Hawe
+#'
+#' -----------------------------------------------------------------------------
+annotate_snps_with_traits <- function(snps, fgwas, drop.nas=TRUE) {
+  require(tidyverse)
+  source("scripts/snipe.R")
+
+  # load gwas catalog
+  gwas <- read_tsv(fgwas) %>% as_tibble(.name_repair="universal")
+
+  # get all traits by snp. Takes a while since it uses SNiPA to get LD SNPs
+  traits_by_snp <- lapply(snps, function(s) get_gwas_traits(s, gwas) )
+
+  # prepare result data frame
+  annotations <- do.call(rbind.data.frame, traits_by_snp)
+  annotations$snp <- snps
+  colnames(annotations) <- c("trait", "snp")
+
+  # remove snps without traits?
+  if(drop.nas) {
+    annotations <- annotations[complete.cases(annotations),]
+  }
+
+  annotations <- annotations[,c("snp", "trait")]
+
+  # all done
+  annotations
 }

@@ -68,7 +68,7 @@ rule all_apply_ggm_simulation:
 #------------------------------------------------------------------------------
 rule validate_ggm_simulation:
         input:
-                DSIM_FITS + "{sentinel}-iter{iteration}.RData"
+                fits=DSIM_FITS + "{sentinel}-iter{iteration}.RData",
         output:
                 DSIM_VALIDATION + "{sentinel}-iter{iteration}.txt"
         threads: 1
@@ -89,10 +89,12 @@ rule validate_ggm_simulation:
 #------------------------------------------------------------------------------
 TEMP = glob_wildcards(DSIM_FITS + "{sentinel}-iter{iteration}.RData")
 rule validate_subset:
-        input: expand(DSIM_VALIDATION + "{sentinel}-iter{iter}.txt",zip, sentinel=TEMP.sentinel, iter=TEMP.iteration)
+	input:
+		expand(DSIM_VALIDATION + "{sentinel}-iter{iter}.txt",zip, sentinel=TEMP.sentinel, iter=TEMP.iteration)
 
 #rule validate_all:
 #       input: expand(DSIM_VALIDATION + "{sentinel}-iter{iter}.txt", sentinel=LISTS.sentinel, iter=ITERATIONS)
+
 
 #------------------------------------------------------------------------------
 # Get a summary file for all iterations and sentinels in the simulation study

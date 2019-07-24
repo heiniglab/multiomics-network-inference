@@ -16,6 +16,7 @@ library(pheatmap)
 suppressPackageStartupMessages(library(GenomicRanges))
 library(igraph)
 library(graph)
+library(reshape2)
 source("scripts/lib.R")
 source("scripts/reg_net.R")
 
@@ -51,6 +52,9 @@ data <- readRDS(fdata)
 use <- apply(data,2,function(x) (sum(is.na(x)) / length(x)) < 1)
 data <- data[,use]
 
+print("Dimensions of data:")
+print(dim(data))
+
 priors <- readRDS(fpriors)
 
 # filter for available data in priros
@@ -73,7 +77,8 @@ if(ranges$seed == "meqtl") {
 } else {
   fcontext <- ftss_context
 }
-result <- infer_all_graphs(data, priors, ranges, fcontext, ppi_db, threads)
+result <- infer_all_graphs(data, priors, ranges, fcontext, ppi_db,
+                           threads, subset=TRUE)
 
 dev.off()
 

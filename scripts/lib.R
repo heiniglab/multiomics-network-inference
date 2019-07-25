@@ -297,10 +297,13 @@ annotate.graph <- function(g, ranges, ppi_db, fcontext){
 #' @author Johann Hawe
 #'
 #' -----------------------------------------------------------------------------
-plot.ggm <- function(g, id, graph.title=id, plot.on.device=T, dot.out=NULL, ...){
-  suppressPackageStartupMessages(library(igraph))
-  suppressPackageStartupMessages(library(graph))
-  suppressPackageStartupMessages(library(Rgraphviz))
+plot_ggm <- function(g, id, graph.title=id,
+                     plot.on.device=T,
+                     dot.out=NULL, ...){
+
+  require(igraph)
+  require(graph)
+  require(Rgraphviz)
 
   # get some default colors to be used here
   cols <- set_defaultcolors()
@@ -311,25 +314,24 @@ plot.ggm <- function(g, id, graph.title=id, plot.on.device=T, dot.out=NULL, ...)
     g <- removeNode(names(which(graph::degree(g) == 0)), g)
   }
 
-  # add sentinel to network if its is not in there yet or it has been removed
-  if(!is.null(id) && !(id %in% nodes(g))) {
-    g <- graph::addNode(c(id), g)
-  }
-
-  # if id is null, we simply identify all SNPs in the graph
+  # we need an id...
   if(is.null(id)){
     stop("Sentinel ID must not be NULL.")
   }
 
-  # now get the cluster which contains our sentinel
-  ig = graph_from_graphnel(g)
-  cl = clusters(ig)
-  sentinel_cluster <- cl$membership[names(cl$membership) == id]
-  keep = nodes(g)[cl$membership == sentinel_cluster]
-  g = subGraph(keep, g)
+  # add sentinel to network if it is not in there yet or it has been removed
+  if(!is.null(id) && !(id %in% nodes(g))) {
+    g <- graph::addNode(c(id), g)
+  }
 
-  # the remaining nodes
-  n <- keep
+  n <- graph::nodes(g)
+
+  # now get the cluster which contains our sentinel
+  #ig = graph_from_graphnel(g)
+  #cl = clusters(ig)
+  #sentinel_cluster <- cl$membership[names(cl$membership) == id]
+  #keep = nodes(g)[cl$membership == sentinel_cluster]
+  #g = subGraph(keep, g)
 
   # get trans and cpg gene symbols
   snp.genes <- n[unlist(nodeData(g,n,"snp.gene"))]
@@ -1948,9 +1950,9 @@ get_gwas_traits <- function(snp, gwas_table, ld.rsquared=0.95, collapse=TRUE) {
   gwas_sub <- subset(gwas, SNPS %in% ld_snps)
   if(nrow(gwas_sub) > 0) {
     if(collapse) {
-      paste0(gwas_sub$DISEASE.TRAIT, collapse="|")
+      paste0(unique(gwas_sub$DISEASE.TRAIT), collapse="|")
     } else {
-      gwas_sub$DISEASE.TRAIT
+      unique(gwas_sub$DISEASE.TRAIT)
     }
   } else {
     NA

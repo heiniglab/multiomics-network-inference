@@ -56,7 +56,7 @@ print(g)
 #------------------------------------------------------------------------------
 print("Creating the dot file.")
 #------------------------------------------------------------------------------
-attrs <- plot.ggm(g, sentinel, graph.title=paste0(c(sentinel, cohort, graph_type), 
+attrs <- plot_ggm(g, sentinel, graph.title=paste0(c(sentinel, cohort, graph_type), 
                                                   collapse="|"), 
                   plot.on.device=F, dot.out=fout)
 

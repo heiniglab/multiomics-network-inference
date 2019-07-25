@@ -216,38 +216,48 @@ rule generate_dot:
                 new=DCOHORT_FITS + "{cohort}/{sentinel}_{seed}.rds",
                 old="results/old/biogrid/fits/{cohort}/{sentinel}_{seed}.rds"
         output:
-                DCOHORT_FITS + "{cohort}/{sentinel}_{seed}_{graph_type}.dot"
+                DGRAPH_PLOTS + "{sentinel}_{seed}/{cohort}/{graph_type}.dot"
         conda:
                 "../envs/bioR.yaml"
         log:
-                "logs/generate_dot/{sentinel}_{seed}_{cohort}_{graph_type}.log"
+                "logs/generate_dot/{sentinel}_{seed}/{cohort}_{graph_type}.log"
         script:
                 "../scripts/generate_dot.R"
 
 
 #------------------------------------------------------------------------------
-# Generate dot files for visualization with cytoscape
+# Generate PDF containing cllection of all plotted graphs for an individual
+# locus
 #------------------------------------------------------------------------------
 rule plot_graphs:
 	input:
-		kora=expand(DCOHORT_FITS + "kora/{{sentinel}}_{{seed}}_{graph_type}.dot", graph_type = GTYPES),
-		lolipop=expand(DCOHORT_FITS + "lolipop/{{sentinel}}_{{seed}}_{graph_type}.dot", graph_type = GTYPES)
+		kora=expand(DGRAPH_PLOTS + "{{sentinel}}_{{seed}}/kora/{graph_type}.dot", graph_type = GTYPES),
+		lolipop=expand(DGRAPH_PLOTS + "{{sentinel}}_{{seed}}/lolipop/{graph_type}.dot", graph_type = GTYPES)
 	output:
-		dot=DGRAPH_PLOTS + "{sentinel}_{seed}/all.pdf"
+		pdf=DGRAPH_PLOTS + "{sentinel}_{seed}/all.pdf"
 	params:
 		odir=DGRAPH_PLOTS + "{sentinel}_{seed}/"
 	conda:
 		"../envs/graphviz.yaml"
 	shell:
 		"""
-		mkdir {params.odir}lolipop {params.odir}kora
-
-		for i in {input.lolipop} ; do ln -s -r -t {params.odir}lolipop $i ; done
-		for i in {input.kora} ; do ln -s -r -t {params.odir}kora $i ; done
-
 		cd {params.odir}
+
 		for i in kora/*.dot ; do twopi -Tpdf $i > $(basename $i .dot)_kora.pdf ; done
 		for i in lolipop/*.dot ; do twopi -Tpdf $i > $(basename $i .dot)_lolipop.pdf ; done
 
 		gs -dBATCH -dNOPAUSE -q -sDEVICE=pdfwrite -sOutputFile=all.pdf *.pdf
 		"""
+
+#------------------------------------------------------------------------------
+# Generate summary graph PDFs for few of the more interesting loci
+#------------------------------------------------------------------------------
+rule interesting_graphs:
+	input:
+		DGRAPH_PLOTS + "rs9859077_meqtl/all.pdf",
+		DGRAPH_PLOTS + "rs6511961_meqtl/all.pdf",
+		DGRAPH_PLOTS + "rs7783715_meqtl/all.pdf",
+		DGRAPH_PLOTS + "rs2227901_eqtlgen/all.pdf",
+		DGRAPH_PLOTS + "rs730775_eqtlgen/all.pdf",
+		DGRAPH_PLOTS + "rs17081933_meqtl/all.pdf",
+		DGRAPH_PLOTS + "rs79755767_eqtlgen/all.pdf",

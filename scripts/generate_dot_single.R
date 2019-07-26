@@ -32,5 +32,5 @@ print(g)
 print("Creating dot file.")
 #-------------------------------------------------------------------------------
 fout <- paste0(gtype, ".dot")
-attrs <- plot.ggm(g, plot.on.device=F, dot.out=fout)
+attrs <- plot_ggm(g, plot.on.device=F, dot.out=fout)
 

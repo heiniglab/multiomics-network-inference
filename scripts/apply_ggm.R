@@ -14,8 +14,9 @@ print("Prepare libraries and source scripts.")
 # ------------------------------------------------------------------------------
 library(pheatmap)
 suppressPackageStartupMessages(library(GenomicRanges))
-suppressPackageStartupMessages(library(igraph))
-suppressPackageStartupMessages(library(graph))
+library(igraph)
+library(graph)
+library(reshape2)
 source("scripts/lib.R")
 source("scripts/reg_net.R")
 
@@ -34,7 +35,6 @@ ftss_context <- snakemake@input[["tss_context"]]
 # output
 fout <- snakemake@output$fit
 fsummary_plot <- snakemake@output$summary_file
-fgstart_plot <- snakemake@output$gstart_file
 
 # params
 threads <- snakemake@threads
@@ -43,6 +43,18 @@ threads <- snakemake@threads
 print("Load and prepare data.")
 # ------------------------------------------------------------------------------
 data <- readRDS(fdata)
+
+# remove (rare) all-NA cases. This can happen due to scaling of all-zero entities,
+# which can arise due to a very large number of cis-meQTLs which effects get
+# removed from the CpGs during data preprocessing.
+# NOTE: we could possibly handle this differently? Seems that these particular
+# cpgs are highly influenced by genetic effects?
+use <- apply(data,2,function(x) (sum(is.na(x)) / length(x)) < 1)
+data <- data[,use]
+
+print("Dimensions of data:")
+print(dim(data))
+
 priors <- readRDS(fpriors)
 
 # filter for available data in priros
@@ -52,9 +64,6 @@ ranges <- readRDS(franges)
 # load PPI DB
 ppi_db <- readRDS(fppi_db)
 
-# create the start graph for the GGM algorithm
-gstart <- get_gstart_from_priors(priors)
-
 # ------------------------------------------------------------------------------
 # for catching the genenet summary plots, we open the pdf connection here
 # ------------------------------------------------------------------------------
@@ -63,76 +72,18 @@ pdf(fsummary_plot)
 # ------------------------------------------------------------------------------
 print("Infer regulatory networks.")
 # ------------------------------------------------------------------------------
-print("Fitting model using priors.")
-bdgraph <- reg_net(data, priors, "bdgraph", threads=threads)
-
-#print("Fitting model with priors without start graph")
-#bdgraph_empty <- reg_net(d, priors, "bdgraph",
-#                         use_gstart = F, threads=threads)
-
-#print("Fitting model without priors with start graph")
-#bdgraph_no_priors <- reg_net(d, NULL, "bdgraph",
-#                             gstart = gstart, threads=threads)
-
-print("Fitting model without priors using empty start graph.")
-bdgraph_no_priors_empty <- reg_net(data, NULL, "bdgraph",
-                                   use_gstart = F, threads=threads)
-
-print("Fitting model using iRafNet.")
-irafnet <- reg_net(data, priors, "irafnet", threads=threads)
-
-print("Fitting model using GeneNet.")
-genenet <- reg_net(data, priors, "genenet", threads=threads)
-
-print("Fitting model using glasso.")
-glasso <- reg_net(data,priors, "glasso", threads=threads)
-
-# ------------------------------------------------------------------------------
-print("Add custom annotations for the graphs.")
-# ------------------------------------------------------------------------------
-# determine the context to be used
-# (meqtl -> chipseq context; eqtl -> tss context)
 if(ranges$seed == "meqtl") {
   fcontext <- fcpg_context
 } else {
   fcontext <- ftss_context
 }
-
-bdgraph$graph <- annotate.graph(bdgraph$graph, ranges, ppi_db, fcontext)
-bdgraph_no_priors_empty$graph <- annotate.graph(bdgraph_no_priors_empty$graph,
-                                                ranges, ppi_db, fcontext)
-irafnet$graph <- annotate.graph(irafnet$graph, ranges, ppi_db, fcontext)
-genenet$graph <- annotate.graph(genenet$graph, ranges, ppi_db, fcontext)
-
-glasso$graph <- annotate.graph(glasso$graph, ranges, ppi_db, fcontext)
-
-# ------------------------------------------------------------------------------
-print("Create result list.")
-# ------------------------------------------------------------------------------
-result <- list(bdgraph_fit = bdgraph$fit,
-               bdgraph_fit_no_priors_empty = bdgraph_no_priors_empty$fit,
-               irn_fit = irafnet$fit,
-               genenet_fit = genenet$fit,
-               bdgraph = bdgraph$graph,
-               bdgraph_no_priors_empty = bdgraph_no_priors_empty$graph,
-               irafnet = irafnet$graph,
-               genenet = genenet$graph,
-               glasso_fit = glasso$fit,
-               glasso = glasso$graph)
-
-# ------------------------------------------------------------------------------
-print("Done with model fitting. Finishing up.")
-# ------------------------------------------------------------------------------
-
-# plot the start graph as a matrix
-pheatmap(gstart, cex=0.7, main="start graph",
-         filename=fgstart_plot,
-         cex=0.7)
+result <- infer_all_graphs(data, priors, ranges, fcontext, ppi_db,
+                           threads, subset=TRUE)
 
 dev.off()
 
 # ------------------------------------------------------------------------------
-print("Plotting done. Saving results.")
+print("All done. Saving results.")
 # ------------------------------------------------------------------------------
 saveRDS(file=fout, result)
 

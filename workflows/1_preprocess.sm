@@ -1,6 +1,8 @@
-configfile: "config.json"
+configfile: "configs/workflow.json"
 
 include: "common.sm"
+
+localrules: all,summarize_transgene_overlap,preprocess_kora_individuals
 
 # ------------------------------------------------------------------------------
 # Target rule
@@ -9,6 +11,17 @@ rule all:
 	input:
 		DHOTSPOTS + "eqtlgen_thres" + config["hots_thres"] + "/summary.pdf",
 		DHOTSPOTS + "meqtl_thres" + config["hots_thres"] + "/summary.pdf"
+
+# ------------------------------------------------------------------------------
+# Extract all cosmo snps
+# ------------------------------------------------------------------------------
+rule get_cosmo_snps:
+	input:
+		cosmo = "data/current/meQTLs/cosmopairs_combined_151216.RData"
+	output:
+		snps = "results/current/cosmo_snps.txt"
+	script:
+		"../scripts/get_cosmo_snps.R"
 
 # ------------------------------------------------------------------------------
 # Prune the eQTLGen SNPs
@@ -22,10 +35,17 @@ rule prune_snps:
 		full = "results/current/eqtlgen/full.rds",
 		pruned = "results/current/eqtlgen/pruned.rds"
 	threads:
-		4
+		6
+	resources:
+		mem_mb=1500
 	params:
 		ld_max_dist = 1e6,
-		r2_min = 0.2
+		r2_min = 0.2,
+		fdr_cutoff = 0.05,
+		time = "01:00:00",
+		tempdir = "results/current/temp/"
+	conda:
+		"../envs/bioR.yaml"
 	log:
 		"logs/prune_snps.log"
 	benchmark:
@@ -44,6 +64,8 @@ rule summarize_transgene_overlap:
 		"results/current/eqtlgen/transgene_overlap_summary_ht" + config["hots_thres"] + ".pdf"
 	params:
 		hotspot_threshold = config["hots_thres"]
+	conda:
+		"../envs/bioR.yaml"
 	script:
 		"../scripts/summarize_transgene_overlap.R"
 
@@ -68,6 +90,30 @@ rule preprocess_kora_individuals:
 # @author Johann Hawe <johann.hawe@helmholtz-muenchen.de>
 #
 #------------------------------------------------------------------------------
+rule filter_kora_genotypes:
+	input:
+		genotypes="data/current/kora/snp_dosages/MAF001/full_sorted.bgz",
+		kora_ceqtl="data/current/kora/eqtl/kora-cis-eqtls.csv",
+                cosmo_snps="results/current/cosmo_snps.txt",
+                eqtl_gen="data/current/eqtl_gen/trans-eQTL_significant_20181017.txt",
+		trans_meqtl="data/current/meQTLs/transpairs_r02_110117_converted_1MB.txt"
+	output:
+		temp=temp("results/current/kora_genotypes_temp.tsv"),
+		temp2=temp("results/current/kora_genotypes_temp2.tsv"),
+		genotypes="results/current/kora_genotypes.tsv"
+	shell:
+		"""
+		echo 'Getting snps.'
+		cut -f 2 {input.eqtl_gen} | grep -v "SNP" | sort | uniq > {output.temp}
+		cat {input.cosmo_snps} >> {output.temp}
+		cut -f 1 -d ";" {input.kora_ceqtl} | grep -v "top" | sort | uniq >> {output.temp}
+		cut -f 1 {input.trans_meqtl} | grep -v snp | sort | uniq >> {output.temp}
+		sort {output.temp} | uniq > {output.temp2}
+
+		echo 'Grepping genotypes'
+		zcat {input.genotypes} | fgrep -f {output.temp} > {output.genotypes}
+		"""
+		
 rule prepare_kora_data:
         input:
                 genotypes="data/current/kora/snp_dosages/MAF001/full_sorted.bgz",
@@ -86,9 +132,14 @@ rule prepare_kora_data:
                 "results/current/ggmdata_kora.RData"
         resources:
                 mem_mb=23000
+        threads: 4
+        params:
+                time="03:00:00",
+                tempdir="results/current/temp/"
+        conda:
+                "../envs/bioR.yaml"
         log:
                 "logs/prepare-kora-data.log"
-        threads: 4
         benchmark:
                 "benchmarks/prepare-kora-data.bmk"
         script:
@@ -99,16 +150,23 @@ rule prepare_kora_data:
 #------------------------------------------------------------------------------
 rule prepare_lolipop_data:
         input:
-                lolipop="data/current/meQTLs/ggmdata_201017.RData"
+                lolipop="data/current/meQTLs/ggmdata_201017.RData",
+                lolipop_update="data/current/meQTLs/ggmdata_130319.RData"
+
         output: "results/current/ggmdata_lolipop.RData"
+        threads: 1
         resources:
                 mem_mb=2000
+        params:
+                time="01:00:00"
+        conda:
+                "../envs/bioR.yaml"
         log:
                 "logs/prepare-lolipop-data.log"
         benchmark:
                 "benchmarks/prepare-lolipop-data.bmk"
         script:
-                "scripts/prepare-lolipop-data.R"
+                "../scripts/prepare-lolipop-data.R"
 
 # ------------------------------------------------------------------------------
 # Extract eQTLgen hotspots
@@ -117,10 +175,19 @@ rule extract_eqtlgen_hotspots:
 	input:
 		eqtl="results/current/eqtlgen/pruned.rds",
 		kora_data = "results/current/ggmdata_kora.RData",
-		lolipop_data = "results/current/ggmdata_lolipop.RData"
+		lolipop_data = "results/current/ggmdata_lolipop.RData",
+		gene_annot = GENE_ANNOT
 	output:
 		plot=DHOTSPOTS + "eqtlgen_thres{hots_thres}/summary.pdf",
+		table=DHOTSPOTS + "eqtlgen_thres{hots_thres}/hotspots.tsv",
 		loci_dir=directory(DHOTSPOTS + "eqtlgen_thres{hots_thres}/loci/")
+	threads: 1
+	resources:
+		mem_mb=6000
+	params:
+		time="02:00:00"
+	conda:
+		"../envs/bioR.yaml"
 	script:
 		"../scripts/extract_eqtlgen_hotspots.R"
 
@@ -134,6 +201,14 @@ rule extract_meqtl_hotspots:
 		lolipop_data = "results/current/ggmdata_lolipop.RData"
 	output:
 		plot=DHOTSPOTS + "meqtl_thres{hots_thres}/summary.pdf",
+		table=DHOTSPOTS + "meqtl_thres{hots_thres}/hotspots.tsv",
 		loci_dir=directory(DHOTSPOTS + "meqtl_thres{hots_thres}/loci/")
+	threads: 1
+	resources:
+		mem_mb=6000
+	params:
+		time="02:00:00"
+	conda:
+		"../envs/bioR.yaml"	
 	script:
 		"../scripts/extract_meqtl_hotspots.R"

@@ -27,12 +27,19 @@ ld_max_dist <- as.numeric(snakemake@params$ld_max_dist)
 r2_min <- as.numeric(snakemake@params$r2_min)
 threads <- snakemake@threads
 fdr_cutoff <- as.numeric(snakemake@params$fdr_cutoff)
+tempdir <- snakemake@params$tempdir
+print(paste0("using ", tempdir, " as temp directory."))
 
 # input
 feqtl <- snakemake@input$eqtl
 eqtl <- fread(paste0("zcat ", feqtl))
 # we also filter to fdr < fdrcutoff
 eqtl <- eqtl[eqtl$FDR < fdr_cutoff]
+
+# we noticed that there are not only trans eQTLs in this table, so filter for
+# distinct chromosome sbetween snp and gene
+eqtl <- eqtl[eqtl$SNPChr != eqtl$GeneChr]
+
 eqtl_by_chromosome <- split(eqtl, f=eqtl$SNPChr)
 
 fdosage <- snakemake@input$dosage
@@ -42,7 +49,6 @@ individuals <- read.table(findividuals, header=F)[,1]
 # output
 ffull <- snakemake@output$full
 fpruned <- snakemake@output$pruned
-
 
 # ------------------------------------------------------------------------------
 print("Pruning SNPs for all chromosomes.")
@@ -61,7 +67,7 @@ full <- mclapply(names(eqtl_by_chromosome), function(chr) {
   snps <- unique(snps)
 
   # get KORA genotypes
-  geno <- scan_snps(snps, fdosage, individuals)
+  geno <- scan_snps(snps, fdosage, individuals, tempdir=tempdir)
 
   # remove SNPs for which we do not have any genotypes
   snps <- snps[names(snps)[names(snps) %in% rownames(geno)]]

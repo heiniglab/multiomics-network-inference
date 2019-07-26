@@ -1,0 +1,263 @@
+localrules: all_cohort, summarize_validation_eqtlgen, summarize_validation_meqtl,
+            generate_dot, render_validation, all_ggm, all_summarize_validation
+
+#-------------------------------------------------------------------------------
+# Target rule to run the complete cohort study.
+# Note: this runs a long time and should definitely be executed on a cluster
+#-------------------------------------------------------------------------------
+rule all_cohort:
+        input:
+                DCOHORT_VAL + "validation_all_meqtl.txt",
+                DCOHORT_VAL + "validation_all_eqtlgen.txt",
+                DRANGES + "summary.pdf",
+                DRANGES + "summary.pdf"
+
+#------------------------------------------------------------------------------
+# Mediation analysis. This part can be performed indepdent of the graph fits
+#------------------------------------------------------------------------------
+rule mediation_analysis:
+	input:
+		data=DCOHORT_DATA + "{cohort}/{sentinel}_{seed}.rds",
+		ranges=DRANGES + "{sentinel}_{seed}.rds"
+	output:
+		mediation=DMEDIATION + "{cohort}/{sentinel}_{seed}.rds",
+		betas_per_gene=DMEDIATION + "{cohort}/{sentinel}_{seed}_betas_per_gene.pdf",
+		beta_table=DMEDIATION + "{cohort}/{sentinel}_{seed}_betas.txt",
+	threads: 1
+	resources:
+		mem_mb=600
+	params:
+		time="00:20:00"
+	conda:
+		"../envs/bioR.yaml"
+	log:
+		"logs/mediation_analysis/{cohort}/{sentinel}_{seed}.log"
+	benchmark:
+		"benchmarks/mediation_analysis/{cohort}/{sentinel}_{seed}.bmk"
+	script:
+		"../scripts/mediation.R"
+
+rule all_mediation:
+	input:
+		expand(DMEDIATION + "kora/{sentinel}_eqtlgen.rds", sentinel=EQTLGEN.sentinel),
+		expand(DMEDIATION + "kora/{sentinel}_meqtl.rds", sentinel=MEQTL.sentinel),
+		expand(DMEDIATION + "lolipop/{sentinel}_eqtlgen.rds", sentinel=EQTLGEN.sentinel),
+		expand(DMEDIATION + "lolipop/{sentinel}_meqtl.rds", sentinel=MEQTL.sentinel)
+
+#------------------------------------------------------------------------------
+# Apply ggm on collected data and priors for a sentinel
+#------------------------------------------------------------------------------
+rule apply_ggm:
+        input:
+                data=DCOHORT_DATA + "{cohort}/{sentinel}_{seed}.rds",
+                priors=DPRIORS + "{sentinel}_{seed}.rds",
+                ranges=DRANGES + "{sentinel}_{seed}.rds",
+                cpg_context="results/current/cpg_context.rds",
+                tss_context="results/current/tfbs_tss_annot.rds",
+                ppi_db=PPI_DB
+        output:
+                fit=DCOHORT_FITS + "{cohort}/{sentinel}_{seed}.rds",
+                summary_file=DCOHORT_FITS + "{cohort}/{sentinel}_{seed}.pdf"
+#                gstart_file=DCOHORT_FITS + "{cohort}/{sentinel}_{seed}_gstart.pdf"
+        threads: 20
+        params:
+                time="24:00:00"
+        resources:
+                mem_mb=1500
+        conda:
+                "../envs/bioR.yaml"
+        benchmark:
+                "benchmarks/apply_ggm/{sentinel}_{cohort}_{seed}.bmk"
+        log:
+                "logs/apply_ggm/{sentinel}_{cohort}_{seed}.log"
+        script:
+                "../scripts/apply_ggm.R"
+
+#------------------------------------------------------------------------------
+# Meta target rule to generate all GGMs
+#------------------------------------------------------------------------------
+rule all_ggm:
+	input:
+		expand(DCOHORT_FITS + "lolipop/{sentinel}_meqtl.rds", sentinel=MEQTL.sentinel),
+		expand(DCOHORT_FITS + "kora/{sentinel}_meqtl.rds", sentinel=MEQTL.sentinel),
+		expand(DCOHORT_FITS + "kora/{sentinel}_eqtlgen.rds", sentinel=EQTLGEN.sentinel),
+		expand(DCOHORT_FITS + "lolipop/{sentinel}_eqtlgen.rds", sentinel=EQTLGEN.sentinel)
+		
+#------------------------------------------------------------------------------
+# Validate calculated ggms
+#------------------------------------------------------------------------------
+# define graph types
+GTYPES = ["bdgraph", "bdgraph_no_priors", "genenet", "irafnet", "glasso", "glasso_no_priors", "genie3"]
+GTYPES_CONSTR = "|".join(GTYPES)
+rule validate_ggm:
+        input:
+                ranges=DRANGES + "{sentinel}_{seed}.rds",
+                gtex="data/current/geuvadis/GD660.GeneQuantRPKM.tsv",
+                geo="data/current/archs4/whole_blood/expression_matrix_norm_peer.tsv",
+                cis_kora="data/current/kora/eqtl/cis-full.tsv",
+                trans_kora="data/current/kora/eqtl/trans-full.tsv",
+                cis_joehanes="data/current/joehanes-2017/eqtls/eqtl-gene-annot_cis-only_logFDR2.txt",
+                trans_joehanes="data/current/joehanes-2017/eqtls/eqtl-gene-annot_trans-only_logFDR10.txt",
+                bonder_eqtm="data/current/bonder-et-al-2017/2015_09_02_cis_eQTMsFDR0.05-CpGLevel.txt",
+                kora_data=DCOHORT_DATA + "kora/{sentinel}_{seed}.rds",
+                lolipop_data=DCOHORT_DATA + "lolipop/{sentinel}_{seed}.rds",
+                kora_fit=DCOHORT_FITS + "kora/{sentinel}_{seed}.rds",
+                lolipop_fit=DCOHORT_FITS + "lolipop/{sentinel}_{seed}.rds",
+                kora_fit_old="results/old/biogrid/fits/kora/{sentinel}_{seed}.rds",
+                lolipop_fit_old="results/old/biogrid/fits/lolipop/{sentinel}_{seed}.rds",
+		mediation_kora=DMEDIATION + "kora/{sentinel}_{seed}.rds",
+		mediation_lolipop=DMEDIATION + "lolipop/{sentinel}_{seed}.rds"
+        output:
+                DCOHORT_VAL + "{cohort}/{sentinel}_{seed}.txt"
+#		mediation_summary_plot=DCOHORT_VAL + "{cohort}/{sentinel}_{seed}_mediation.pdf"
+        params:
+                mediation_cutoff=0.05,
+                time="01:00:00"
+        threads: 7
+        resources:
+                mem_mb=4000
+        conda:
+                "../envs/bioR.yaml"
+        log:
+                "logs/validate_ggm/{cohort}/{sentinel}_{seed}.log"
+        benchmark:
+                "benchmarks/validate_ggm/{cohort}/{sentinel}_{seed}.bmk"
+        script:
+                "../scripts/validation.R"
+
+#------------------------------------------------------------------------------
+# Collect validation information in single file for different seeds
+#------------------------------------------------------------------------------
+rule summarize_validation_meqtl:
+        input: 
+                kora=expand(DCOHORT_VAL + "kora/{sentinel}_meqtl.txt", sentinel=MEQTL.sentinel),
+                lolipop=expand(DCOHORT_VAL + "lolipop/{sentinel}_meqtl.txt", sentinel=MEQTL.sentinel)
+        output: 
+                kora=temp(DCOHORT_VAL + "meqtl_kora.tmp"),
+                lolipop=temp(DCOHORT_VAL + "meqtl_lolipop.tmp"),
+                all=DCOHORT_VAL + "validation_all_meqtl.txt"
+        shell:
+                """
+		cat {input.kora} | sort -r | uniq > {output.kora}
+		cat {input.lolipop} | sort -r | uniq > {output.lolipop}
+                cat {output.kora} {output.lolipop} | sort -r | uniq > {output.all}
+                """
+
+#------------------------------------------------------------------------------
+# Get all validation results for eQTLgen in a single file.
+#
+# NOTE: going via the params/pattern approach is necessary. Otherwise
+# the 'argument list' for cat is too long and we get an error
+#------------------------------------------------------------------------------
+rule summarize_validation_eqtlgen:
+        input: 
+                kora=expand(DCOHORT_VAL + "kora/{sentinel}_eqtlgen.txt", sentinel=EQTLGEN.sentinel),
+                lolipop=expand(DCOHORT_VAL + "lolipop/{sentinel}_eqtlgen.txt", sentinel=EQTLGEN.sentinel)
+        output: 
+                kora=temp(DCOHORT_VAL + "eqtlgen_kora.tmp"),
+                lolipop=temp(DCOHORT_VAL + "eqtlgen_lolipop.tmp"),
+                all=DCOHORT_VAL + "validation_all_eqtlgen.txt"
+        params:
+                kora_files = DCOHORT_VAL + "kora/*_eqtlgen.txt",
+                lolipop_files = DCOHORT_VAL + "lolipop/*_eqtlgen.txt"
+        shell:
+                """
+		cat {params.kora_files} | sort -r | uniq > {output.kora}
+		cat {params.lolipop_files} | sort -r | uniq > {output.lolipop}
+                cat {output.kora} {output.lolipop} | sort -r | uniq > {output.all}
+		"""
+
+#------------------------------------------------------------------------------
+# Add GWAS information to validation table
+#------------------------------------------------------------------------------
+rule add_gwas_information:
+	input:
+		DCOHORT_VAL + "validation_all_{seed}.txt"
+	output:
+		DCOHORT_VAL + "validation_all_{seed}_gwas.txt"
+	conda:
+		"../envs/bioR.yaml"
+	script:
+		"../scripts/validation_annotate_gwas.R"
+
+#------------------------------------------------------------------------------
+# Summarize validation over all loci, adding GWAS information, too
+#------------------------------------------------------------------------------
+rule all_summarize_validation:
+	input:
+		DCOHORT_VAL + "validation_all_eqtlgen_gwas.txt",
+		DCOHORT_VAL + "validation_all_meqtl_gwas.txt"
+
+#------------------------------------------------------------------------------
+# Create summary report
+#------------------------------------------------------------------------------
+rule render_validation:
+        input:
+                DCOHORT_VAL + "validation_all_{seed}.txt"
+        output:
+                stats=DCOHORT_VAL + "stat_overview_{seed}.pdf",
+                cratios=DCOHORT_VAL + "cluster_ratios_{seed}.pdf",
+                expr=DCOHORT_VAL + "gene_expression_{seed}.pdf",
+                gene_types=DCOHORT_VAL + "gene_types_{seed}.pdf",
+                mediation=DCOHORT_VAL + "mediation_{seed}.pdf",
+                mediation_perc=DCOHORT_VAL + "mediation_percentages_{seed}.pdf",
+                mediation_distr=DCOHORT_VAL + "mediation_distributions_{seed}.pdf",
+                perf=DCOHORT_VAL + "performance_{seed}.pdf"
+        log:
+                "logs/validation_{seed}.log"
+        script:
+                "../scripts/render-validation.R"
+
+#------------------------------------------------------------------------------
+# Generate dot files for visualization with cytoscape
+#------------------------------------------------------------------------------
+rule generate_dot:
+        input:
+                new=DCOHORT_FITS + "{cohort}/{sentinel}_{seed}.rds",
+                old="results/old/biogrid/fits/{cohort}/{sentinel}_{seed}.rds"
+        output:
+                DGRAPH_PLOTS + "{sentinel}_{seed}/{cohort}/{graph_type}.dot"
+        conda:
+                "../envs/bioR.yaml"
+        log:
+                "logs/generate_dot/{sentinel}_{seed}/{cohort}_{graph_type}.log"
+        script:
+                "../scripts/generate_dot.R"
+
+
+#------------------------------------------------------------------------------
+# Generate PDF containing cllection of all plotted graphs for an individual
+# locus
+#------------------------------------------------------------------------------
+rule plot_graphs:
+	input:
+		kora=expand(DGRAPH_PLOTS + "{{sentinel}}_{{seed}}/kora/{graph_type}.dot", graph_type = GTYPES),
+		lolipop=expand(DGRAPH_PLOTS + "{{sentinel}}_{{seed}}/lolipop/{graph_type}.dot", graph_type = GTYPES)
+	output:
+		pdf=DGRAPH_PLOTS + "{sentinel}_{seed}/all.pdf"
+	params:
+		odir=DGRAPH_PLOTS + "{sentinel}_{seed}/"
+	conda:
+		"../envs/graphviz.yaml"
+	shell:
+		"""
+		cd {params.odir}
+
+		for i in kora/*.dot ; do twopi -Tpdf $i > $(basename $i .dot)_kora.pdf ; done
+		for i in lolipop/*.dot ; do twopi -Tpdf $i > $(basename $i .dot)_lolipop.pdf ; done
+
+		gs -dBATCH -dNOPAUSE -q -sDEVICE=pdfwrite -sOutputFile=all.pdf *.pdf
+		"""
+
+#------------------------------------------------------------------------------
+# Generate summary graph PDFs for few of the more interesting loci
+#------------------------------------------------------------------------------
+rule interesting_graphs:
+	input:
+		DGRAPH_PLOTS + "rs9859077_meqtl/all.pdf",
+		DGRAPH_PLOTS + "rs6511961_meqtl/all.pdf",
+		DGRAPH_PLOTS + "rs7783715_meqtl/all.pdf",
+		DGRAPH_PLOTS + "rs2227901_eqtlgen/all.pdf",
+		DGRAPH_PLOTS + "rs730775_eqtlgen/all.pdf",
+		DGRAPH_PLOTS + "rs17081933_meqtl/all.pdf",
+		DGRAPH_PLOTS + "rs79755767_eqtlgen/all.pdf",

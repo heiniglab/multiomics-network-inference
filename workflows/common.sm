@@ -31,6 +31,7 @@ DRANGES = "results/current/" + PPI_NAME + "/ranges/"
 DCOHORT_DATA = "results/current/" + PPI_NAME + "/cohort_data/"
 DCOHORT_FITS = "results/current/" + PPI_NAME + "/fits/"
 DMEDIATION = "results/current/" + PPI_NAME + "/mediation/"
+DGRAPH_PLOTS = "results/current/" + PPI_NAME + "/graph_plots/"
 
 # simulation study specific output directories
 DSIM_DATA = "results/current/" + PPI_NAME + "/simulation/data/"

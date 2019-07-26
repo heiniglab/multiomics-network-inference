@@ -1,18 +1,42 @@
+name: rbase
 
 channels:
  - r
+ - conda-forge
  - bioconda
-dependencies:
- - bioconductor-GenomicRanges
- - bioconductor-GenomicFeatures
- - r-data.table
- - bioconductor-graph
- - bioconductor-RBGL
- - r-Matrix
- - bioconductor-rtracklayer
- - bioconductor-FDb.InfiniumMethylation.hg19
- - bioconductor-org.Hs.eg.db
- - bioconductor-TxDb.Hsapiens.UCSC.hg19.knownGene
- - bioconductor-AnnotationDbi
- - bioconductor-GenomeInfoDb
+ - anaconda
+ - defaults
 
+dependencies:
+  - r=3.5.1
+  - r-pheatmap
+  - r-tidyverse
+  - r-igraph
+  - r-reshape2
+  - r-cowplot
+  - r-data.table
+  - r-matrix
+  - r-batchtools
+  - r-cvtools
+  - r-dorng
+  - r-fdrtool
+  - r-doparallel
+  - bioconductor-GenomicRanges=1.34.0
+  - bioconductor-genie3
+  - bioconductor-GenomicFeatures
+  - bioconductor-graph
+  - bioconductor-qvalue
+  - bioconductor-RBGL
+  - bioconductor-rtracklayer
+  - bioconductor-FDb.InfiniumMethylation.hg19
+  - bioconductor-org.Hs.eg.db
+  - bioconductor-TxDb.Hsapiens.UCSC.hg19.knownGene
+  - bioconductor-AnnotationDbi
+  - bioconductor-GenomeInfoDb
+  - bioconductor-s4vectors
+  - bioconductor-organismdbi
+  - bioconductor-rgraphviz
+  - bioconductor-homo.sapiens
+  - bioconductor-illuminahumanv3.db
+  - bioconductor-preprocesscore
+  - bioconductor-sva

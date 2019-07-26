@@ -6,31 +6,34 @@
 #' @author Johann Hawe
 #'
 # ------------------------------------------------------------------------------
-
 sink(file=snakemake@log[[1]])
 
 # ------------------------------------------------------------------------------
 # load needed libraries and source scripts
 # ------------------------------------------------------------------------------
-library(BDgraph, lib="/storage/groups/epigenereg01/tools/2017/R/3.4")
-library(GenomicRanges)
+library(BDgraph)
+library(graph)
+library(igraph)
+suppressPackageStartupMessages(library(GenomicRanges))
 source("scripts/lib.R")
 
 # ------------------------------------------------------------------------------
 # get snakemake params
 # ------------------------------------------------------------------------------
-ifile <- snakemake@input[[1]]
-ofile <- snakemake@output[[1]]
+ffits <- snakemake@input$fits
+
+foutput <- snakemake@output[[1]]
+
 # iteration/run to be annotated in result table
 iteration <- snakemake@params$iteration
 
-print(paste0("Processing file: ", ifile, "."))
+print(paste0("Processing file: ", ffits, "."))
 
 # ------------------------------------------------------------------------------
 # Perform validation
 # ------------------------------------------------------------------------------
 # load data
-load(ifile)
+load(ffits)
 
 # the result table
 tab <- c()
@@ -44,35 +47,49 @@ temp <- lapply(names(result), function(n) {
   # ----------------------------------------------------------------------------
   # Get all fits
   # ----------------------------------------------------------------------------
-  ggm_fit <- r$fits$ggm_fit
-  ggm_fit_no_priors <- r$fits$ggm_fit_no_priors
-  ggm_fit_nor_priors_empty <- r$fits$ggm_fit_no_priors_empty
-  genenet_adj <- as(r$fits$genenet_graph,"matrix")
-  irn_adj <- as(r$fits$irn_graph,"matrix")
+  bdgraph <- r$fits$bdgraph
+  bdgraph_no_priors <- r$fits$bdgraph_no_priors
+  glasso <- r$fits$glasso
+  glasso_no_priors <- r$fits$glasso_no_priors
+  genenet <- r$fits$genenet
+  irafnet <- r$fits$irafnet
+  genie3 <- r$fits$genie3
+
+  gs <- list(bdgraph=bdgraph,
+             bdgraph_no_priors=bdgraph_no_priors,
+             glasso=glasso,
+             glasso_no_priors=glasso_no_priors,
+             genenet=genenet,
+             irafnet=irafnet,
+             genie3=genie3)
 
   # ----------------------------------------------------------------------------
   # use the bdgraph internal method to get spec/sens, f1 and MCC. Use the
   # original simulation object containing the ground truth graph
   # ----------------------------------------------------------------------------
-  perf <- t(compare(d, ggm_fit, ggm_fit_no_priors, ggm_fit_nor_priors_empty))
-  comparisons <- c("true", "ggm_fit", "ggm_fit_no_priors", "ggm_fit_no_priors_empty")
-  perf <- as.data.frame(perf)
-  rownames(perf) <- paste(n, comparisons, sep="_")
+  perf <- lapply(names(gs), function(g) {
+    # we need the adjacency matrix for comparison
+    perf <- t(BDgraph::compare(d, as(gs[[g]], "matrix")))
+    comparisons <- c("Target", g)
+    perf <- as.data.frame(perf)
+    rownames(perf) <- paste(n, comparisons, sep="_")
+    perf <- perf[!grepl("Target", rownames(perf)),]
 
-  # same for iRafNet and GeneNet graphs
-  perf2 <- t(compare(d, genenet_adj, irn_adj))
-  comparisons <- c("true", "genenet_fit", "iRafNet_fit")
-  perf2 <- as.data.frame(perf2)
-  rownames(perf2) <- paste(n, comparisons, sep="_")
-  # only one true graph (we combine in the next line...)
-  perf2 <- perf2[!rownames(perf2) %in% "true",]
-  perf <- rbind(perf, perf2)
+    # annotate density for comparison
+    ig <- igraph::igraph.from.graphNEL(gs[[g]])
+    dens <- edge_density(ig)
+    perf$density_model <- dens
+    perf
+  })
+
+  perf <- do.call(rbind.data.frame, perf)
 
   # remember for easy plotting
   perf$rdegree <- r$rdegree
   perf$snp <- r$snp
-  perf$comparison <- comparisons
   perf$iteration <- iteration
+  perf$comparison <- names(gs)
+  perf$density_true <- edge_density(igraph.from.graphNEL(r$graph.observed))
 
   # ----------------------------------------------------------------------------
   # Add to result table
@@ -82,7 +99,7 @@ temp <- lapply(names(result), function(n) {
 
 # ------------------------------------------------------------------------------
 # write result to output file
-write.table(file=ofile, tab, col.names=NA, sep="\t",
+write.table(file=foutput, tab, col.names=NA, sep="\t",
             quote=F, row.names = TRUE)
 
 sink()

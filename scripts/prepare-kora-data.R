@@ -16,6 +16,7 @@ print("Load libraries and source scripts.")
 suppressPackageStartupMessages(library(GenomicRanges))
 library(parallel)
 library(data.table)
+source("scripts/lib.R")
 source("scripts/biomaRt.R")
 
 # ------------------------------------------------------------------------------
@@ -32,7 +33,7 @@ source("scripts/biomaRt.R")
 #'
 # ------------------------------------------------------------------------------
 get_genotypes <- function(snp_ranges, dosage_file,
-                          individuals, individuals_to_keep,
+                          individuals, individuals_to_keep, tempdir,
                           threads){
 
   if(is.null(snp_ranges) | is.na(snp_ranges)) {
@@ -40,10 +41,10 @@ get_genotypes <- function(snp_ranges, dosage_file,
   }
 
   # split into junks
-  snp_ranges <- split(snp_ranges, ceiling(seq_along(snp_ranges)/50000))
+  snp_ranges <- split(snp_ranges, ceiling(seq_along(snp_ranges)/10000))
 
   temp <- mclapply(snp_ranges, function(r) {
-    geno <- scan_snps(r, dosage_file, individuals)
+    geno <- scan_snps(r, dosage_file, individuals, tempdir)
     if(!is.null(geno)) {
       geno <- geno[, individuals_to_keep,drop=F]
     }
@@ -84,14 +85,17 @@ fhouseman <- snakemake@input[["houseman"]]
 fcosmo <- snakemake@input[["cosmo"]]
 fceqtl <- snakemake@input[["kora_ceqtl"]]
 feqtlgen <- snakemake@input[["eqtl_gen"]]
+fimpute_indiv <- snakemake@input[["impute_indiv"]]
 
 # params
 threads <- snakemake@threads
+tempdir <- snakemake@params$tempdir
+print(paste0("using ", tempdir, " as temp directory."))
 
 # ------------------------------------------------------------------------------
 print("Load the imputation individuals (individuals with genotypes).")
 # ------------------------------------------------------------------------------
-imputation_individuals <- read.table(snakemake@input[["impute_indiv"]],
+imputation_individuals <- read.table(fimpute_indiv,
                                      header=F)[,1]
 
 # ------------------------------------------------------------------------------
@@ -104,6 +108,7 @@ ranges <- unique(with(trans_meqtl,
 
 ceqtl <- read.table(fceqtl, header=T, sep=";")
 ceqtl <- get_snpPos_biomart(ceqtl[,1])
+ceqtl <- ceqtl[!grepl("^HG|^HS", ceqtl$chr),]
 ranges <- unique(c(ranges, with(ceqtl,
                                 GRanges(paste0("chr", chr),
                                         IRanges(start, width=1)))))
@@ -120,7 +125,7 @@ ranges <- unique(c(ranges, with(cosmo,
 rm(cosmo, ceqtl)
 gc()
 
-print(paste0("Got ", length(ranges), " ranges to process."))
+print(paste0("Got ", length(ranges), " genotype ranges to process."))
 
 # ------------------------------------------------------------------------------
 print("Loading KORA data.")
@@ -165,7 +170,7 @@ print(paste0("Using ", nrow(id_map), " samples."))
 print("Load genotypes.")
 # ------------------------------------------------------------------------------
 geno <- get_genotypes(ranges, fdosage,
-                      imputation_individuals, id_map$axiom_s4f4,
+                      imputation_individuals, id_map$axiom_s4f4, tempdir,
                       threads)
 print(paste0("Genotype dimensions: ", paste(dim(geno), collapse=",")))
 gc()

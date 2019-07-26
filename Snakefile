@@ -1,4 +1,3 @@
-	
 #------------------------------------------------------------------------------
 # Master Snakefile for the bayesian GGM project.
 # So far we have essentially to sub-workflows: application of ggm on cohort data
@@ -8,7 +7,14 @@
 # @author: Johann Hawe <johann.hawe@helmholtz-muenchen.de>
 # ------------------------------------------------------------------------------
 
-configfile: "config.json"
+configfile: "configs/workflow.json"
+
+# rule used to configure R environment (ie install needed packages)
+rule config_r:
+	conda:
+		"envs/bioR.yaml"
+	script:
+		"scripts/config_R.R"
 
 # -----------------------------------------------------------------------------
 # include the hotspot extraction workflow which extracts all the sentinels
@@ -20,7 +26,7 @@ subworkflow preprocess:
     snakefile:
         "workflows/1_preprocess.sm"
     configfile:
-        "./config.json"
+        "./configs/workflow.json"
 
 # -----------------------------------------------------------------------------
 # Insert global vars
@@ -55,8 +61,8 @@ localrules:
 # ------------------------------------------------------------------------------
 # Include the rule-sets for the two individual analyses (cohort, simulation)
 # ------------------------------------------------------------------------------
-include: "snakemake_rules/cohort_data.sm"
-include: "snakemake_rules/simulation.sm"
+include: "workflows/cohort_data.sm"
+include: "workflows/simulation.sm"
 
 #-------------------------------------------------------------------------------
 # Overall target rule (both simulation and cohort study are executed).
@@ -83,6 +89,8 @@ rule convert_cpg_context:
 		"data/current/cpgs_with_chipseq_context_100.RData"
 	output:
 		"results/current/cpg_context.rds"
+	conda:
+		"envs/bioR.yaml"
 	script:
 		"scripts/convert_cpg_context.R"
 
@@ -104,13 +112,16 @@ rule create_priors:
 		eqtl_priors=protected("results/current/" + PPI_NAME + "/gtex.eqtl.priors.rds")
 	threads: 1
 	params:
-		plot_dir = "results/current/" + PPI_NAME + "/plots/"
+		plot_dir = "results/current/" + PPI_NAME + "/plots/",
+		time = "16:00:00"
+	resources:
+		mem_mb=45000
+	conda:
+		"envs/bioR.yaml"
 	log:
 		"logs/create_priors.log"
 	benchmark:
 		"benchmarks/create_priors.bmk"
-	resources:
-		mem_mb=45000
 	script:
 		"scripts/create_priors.R"
 
@@ -126,6 +137,8 @@ rule create_stringdb:
 		PPI_DB_STRING
 	log:
 		"logs/create_stringdb.log"
+	conda:
+		"envs/bioR.yaml"
 	benchmark:
 		"benchmarks/create_stringdb.bmk"
 	script:
@@ -141,6 +154,8 @@ rule create_biogrid:
 		gene_annot = GENE_ANNOT
 	output:
 		PPI_DB_BIOGRID
+	conda:
+		"envs/bioR.yaml"
 	script:
 		"scripts/create_biogrid.R"
 
@@ -154,6 +169,8 @@ rule create_cosmo_splits:
 		trans="results/current/trans-cosmopairs_combined_151216.rds",
 		cis="results/current/cis-cosmopairs_combined_151216.rds",
 		longrange="results/current/longrange-cosmopairs_combined_151216.rds"
+	conda:
+		"envs/bioR.yaml"
 	script:
 		"scripts/create-cosmo-splits.R"
 
@@ -170,13 +187,17 @@ rule collect_ranges:
 		gene_annot = GENE_ANNOT
 	output: 
 		DRANGES + "{sentinel}_meqtl.rds"
+	threads: 1
+	resources:
+		mem_mb=2300
+	params:
+		time="01:00:00"
+	conda:
+		"envs/bioR.yaml"
 	log: 
 		"logs/collect_ranges/{sentinel}_meqtl.log"
 	benchmark: 
 		"benchmarks/collect_ranges/{sentinel}_meqtl.bmk"
-	threads: 1
-	resources:
-		mem_mb=2300
 	script:
 		"scripts/collect_ranges.R"
 
@@ -186,19 +207,24 @@ rule collect_ranges:
 #------------------------------------------------------------------------------
 rule collect_ranges_eqtlgen:
         input:
-                eqtl="data/current/eqtl_gen/trans-eQTL_significant_20181017.txt.gz",
+                eqtl="data/current/eqtl_gen/trans-eQTL_significant_20181017.txt",
                 ppi=PPI_DB,
                 tfbs_annot="results/current/tfbs_tss_annot.rds",
                 gene_annot = GENE_ANNOT
         output:
-                DRANGES + "{sentinel}_eqtlgen.rds"
+                ranges = DRANGES + "{sentinel}_eqtlgen.rds",
+                plot = DRANGES + "{sentinel}_eqtlgen.pdf"
+        threads: 1
+        resources:
+                mem_mb=2300
+        params:
+                time="01:00:00"
+        conda:
+                "envs/bioR.yaml"
         log:
                 "logs/collect_ranges_egen/{sentinel}.log"
         benchmark:
                 "benchmarks/collect_ranges_egen/{sentinel}.bmk"
-        threads: 1
-        resources:
-                mem_mb=2300
         script:
                 "scripts/collect_ranges_eqtl.R"
 
@@ -225,6 +251,8 @@ rule annotate_tss_with_tf:
                 gene_annot = GENE_ANNOT
         output:
                 tfbs_annot="results/current/tfbs_tss_annot.rds"
+        conda:
+                "envs/bioR.yaml"
         script:
                 "scripts/annotate_tss_with_tf.R"
 
@@ -241,16 +269,17 @@ rule collect_data:
 	output:
 		DCOHORT_DATA + "{cohort}/{sentinel}_{seed}.rds",
 		DCOHORT_DATA + "{cohort}/{sentinel}_raw_{seed}.rds"
-	threads: 2
+	threads: 1
+	resources:
+		mem_mb=20000
+	conda:
+		"envs/bioR.yaml"
 	params:
-		cohort="{cohort}",
-		sentinel="{sentinel}"
+		time="01:00:00"
 	log:
 		"logs/collect_data/{cohort}/{sentinel}_{seed}.log"
 	benchmark:
 		"benchmarks/collect_data/{cohort}/{sentinel}_{seed}.bmk"
-	resources:
-		mem_mb=20000
 	script:
 		"scripts/collect_data.R"
 
@@ -262,8 +291,8 @@ rule all_data:
         input:
                 expand(DCOHORT_DATA + "{cohort}/{sentinel}_meqtl.rds", 
                              sentinel=MEQTL.sentinel, cohort=COHORTS),
-                expand(DCOHORT_DATA + "kora/{sentinel}_eqtlgen.rds", 
-                               sentinel=EQTLGEN.sentinel)
+                expand(DCOHORT_DATA + "{cohort}/{sentinel}_eqtlgen.rds", 
+                               sentinel=EQTLGEN.sentinel, cohort=COHORTS)
         output:
                 DCOHORT_DATA + "summary.pdf"
         script:
@@ -278,18 +307,22 @@ rule collect_priors:
 		eqtl_priors="results/current/" + PPI_NAME + "/gtex.eqtl.priors.rds",
 		ranges=DRANGES + "{sentinel}_{seed}.rds",
 		ppi=PPI_DB,
-		cpg_context="data/current/cpgs_with_chipseq_context_100.RData",
+		cpg_context="data/current/cpgs_with_chipseq_context_100.rds",
 		cpg_annot="data/current/epigenetic_state_annotation_weighted_all_sentinels.txt"
 	output: 
 		DPRIORS + "{sentinel}_{seed}.rds",
 		DPRIORS + "{sentinel}_{seed}.pdf"
+	threads: 1
+	resources:
+		mem_mb=12000
+	conda:
+		"envs/bioR.yaml"
+	params:
+		time="02:00:00"
 	log:
 		"logs/collect_priors/{sentinel}_{seed}.log"
-	threads: 1
 	benchmark:
 		"benchmarks/collect_priors/{sentinel}_{seed}.bmk"
-	resources:
-		mem_mb=9000
 	script:
 		"scripts/collect_priors.R"
 
@@ -298,4 +331,5 @@ rule collect_priors:
 #------------------------------------------------------------------------------
 rule all_priors:
 	input: 
-		expand(DPRIORS + "{sentinel}.pdf", sentinel=MEQTL.sentinel)
+		expand(DPRIORS + "{sentinel}_meqtl.pdf", sentinel=MEQTL.sentinel),
+		expand(DPRIORS + "{sentinel}_eqtlgen.pdf", sentinel=EQTLGEN.sentinel)

@@ -12,14 +12,14 @@ get_defaultcolors <- function(n=5, name=c("wes", "rcb")) {
   library(RColorBrewer)
   # wes_palette is only up to 5 colors
   if(n<=5) {
-    if("wes" %in% name) {
-      cols <- wes_palette(n, "FantasticFox1")
+    if("rcb" %in% name) {
+      cols <- brewer.pal(n, "Set2")
     } else {
-      cols <- brewer.pal(n, "Dark2")
+      cols <- wes_palette(n, "FantasticFox1")
     }
   } else {
       # default to rcolorbrewer palette
-      cols <- brewer.pal(n, "Dark2")
+      cols <- brewer.pal(n, "Set2")
   }
   return(cols)
 }
@@ -120,16 +120,16 @@ get.gene.annotation <- function(drop.nas=TRUE, version=19) {
 load_gene_annotation <- function(fgene_annot) {
   require(data.table)
   require(GenomicRanges)
-  
+
   # load gene annotation
   ga <- fread(fgene_annot)
-  
+
   # file format is: chr origin type start stop U strand U add_info
   colnames(ga) <- c("chr", "origin", "type", "start", "stop", "score", "strand",
-                    "frame", "info") 
+                    "frame", "info")
   # extract ranges
   ra <- with(ga, GRanges(chr, IRanges(start, stop), strand))
-  
+
   # extract the additional attributes and merge with ranges object
   attrs <- strsplit(ga$info, ";")
   gene_id <- sapply(attrs, function(x) { sapply(strsplit(x[grepl("gene_id",x)], " "), "[[", 2) })
@@ -320,10 +320,13 @@ annotate.graph <- function(g, ranges, ppi_db, fcontext){
 #' @author Johann Hawe
 #'
 #' -----------------------------------------------------------------------------
-plot.ggm <- function(g, id, plot.on.device=T, dot.out=NULL, ...){
-  suppressPackageStartupMessages(library(igraph))
-  suppressPackageStartupMessages(library(graph))
-  suppressPackageStartupMessages(library(Rgraphviz))
+plot_ggm <- function(g, id, graph.title=id,
+                     plot.on.device=T,
+                     dot.out=NULL, ...){
+
+  require(igraph)
+  require(graph)
+  require(Rgraphviz)
 
   # get some default colors to be used here
   cols <- get_defaultcolors(n=8)
@@ -334,15 +337,17 @@ plot.ggm <- function(g, id, plot.on.device=T, dot.out=NULL, ...){
     g <- removeNode(names(which(graph::degree(g) == 0)), g)
   }
 
-  # add sentinel to network if its is not in there yet or it has been removed
+  # we need an id...
+  if(is.null(id)){
+    stop("Sentinel ID must not be NULL.")
+  }
+
+  # add sentinel to network if it is not in there yet or it has been removed
   if(!is.null(id) && !(id %in% nodes(g))) {
     g <- graph::addNode(c(id), g)
   }
 
-  # if id is null, we simply identify all SNPs in the graph
-  if(is.null(id)){
-    stop("Sentinel ID must not be NULL.")
-  }
+  n <- graph::nodes(g)
 
   # now get the cluster which contains our sentinel
 #  ig = graph_from_graphnel(g)
@@ -353,7 +358,6 @@ plot.ggm <- function(g, id, plot.on.device=T, dot.out=NULL, ...){
   
   # the remaining nodes
 #  n <- keep
-  n <- nodes(g)
 
   # get trans and cpg gene symbols
   snp.genes <- n[unlist(nodeData(g,n,"snp.gene"))]
@@ -369,8 +373,10 @@ plot.ggm <- function(g, id, plot.on.device=T, dot.out=NULL, ...){
   tfs <- n[unlist(nodeData(g,n,"tf"))]
 
   # prepare plot-layout
-  attrs <- list(node=list(fixedsize=TRUE, fontsize=14, fontname="helvetica"),
-                graph=list(overlap="false", root=id[1], outputorder="edgesfirst"))
+  attrs <- list(node=list(fixedsize=TRUE, fontsize=14,
+                          style="filled", fontname="helvetica"),
+                graph=list(overlap="false", root=id[1], outputorder="edgesfirst",
+                           label=graph.title, labelloc="top", labeljust="right"))
 
   shape = rep("ellipse", numNodes(g))
   names(shape) = n
@@ -510,58 +516,13 @@ filter.edge.matrix <- function(g, em){
   return(out)
 }
 
-#' Get  STRING interactions (only experimental and db supported)
-#'
-#' Loads the STRING db saved on disc to a graph R object.
-#' Uses a caching mechanism for faster loading of the graph information
-#'
-#' @return nothing
-#'
-#' Gets ranges in one object close by a set of other ranges
-#'
-#' Gets the first ranges in subject, which are up-/down-stream and overlapping
-#' a range in the query
-#'
-#' @param query ranges for which to get nearby genes
-#' @param subject ranges in which to look for nearby genes
-#'
-#' @return Either the idx of the hits in the subject if idxs=T, or the identified ranges (idxs=F)
-#'
-get.nearby.ranges <- function(query, subject) {
-
-  nearby <- function(q,s){
-    # get preceding, following and ovberlapping instances of any range in query within subject ranges
-    pre <- precede(q, s, select="all", ignore.strand=T)
-    fol <- follow(q, s, select="all", ignore.strand=T)
-    ove <- findOverlaps(q, s, select="all", ignore.strand=T)
-    # combine hits
-    h <- unique(c(subjectHits(pre), subjectHits(fol), subjectHits(ove)))
-
-    return(list(hits=h, ranges=s[h]))
-  }
-
-  #return a list, where each query gets its nearby ranges annotated with their distance
-  res <- lapply(query, function(q) {
-    n <- nearby(q, subject)
-    if(length(n$hits)>0){
-      n$ranges$distance <- rep(-1, times=length(n$ranges))
-      for(i in 1:length(n$ranges)) {
-        d <- distance(q,n$ranges[i])
-        n$ranges[i]$distance <- d
-      }
-      return(n$ranges)
-    } else {
-      return(NULL)
-    }
-  });
-  return(res);
-}
-
+#' -----------------------------------------------------------------------------
 #' Quantile normalization
 #'
 #' @param x ngenes x nsamples matrix to be normalized
 #' @return quantile normalized matrix
 #' @export
+#' -----------------------------------------------------------------------------
 normalize.quantile <- function(x) {
   x = as.matrix(x)
   o = apply(x, 2, order)
@@ -918,6 +879,7 @@ get_gstart_from_priors <- function(priors){
   return(out)
 }
 
+#' -----------------------------------------------------------------------------
 #' Normalize external (geuvadis, gtex) expression data
 #'
 #' @param data The expression matrix to normalize, expecting
@@ -928,9 +890,10 @@ get_gstart_from_priors <- function(priors){
 #'
 #' @author Johann Hawe
 #'
+#' -----------------------------------------------------------------------------
 normalize.expression <- function(data) {
   library(preprocessCore)
-  library(peer)
+  library(sva)
 
   # quantile normalize
   scaled = normalize.quantiles(t(data))
@@ -942,11 +905,14 @@ normalize.expression <- function(data) {
     r = rank(x, ties.method="random")
     qnorm(r / (length(x) + 1))
   }
-  transformed <- apply(scaled, 1, stdnorm)
 
-  # remove peer factors
-  corrected <- correct.peer(transformed, Nk = 10)
-  colnames(corrected) <- colnames(transformed)
+  # gets p x n matrix
+  transformed <- apply(scaled, 1, stdnorm)
+  pca <- prcomp(transformed)$x[,1:10]
+
+  # remove first 10 pcs
+  corrected <- resid(lm(transformed ~ pca))
+
   return(corrected)
 }
 
@@ -1903,9 +1869,42 @@ summarize <- function(m, symbols){
 #' @author Johann Hawe <johann.hawe@helmholtz-muenchen.de>
 #'
 # ------------------------------------------------------------------------------
-scan_snps <- function(ranges, dosage_file, individuals) {
+scan_snps <- function(ranges, dosage_file, individuals, tempdir=tempdir()) {
 
-  # create system command using tabix...
+  stop("This script caused major problems last time we used it. Has to be adjusted
+       before running the whole pipeline again!")
+
+  # Code below is a differen try to obtaining the genotypes (for a large number
+  # snps, ~2e6, which could be further explored)
+
+  # require(Rsamtools)
+  # chrs <- unique(as.character(seqnames(ranges)))
+  #
+  # res <- lapply(chrs, function(chr) {
+  #   ra <- ranges[as.character(seqnames(ranges)) == chr]
+  #   ra <- reduce(ra, min.gapwidth = 1e3)
+  #   dat <- scanTabix(dosage_file, ra)
+  #   if(inherits(data, "try-error")){
+  #     cat("No SNPs found in specified regions.\n")
+  #     return(data.frame())
+  #   } else {
+  #     data <- dat[!duplicated(dat[,2]),,drop=F]
+  #     message(paste("Processed", nrow(dat), "SNPs." ))
+  #
+  #     # process the genotype information to get numerics
+  #     for(i in 6:ncol(data)){
+  #       data[,i] <- (as.numeric(data[,i]))
+  #     }
+  #
+  #     ## create colnames using individual codes
+  #     colnames(data)<- c("chr", "name", "pos", "orig", "alt", individuals)
+  #     rownames(data) <- data$name
+  #
+  #     return(data[,6:ncol(data)])
+  #   }
+  # })
+
+  # create system command for tabix
   ranges.str <- paste(ranges, collapse=" ")
 
   # for very large ranges-objects (e.g. several thousand ranges)
@@ -1913,8 +1912,8 @@ scan_snps <- function(ranges, dosage_file, individuals) {
   # to work, neither does calling tabix via the system() command.
   # therefore we create a temp bash file (tf), which we call using R
   # the output (tf2) is then read using fread
-  tf <- tempfile()
-  tf2 <- tempfile()
+  tf <- tempfile(tmpdir = tempdir)
+  tf2 <- tempfile(tmpdir = tempdir)
   cmd <- paste0("tabix ", dosage_file, " ", ranges.str, " > ", tf2)
   cat(cmd, file=tf, append = F)
   system(paste0("sh ", tf))
@@ -1951,4 +1950,82 @@ scan_snps <- function(ranges, dosage_file, individuals) {
 
     return(data[,6:ncol(data)])
   }
+}
+
+#' -----------------------------------------------------------------------------
+#' Get all GWAS traits which were mapped to a specific SNP. Also checks SNPs in
+#' LD of the provided SNP (defined via rsquared cutoff)
+#'
+#' @param snp The snp rsID for which to get GWAS hits
+#' @param gwas_table The loaded gwas table. Needs columns 'DISEASE.TRAIT' and
+#' SNPS
+#' @param ld.rsquared Rsquared cutoff to be used in SNiPA to get LD SNPs.
+#' Default: 0.95
+#' @param collapse Whether to collapse the result traits in a single string.
+#' Default: TRUE
+#'
+#' @author Johann Hawe
+#' -----------------------------------------------------------------------------
+get_gwas_traits <- function(snp, gwas_table, ld.rsquared=0.95, collapse=TRUE) {
+  # we might miss a hit in which would be in close LD -> get such possible
+  # ids via snipa
+  snipa_result <- snipa.get.ld.by.snp(snp, rsquare=ld.rsquared)
+  aliases <- setdiff(snipa_result$RSALIAS, NA)
+  if(length(aliases) > 0) {
+    ld_snps <- c(snipa_result$RSID,
+                 unlist(strsplit(aliases, ",")),
+                 snp)
+  } else {
+    ld_snps <- c(snp, snipa_result$RSID)
+  }
+  ld_snps <- unique(ld_snps)
+
+  # gather gwas traits for SNPs within this LD block
+  gwas_sub <- subset(gwas, SNPS %in% ld_snps)
+  if(nrow(gwas_sub) > 0) {
+    if(collapse) {
+      paste0(unique(gwas_sub$DISEASE.TRAIT), collapse="|")
+    } else {
+      unique(gwas_sub$DISEASE.TRAIT)
+    }
+  } else {
+    NA
+  }
+}
+
+#' -----------------------------------------------------------------------------
+#' For a list of SNPs, generates a data.frame containing associated GWAS traits
+#'
+#' Considers proxy SNPs in LD to the supplied SNPs
+#'
+#' @param snps Vector of SNP rsIDs
+#' @param fgwas The file containing the GWAS catalog (ebi)
+#'
+#' @author Johann Hawe
+#'
+#' -----------------------------------------------------------------------------
+annotate_snps_with_traits <- function(snps, fgwas, drop.nas=TRUE) {
+  require(tidyverse)
+  source("scripts/snipe.R")
+
+  # load gwas catalog
+  gwas <- read_tsv(fgwas) %>% as_tibble(.name_repair="universal")
+
+  # get all traits by snp. Takes a while since it uses SNiPA to get LD SNPs
+  traits_by_snp <- lapply(snps, function(s) get_gwas_traits(s, gwas) )
+
+  # prepare result data frame
+  annotations <- do.call(rbind.data.frame, traits_by_snp)
+  annotations$snp <- snps
+  colnames(annotations) <- c("trait", "snp")
+
+  # remove snps without traits?
+  if(drop.nas) {
+    annotations <- annotations[complete.cases(annotations),]
+  }
+
+  annotations <- annotations[,c("snp", "trait")]
+
+  # all done
+  annotations
 }

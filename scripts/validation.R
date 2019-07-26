@@ -1,545 +1,495 @@
-#' Library script providing the main functions for validating a ggm.fit based
-#' on the identified links between entities
+# ------------------------------------------------------------------------------
 #'
-#' @author Johann Hawe
+#' This script is used to validate already calculated ggm fits.
+#' The fitted ggm models are loaded and validated using the concept of individual
+#' link types, i.e. cpg-gene links, snp-gene links and gene-gene links.
 #'
-#' @version 20170803
+#'  @autor Johann Hawe
 #'
+# ------------------------------------------------------------------------------
+log <- file(snakemake@log[[1]], open="wt")
+sink(log)
+sink(log, type="message")
 
-#' -----------------------------------------------------------------------------
-#' Performs mediation analysis for a given set of SNPs, Genes
-#' and CpGs.
-#'
-#' @param data data matrix with individuals in the rows and
-#' SNPs, CpGs and Gene entries in the columns
-#'
-#' @param snps SNP ids to be analyzed
-#' @param cis_genes The cis/snp genes to be checked
-#' @param trans_assoc the trans associated entities to be checked. Either CpG
-#' IDs or gene symbols
-#'
-#' @author Johann Hawe <johann.hawe@helmholtz-muenchen.de>
-#'
-#' -----------------------------------------------------------------------------
-mediation <- function(data, snp, cis_genes, trans_assoc,
-                      fout_table, fout_plot) {
-  require(ggplot2)
+# define easy concatenation operator
+`%+%` = paste0
 
-  if(any(!c(snp,cis_genes,trans_assoc) %in% colnames(data))){
-    stop("Some of the provided entities are not in the data.")
+# ------------------------------------------------------------------------------
+print("Load libraries and source scripts.")
+# ------------------------------------------------------------------------------
+suppressPackageStartupMessages(library(BDgraph))
+suppressPackageStartupMessages(library(igraph))
+suppressPackageStartupMessages(library(graph))
+suppressPackageStartupMessages(library(data.table))
+suppressPackageStartupMessages(library(GenomicRanges))
+suppressPackageStartupMessages(library(qvalue))
+suppressPackageStartupMessages(library(illuminaHumanv3.db))
+suppressPackageStartupMessages(library(ggplot2))
+library(parallel)
+library(reshape2)
+library(cowplot)
+
+source("scripts/go-enrichment.R")
+source("scripts/validation_methods.R")
+source("scripts/mediation_methods.R")
+source("scripts/lib.R")
+source("scripts/reg_net.R")
+
+# ------------------------------------------------------------------------------
+print("Get snakemake parameters.")
+# ------------------------------------------------------------------------------
+
+# inputs
+fkora_data <- snakemake@input[["kora_data"]]
+franges <- snakemake@input[["ranges"]]
+flolipop_data <- snakemake@input[["lolipop_data"]]
+fkora_fit <- snakemake@input[["kora_fit"]]
+flolipop_fit <- snakemake@input[["lolipop_fit"]]
+
+# contain the 'old' fits, i.e. old glasso and w/o genie3
+fkora_fit_old <- snakemake@input[["kora_fit_old"]]
+flolipop_fit_old <- snakemake@input[["lolipop_fit_old"]]
+
+fgtex <- snakemake@input[["gtex"]]
+fgeo <- snakemake@input[["geo"]]
+fciseqtl_kora <- snakemake@input[["cis_kora"]]
+ftranseqtl_kora <- snakemake@input[["trans_kora"]]
+fbonder_eqtm <- snakemake@input[["bonder_eqtm"]]
+fciseqtl_joehanes <- snakemake@input[["cis_joehanes"]]
+ftranseqtl_joehanes <- snakemake@input[["trans_joehanes"]]
+fmediation_kora <- snakemake@input[["mediation_kora"]]
+fmediation_lolipop <- snakemake@input[["mediation_lolipop"]]
+
+# params
+threads <- snakemake@threads
+sentinel <- snakemake@wildcards$sentinel
+mediation_cutoff <- snakemake@params$mediation_cutoff
+cohort <- snakemake@wildcards$cohort
+
+# output
+# main outfile for validation results
+fout <- snakemake@output[[1]]
+
+# additional outputs, mostly plots
+#fmediation_summary_plot <- snakemake@output$mediation_summary_plot
+
+# ------------------------------------------------------------------------------
+print("Loading data.")
+# ------------------------------------------------------------------------------
+
+print("Loading gene expression data.")
+
+# load GEO/ARCHS4  data
+geo <- fread(fgeo,
+             header = T, sep = "\t")
+colnames(geo)[1] <- "symbol"
+setkey(geo, symbol)
+
+print("Loading Joehanes eQTL.")
+ceqtl <- fread(fciseqtl_joehanes,
+               sep = ",")
+# get only cis eqtls defined in the paper
+ceqtl <- ceqtl[ceqtl$Is_Cis == 1]
+print(paste0("Loaded ", nrow(ceqtl), " cis-eQTL"))
+
+# trans eQTL
+teqtl <- fread(ftranseqtl_joehanes,
+               sep = ",")
+print(paste0("Loaded ", nrow(teqtl), " trans-eQTL"))
+
+# load the bonder cis-eQTMs for cpg-gene validation
+eqtms <- fread(fbonder_eqtm, data.table = F)
+
+# ------------------------------------------------------------------------------
+print("Loading cohort data.")
+# ------------------------------------------------------------------------------
+kdata <- readRDS(fkora_data)
+ldata <- readRDS(flolipop_data)
+
+# remove (rare) all-NA cases. This can happen due to scaling of all-zero entities,
+# which can arise due to a very large number of cis-meQTLs which effects get
+# removed from the CpGs during data preprocessing.
+# NOTE: we could possibly handle this differently? Seems that these particular
+# cpgs are highly influenced by genetic effects?
+use <- apply(kdata,2,function(x) (sum(is.na(x)) / length(x)) < 1)
+kdata <- kdata[,use]
+use <- apply(ldata,2,function(x) (sum(is.na(x)) / length(x)) < 1)
+ldata <- ldata[,use]
+
+# load ranges
+ranges <- readRDS(franges)
+
+# ------------------------------------------------------------------------------
+print("Loading GGM fits.")
+# ------------------------------------------------------------------------------
+kfit <- readRDS(fkora_fit)
+lfit <- readRDS(flolipop_fit)
+
+kfit_old <- readRDS(fkora_fit_old)
+lfit_old <- readRDS(flolipop_fit_old)
+
+fits <- list(kora = kfit, lolipop = lfit,
+             kora_old=kfit_old, lolipop_old=lfit_old)
+
+# we get the according dataset on which to validate
+if ("lolipop" %in% cohort) {
+  # ggm calculated on lolipop, validate on kora
+  data_val <- kdata
+  data_fit <- ldata
+  cohort_val <- "kora"
+} else {
+  # assume kora cohort, validate on lolipop
+  data_val <- ldata
+  data_fit <- kdata
+  cohort_val <- "lolipop"
+}
+
+graph_types <- c("bdgraph", "bdgraph_no_priors",
+                 "genenet", "irafnet",
+                 "glasso", "glasso_no_priors", "genie3")
+
+valid <- mclapply(graph_types, function(graph_type) {
+  print(paste0("Validating ", cohort, " fit for '", graph_type , "' graph fit."))
+
+  row <- c(sentinel = sentinel,
+           cohort = cohort,
+           graph_type = graph_type)
+
+  # ----------------------------------------------------------------------------
+  print("Preparing fit.")
+  # ----------------------------------------------------------------------------
+  # those were adjusted and newly fitted
+  if(graph_type %in% c("glasso", "glasso_no_priors", "genie3")) {
+    graph <- fits[[cohort]][[graph_type]]
+  } else {
+    graph <- fits[[paste0(cohort, "_old")]][[graph_type]]
   }
 
-  d <- data[,c(snp,cis_genes,trans_assoc),drop=F]
+  # dnodes -> full set of possible nodes
+  dnodes <- colnames(data_val)
 
-  # get large matrix of all coefficients for all combinations
-  betas <- c()
-  for(g in cis_genes) {
-    if(grepl("-", g)){
-      g <- paste0("`",g,"`")
-    }
+  # ----------------------------------------------------------------------------
+  print("Getting basic stats (number nodes, number edges, graph density)")
+  # ----------------------------------------------------------------------------
+  nn <- numNodes(graph)
+  ne <- numEdges(graph)
+  gd <- (ne * 2) / (nn * (nn - 1))
+  row <- c(row, number_nodes=nn, number_edges=ne, graph_density=gd)
 
-    # snp-gene
-    snp.cis_gene <- lm(paste0(g, "~",snp), data=d)
-    snp.cis_gene <- coefficients(snp.cis_gene)[snp]
+  # ------------------------------------------------------------------------------
+  print("Getting cluster information")
+  # ------------------------------------------------------------------------------
+  # get all clusters in the graph
+  ig = igraph::graph_from_graphnel(graph)
+  cl = clusters(ig)
+  ncluster <- cl$no
+  scluster <- paste(cl$csize, collapse = ",")
 
-    # snp-trans_assoc and cis_gene-trans_assoc
-    for(ta in trans_assoc) {
-
-      snp.trans_assoc <- lm(paste0(ta,"~",snp), data=d)
-      snp.trans_assoc <- coefficients(snp.trans_assoc)[snp]
-
-      cis_gene.trans_assoc <- lm(paste0(ta, "~", g), data=d)
-      cis_gene.trans_assoc <- coefficients(cis_gene.trans_assoc)[g]
-
-      # snp-cpg hat
-      snp.trans_assoc.hat <- snp.cis_gene * cis_gene.trans_assoc
-
-      # save result
-      betas <- rbind(betas,
-                     c(snp, g, ta, snp.trans_assoc, snp.cis_gene,
-                       cis_gene.trans_assoc, snp.trans_assoc.hat))
-    }
+  # remember snp membership
+  snp_cluster <- NA
+  snp_cluster_size <- NA
+  if (sentinel %in% names(cl$membership)) {
+    snp_cluster <- cl$membership[sentinel]
+    snp_cluster_size <- cl$csize[snp_cluster]
   }
-  colnames(betas) <- c("snp", "cis_gene", "trans_assoc", "snp.trans_assoc",
-                       "snp.cis_gene", "cis_gene.trans_assoc", "snp.trans_assoc.hat")
-  betas <- as.data.frame(betas, stringsAsFactors=F)
-  betas$snp.trans_assoc <- as.numeric(betas$snp.trans_assoc)
-  betas$snp.cis_gene <- as.numeric(betas$snp.cis_gene)
-  betas$cis_gene.trans_assoc <- as.numeric(betas$cis_gene.trans_assoc)
-  betas$snp.trans_assoc.hat <- as.numeric(betas$snp.trans_assoc.hat)
 
-  # plot the betas for each gene
-  gp <- ggplot(data=betas, aes(x=snp.trans_assoc, y=snp.trans_assoc.hat)) +
-    geom_hline(yintercept=0, colour="grey") +
-    geom_vline(xintercept=0, colour="grey") +
-    facet_wrap(~ gene, ncol=3) +
-	    geom_point() +
-	    geom_smooth(method="lm") +
-	    ylab(expression(hat(beta)[c])) +
-	    xlab(expression(beta[c])) +
-	    geom_abline(slope=1, colour="orange")
-  ggsave(fout_plot, plot=gp, width=12, height=12)
+  row <- c(row,
+           cluster=ncluster,
+           cluster_sizes=scluster,
+           snp_cluster=unname(snp_cluster),
+           snp_cluster_size=snp_cluster_size)
 
-  # also save the list of betas
-  write.table(file=fout_table,
-              betas, col.names=T, sep="\t", quote=F,
-              row.names=F)
+  # ------------------------------------------------------------------------------
+  print("Getting largest CC for validation.")
+  # ------------------------------------------------------------------------------
+  keep <- cl$membership == which.max(cl$csize)
+  keep <- names(cl$membership[keep])
+  if(!is.null(keep)) {
+    graph_maxcluster <- graph::subGraph(keep, graph)
+  }
 
-  # get the correlation results for the estimated against the
-  # observed betas
-  result <- lapply(cis_genes, function(g){
-    if(grepl("-", g)){
-      g <- paste0("`",g,"`")
+  # the nodes retained in the fitted graph model in the largest CC
+  gnodes <- graph::nodes(graph_maxcluster)
+
+  # ------------------------------------------------------------------------------
+  print("Calculating graph score.")
+  # ------------------------------------------------------------------------------
+  # we use the (full) igraph object for this, will be filtered for the sentinel
+  # cluster
+  score <- get_graph_score(ig, sentinel, ranges, gd)
+  row <- c(row,
+           graph_score = score)
+
+  # ------------------------------------------------------------------------------
+  print("Defining entity sets (selected / not selected)")
+  # ------------------------------------------------------------------------------
+
+  # for now, filter only for those nodes for which data was available
+  # should change once we update the data matrix...
+  #gnodes <- gnodes[gnodes %in% dnodes]
+
+  # get names of all entities, total and selected by ggm
+  snp <- sentinel
+  data_val[, snp] <- as.integer(as.character(data_val[, snp]))
+  data_fit[, snp] <- as.integer(as.character(data_fit[, snp]))
+
+  if(ranges$seed == "meqtl") {
+    trans_entities <- intersect(dnodes, names(ranges$cpgs))
+  } else {
+    trans_entities <- intersect(dnodes, ranges$trans_genes$SYMBOL)
+  }
+  trans_entities_selected <- trans_entities[trans_entities %in% gnodes]
+
+  all_genes <- dnodes[!grepl("^rs|^cg", dnodes)]
+  sgenes <- intersect(dnodes, ranges$snp_genes$SYMBOL)
+  if (snp %in% gnodes) {
+    sgenes_selected <- sgenes[sgenes %in% unlist(adj(graph_maxcluster, snp))]
+    # snp genes also have to be connected to trans entities without traversing
+    # the snp itself
+    graph_temp <- subGraph(setdiff(gnodes, snp), graph_maxcluster)
+    print(graph_temp)
+    if(length(sgenes_selected) > 0 & length(trans_entities_selected) > 0) {
+      igraph_temp <- igraph::graph_from_graphnel(graph_temp)
+      paths <-
+        suppressWarnings(get.shortest.paths(igraph_temp, sgenes_selected,
+                                            intersect(V(igraph_temp)$name,
+                                                      trans_entities_selected)))$vpath[[1]]
+
+      sgenes_selected <- intersect(sgenes_selected, paths$name)
+    } else {
+      sgenes_selected <- c()
     }
+  } else {
+    sgenes_selected <- c()
+  }
 
-    d <- betas[betas$cis_gene == g,]
+  # cpg genes and TFs
+  cgenes <- intersect(dnodes, ranges$cpg_genes$SYMBOL)
+  # TODO also check TF to cpg-gene association..
+  tfs <- intersect(dnodes, ranges$tfs$SYMBOL)
 
-    d1 <- d[,"snp.trans_assoc"]
-    d2 <- d[,"snp.trans_assoc.hat"]
-
-    fit <- lm(d2~d1)
-    r <- cor.test(d1, d2)
-    cor <- r$estimate
-    pv <- r$p.value
-
-    # also construct a contingency table where we only look at the signs
-    # of the individual beta coefficients for each CpG and test the association
-    tab <- matrix(0,ncol=2,nrow=2)
-    for(i in 1:nrow(d)) {
-       obs <- d[i,"snp.trans_assoc"]
-       pred <- d[i,"snp.trans_assoc.hat"]
-       if(obs<0&pred<0) tab[2,2] <- tab[2,2] + 1
-       if(obs<0&pred>0) tab[1,2] <- tab[1,2] + 1
-       if(obs>0&pred<0) tab[2,1] <- tab[2,1] + 1
-       if(obs>0&pred>0) tab[1,1] <- tab[1,1] + 1
+  if(ranges$seed == "meqtl") {
+    # selected cpg genes and TFs
+    if (length(trans_entities_selected) > 0) {
+      cgenes_selected <- cgenes[cgenes %in% unlist(adj(graph_maxcluster,
+                                                       trans_entities_selected))]
+    } else {
+      cgenes_selected <- c()
     }
-    ft <- fisher.test(tab)
-    pv_fisher <- ft$p.value
-    or <- ft$estimate
+  } else {
+    cgenes_selected <- c()
+  }
 
-    c(correlation=unname(cor),
-      pval_cor=pv,
-      odds_ratio=unname(or),
-      pval_fisher=pv_fisher)
-  })
-  names(result) <- cis_genes
-  return(result)
-}
+  if(length(trans_entities_selected) > 0) {
+    tfs_selected <- tfs[tfs %in% unlist(adj(graph_maxcluster,
+                                            trans_entities_selected))]
+  } else {
+    tfs_selected <- c()
+  }
 
-#' -----------------------------------------------------------------------------
-#' Creates a summary of the mediation results
-#'
-#' Given mediation results for a SNP and it's SNP-genes together
-#' with the GGM selected SNP genes, retrieves some values indicating
-#' the mediation 'performance' for the current SNP
-#'
-#' @param m The mediation result gotten from mediation()
-#' @param s The SNP-genes for the current instance
-#' @param s.selected The SNP-genes selected by the GGM
-#' @param cutoff Significance cutoff for mediating genes
-#'
-#' @author Johann Hawe
-#'
-#' -----------------------------------------------------------------------------
-mediation.summary <- function(med, s, s.selected, cutoff) {
-  # mediation for only ggm selected snp genes
-  med.selected <- med[s.selected]
-  med.selected.pvals <- unlist(lapply(med.selected, "[[", "pval_fisher"))
-  med.selected.sign <- med.selected[med.selected.pvals<cutoff]
+  # the shortest path genes
+  spath <- ranges$spath$SYMBOL
+  spath_selected <- spath[spath %in% gnodes]
 
-  # mediation for only not selected snp genes
-  med.notselected <- med[setdiff(s,s.selected)]
-  med.notselected.pvals <- unlist(lapply(med.notselected, "[[", "pval_fisher"))
-  med.notselected.sign <- med.notselected[med.notselected.pvals<cutoff]
+  # add to row
+  row <- c(
+    row,
+    snp_genes=length(sgenes),
+    snp_genes_selected=length(sgenes_selected),
+    snp_genes.list=paste(sgenes, collapse = ";"),
+    snp_genes_selected.list=paste(sgenes_selected, collapse = ";"),
+    trans_entities = length(trans_entities),
+    trans_entities_selected = length(trans_entities_selected),
+    cpg_genes=length(cgenes),
+    cpg_genes_selected=length(cgenes_selected),
+    tfs=length(tfs),
+    tfs_selected=length(tfs_selected),
+    spath=length(spath),
+    spath_selected=length(spath_selected)
+  )
 
-  # get the best mediating gene based on the correlation
-  best <- med[which.max(abs(unlist(lapply(med, "[[", "odds_ratio"))))]
-  best_mediator <- names(best)
-  best_odds_ratio <- unname(best[[1]]["odds_ratio"])
+  # ------------------------------------------------------------------------------
+  print("Using MCC to check how well graph replicated across cohorts.")
+  # ------------------------------------------------------------------------------
+  # get graph fit on other cohort
+  # those were adjusted and newly fitted
+  if(graph_type %in% c("glasso", "glasso_no_priors", "genie3")) {
+    graph_val <- fits[[cohort_val]][[graph_type]]
+  } else {
+    graph_val <- fits[[paste0(cohort_val, "_old")]][[graph_type]]
+  }
 
-  # TODO if we choose to do a test for comparing
-  # selected/not selected, check assumptions first
-
-  # min mediation pv for all not selected snpgenes
-  med.pv <- min(med.notselected.pvals)
-  # max mediation pv for selected snpgenes
-  med.pv.selected <- max(med.selected.pvals)
-
-  # number of significantly mediating genes
-  med_total <- length(which(c(med.notselected.pvals,med.selected.pvals)<cutoff))
-
-  cat("Mediation result summary (min/max of pvals):\n")
-  cat("not selected\tselected\n")
-  cat(med.pv, "\t", med.pv.selected, "\n")
-
-  # compare the two pvalues
-  d <- log10(med.pv/med.pv.selected)
-  cat("Difference (log10(ns/s)): ", d, "\n")
-
-  # return 'nice' result
-  return(c(mediation_total=med_total,
-	   mediation_best_gene=best_mediator,
-	   mediation_best_odds_ratio=best_odds_ratio,
-	   mediation_notselected_significant=length(med.notselected.sign),
-           mediation_selected_significant=length(med.selected.sign),
-           mediation_notselected_significant.list=paste(names(med.notselected.sign), collapse=";"),
-           mediation_selected_significant.list=paste(names(med.selected.sign), collapse=";"),
-           mediation_notselected.list=paste(names(med.notselected), collapse=";"),
-           mediation_selected.list=paste(names(med.selected), collapse=";"),
-           mediation_notselected_pvals=paste(format(med.notselected.pvals, digits=3), collapse=";"),
-           mediation_selected_pvals=paste(format(med.selected.pvals, digits=3), collapse=";"),
-           mediation_min_pval_notselected=med.pv,
-           mediation_max_pval_selected=med.pv.selected,
-           log10_mediation_NSoverS_ratio=d))
-}
-
-#' -----------------------------------------------------------------------------
-#' Creates a summary of the comparison of mediation results
-#' from two different datasets
-#'
-#' Given mediation results for a SNP and it's SNP-genes together
-#' with the GGM selected SNP genes, retrieves some values indicating
-#' the mediation 'performance' for the current SNP
-#'
-#' @param sentinel The corresponding sentinel snp
-#' @param mediation The mediation results on the validation cohort
-#' @param mediation2 The mediation results on the original cohort
-#' @param sgenes_selected List of all snp genes selected by the model
-#' @param cutoff Significance cutoff for mediating genes
-#' @param fout Output file were plot should be saved to
-#'
-#' @author Johann Hawe
-#'
-#' -----------------------------------------------------------------------------
-compare_mediation_results <- function(sentinel,
-				      mediation,
-				      mediation2,
-				      sgenes_selected,
-				      cutoff,
-				      fout) {
-  require(ggplot2)
-  require(reshape)
-
-  # get mediation correlations for all genes
-  med_correlations <- unlist(lapply(mediation, "[[", "correlation"))
-  med_correlations2 <- unlist(lapply(mediation2, "[[", "correlation"))
-  med_correlations2 <- med_correlations2[names(med_correlations)]
-
-  # get mediation pvalues for all genes
-  med_pvals <- unlist(lapply(mediation, "[[", "pval_fisher"))
-  med_pvals2 <- unlist(lapply(mediation2, "[[", "pval_fisher"))
-  med_pvals2 <- med_pvals2[names(med_pvals)]
-
-  # create dataframe for plotting
-  df <- cbind.data.frame(med_correlations, med_correlations2,
-                          med_pvals, med_pvals2)
-  colnames(df) <- c("correlation_validation",
-		    "correlation_original",
-		    "pvalue_validation",
-		    "pvalue_original")
-
-  df$gene <- names(med_pvals)
-  df$significant_validation <- df$pvalue_validation <= cutoff
-  df$significant_original <- df$pvalue_original <= cutoff
-  df$significant <- unlist(lapply(1:nrow(df), function(i) {
-			  r <- df[i,,drop=T]
-			  if(r[["significant_validation"]] & r[["significant_original"]]){
-			    return("both")
-			  } else if(r[["significant_original"]]){
-			    return("original")
-			  } else if(r[["significant_validation"]]) {
-			    return("validation")
-			  } else {
-			    return("none")
-			  }
-  }))
-  df$model_selected <- ifelse(df$gene %in% sgenes_selected, "yes", "no")
-  df <- reshape::melt(df, measure.vars=1:2, variable.name="dataset")
-
-  # add plotting x-lab proxy
-  df = transform(df,
-                 dvariable = as.numeric(variable) + runif(length(variable),
-                                                          -0.2,
-                                                          0.2))
-
-  # create the plot
-  cols <- set_defaultcolors()
-  sfm <- scale_fill_manual(values=cols)
-
-  gp <- ggplot(data=df, aes(y=value, x=variable))
-  gp <- gp + sfm + geom_violin(draw_quantiles=.5) +
-	  geom_point(aes(color=significant, x=dvariable, shape=model_selected), size=3) +
-	  geom_line(aes(group=gene, x=dvariable), linetype="dotted")+
-	  geom_text(aes(label=gene), size=2.5, nudge_x=-0.4,
-		    data=subset(df, variable=="correlation_validation")) +
-	  ggtitle(paste0("Mediation correlation values for ", sentinel, "."),
-			 "Shown are the distribution of correlation values for each SNP gene, once for the
-validation dataset and once for the original dataset (on which models were calcualted.") +
-	  theme(plot.title = element_text(hjust = 0))
-  ggsave(file=fout,
-	       plot=gp)
-
-  # return the correlation of mediation correlations between the two datasets
-  # and the fraction of significant mediations in validation set also
-  # significant in original dataset
-  corr <- cor(med_correlations, med_correlations2)
-  df <- subset(df, variable=="correlation_validation")
-  # fraction of all SNP genes significant in both datasets
-  frac <- length(which(df$significant=="both"))/nrow(df)
-  # fraction of validation significant SNP genes significant in original dataset
-  frac2 <- length(which(df$significant=="both")) /
-	  length(which(df$significant=="both" | df$significant=="validation"))
-
-  return(c(mediation_cross_cohort_correlation=corr,
-           mediation_cross_cohort_fraction=frac,
-           mediation_cross_cohort_fraction_validation_significant=frac2))
-}
-
-#' Validates the given ggm fit based on the found SNP~Gene links
-#'
-#' @param graph The graph extracted from the ggm fit
-#' @param data The original data with which the ggm was fitted
-#' @param ranges The original list of granges related to the entities in the
-#' fitted data matrix
-#'
-#' @return
-#'
-#' @author Johann Hawe
-#'
-validate.snps <- function(graph, data, ranges){
-
-}
-
-#' Validates the given ggm fit based on the found CpG~Gene links
-#'
-#' @param ggm.fit The ggm.fit which is to be validated
-#' @param ranges The original list of granges related to the entities in the
-#' fitted data matrix
-#'
-#' @return
-#'
-#' @author Johann Hawe
-#'
-validate.cpgs <- function(ggm.fit, ranges){
-  # (1) Epigenetic annotation chromHMM
-  # (2) trans-eQTL in other dataset (Cpg~Gene)
-  # (3) CpG in TFBS in independent CLs
-}
-
-#' Validates cpg genes based on a set of eqtm-genes
-#'
-#' Rather naive approach for validating our identified cpg genes.
-#' Checks which of the selected and not selected cpg genes were identified
-#' as having an eQTM (given by a list of eqtm.genes) and creates from this
-#' a confusion table. In the end the fisher.test pvalue of this table is
-#' reported
-#'
-#' @param eqtm.genes A list of eqtm genes which should be checked against
-#' @param cg The list of cpg-genes in our network
-#' @param cg.selected The list of cpg-genes in out network selected by the
-#' GGM
-#'
-#' @author Johann Hawe
-#'
-#' @return The fisher.test()-pvalue for the calculated confusion table
-#'
-validate_cpggenes <- function(eqtm.genes, cg, cg.selected){
-
-  # create the individual values for our confusion matrix
-  v1 <- sum(setdiff(cg, cg.selected) %in% eqtm.genes)
-  v2 <- sum(!setdiff(cg, cg.selected) %in% eqtm.genes)
-  v3 <- sum(cg.selected %in% eqtm.genes)
-  v4 <- sum(!cg.selected %in% eqtm.genes)
-
-  # build the confusion matrix
-
-  print("Confusion matrix for cpg-genes:")
-  cont <- matrix(0, nrow=2, ncol=2)
-  cont[1,1] <- v3
-  cont[1,2] <- v1
-  cont[2,1] <- v4
-  cont[2,2] <- v2
-
-  rownames(cont) <- c("has_eQTM", "has_no_eQTM")
-  colnames(cont) <- c("ggm_selected", "not_gmm_selected")
-
-  # report fisher test
-  return(c(bonder_cis_eQTM=fisher.test(cont)$p.value))
-}
-
-#' Validates the given ggm fit based on the found Gene~Gene links
-#'
-#' @param expr.data A list containing expression datasets (matrices) which
-#' should be checked against
-#' @param g The GGM graph for which to check the genes
-#' @param all.genes The list of genes intitially gone into the GGM analysis
-#'
-#' @author Johann Hawe
-#'
-#' @return For each of the expression datasets a single (fisher) pvalues for the
-#' respective set
-#'
-validate_gene2gene <- function(expr.data, g, all.genes){
-
-  require(BDgraph)
-
-  # the complete set of nodes in the ggm graph
-  gnodes <- nodes(g)
+  # compare with largest connected component only
+  #g2 <- get_largest_cc(g2)
+  #if (!sentinel %in% graph::nodes(g2)) {
+  #  g2 <- graph::addNode(sentinel, g2)
+  #}
 
   # get adjacency matrices
-  model_adj <- as(g, "matrix")
+  g_adj <- as(graph, "matrix")
+  g_val_adj <- as(graph_val, "matrix")
 
-  # we create a adjacency matrix for each of the expression sets
-  # TODO: for the external datasets, check whether we could normalize for age/sex
-  results <- lapply(names(expr.data), function(ds) {
-    # get the data set
-    dset <- expr.data[[ds]]
-    dset <- dset[,colnames(dset) %in% gnodes]
-    if(ncol(dset) == 0) {
-      return(NA)
-    }
-    # create adj_matrix
-    m <- matrix(nrow=ncol(dset), ncol=ncol(dset))
-    rownames(m) <- colnames(m) <- colnames(dset)
+  # ensure that we have the same nodes only in all graphs.
+  # this might somewhat change results, but otherwise we
+  # cant compute the MCC properly.
+  use <- intersect(colnames(g_adj), colnames(g_val_adj))
+  if (length(use) > 1) {
+    g_adj <- g_adj[use, use]
+    g_val_adj <- g_val_adj[use, use]
 
-    # calculate correlations
-    res <- c()
-    cnames <- colnames(dset)
-    for(i in 1:ncol(dset)) {
-      for(j in i:ncol(dset)) {
-      	if(j==i) next
-        corr <- cor.test(dset[,i], dset[,j])
-        res <- rbind(res, c(cnames[i], cnames[j], corr$p.value, corr$estimate))
-      }
-    }
-    pvs <- as.data.frame(matrix(res, ncol=4, byrow = F), stringsAsFactors=F)
-    colnames(pvs) <- c("n1", "n2", "pval", "cor")
-    pvs$pval <- as.numeric(pvs$pval)
-    pvs$cor <- as.numeric(pvs$cor)
+    # calculate performance using the DBgraph method compare()
+    comp <- BDgraph::compare(g_adj, g_val_adj)
+    f1 <- comp["F1-score", "estimate1"]
+    mcc <- comp["MCC", "estimate1"]
 
-    # get qvalue
-    if(nrow(pvs)>10) {
-      pvs <- cbind(pvs, qval=qvalue(pvs$pval,
-  				  lambda=seq(0.05,max(pvs$pval), 0.05))$qvalues)
-      use <- pvs$qval<0.05 & abs(pvs$cor)>0.3
+    print(paste0("MCC: ", format(mcc, digits = 3)))
+    print(paste0("F1: ", format(f1, digits = 3)))
+
+    # the fraction of nodes retained in the overlap w.r.t. to the
+    # total number of possible nodes
+    common_nodes <- ncol(g_adj)
+    mcc_frac <- common_nodes / ncol(data_val)
+    row <- c(row, cross_cohort_f1=f1, cross_cohort_mcc=mcc,
+             cross_cohort_mcc_frac=mcc_frac,
+             common_nodes=common_nodes)
+  } else {
+    row <- c(row, cross_cohort_f1=NA, cross_cohort_mcc=NA,
+             cross_cohort_mcc_frac=NA,
+             common_nodes=NA)
+  }
+
+  # ------------------------------------------------------------------------------
+  print("Checking mediation.")
+  # ------------------------------------------------------------------------------
+  if ("kora" %in% cohort) {
+    med_val <- readRDS(fmediation_lolipop)
+    med_fit <- readRDS(fmediation_kora)
+  } else {
+    med_val <- readRDS(fmediation_kora)
+    med_fit <- readRDS(fmediation_lolipop)
+  }
+  row <-
+    c(row,
+      mediation.summary(med_val, sgenes, sgenes_selected, mediation_cutoff))
+
+  # we also check the correspondence of the correlation values for all genes
+  med_comparison <- compare_mediation_results(
+    sentinel,
+    med_val,
+    med_fit,
+    sgenes_selected,
+    mediation_cutoff
+  )
+
+  row <- c(
+    row, med_comparison
+  )
+
+  # ------------------------------------------------------------------------------
+  print("Validating cis-eQTLs.")
+  # ------------------------------------------------------------------------------
+
+  # filter ceqtl to be only related to our sentinel SNP
+  # TODO use proxy/high ld snps to increase ceqtl number?
+  ceqtlsub <- ceqtl[ceqtl$Rs_ID %in% snp]
+  if (nrow(ceqtlsub) < 1) {
+    warning("Sentinel " %+% sentinel %+% " not found in cis-eQTL data")
+    # report NA in stats file
+    row <- c(row, cisEqtl=NA)
+  } else {
+    ceqtl_sgenes <- sgenes[sgenes %in% unlist(strsplit(ceqtlsub$Transcript_GeneSymbol, "\\|"))]
+    ceqtl_sgenes_selected <-
+      intersect(ceqtl_sgenes, sgenes_selected)
+
+    # create matrix for fisher test
+    cont <-
+      matrix(
+        c(
+          length(ceqtl_sgenes),
+          length(ceqtl_sgenes_selected),
+          length(sgenes),
+          length(sgenes_selected)
+        ),
+        nrow = 2,
+        ncol = 2,
+        byrow = T
+      )
+    rownames(cont) <- c("ceqtl", "no ceqtl")
+    colnames(cont) <- c("not selected", "selected")
+    row <- c(row,
+             cisEqtl=fisher.test(cont)$p.value)
+  }
+
+  # ------------------------------------------------------------------------------
+  print("CpG-gene and TF-CpG validation.")
+  # ------------------------------------------------------------------------------
+  # filter teqtl to be only related to our sentinel SNP
+  # TODO use proxy/high ld snps to increase teqtl number?
+  teqtlsub <-
+    teqtl[teqtl$Rs_ID %in% snp]# & (teqtl$log10FDR) < (-2),,drop=F]
+  if (nrow(teqtlsub) < 1) {
+    warning("Sentinel " %+% sentinel %+% " not available in trans-eQTL data.")
+    # report NA in stats file
+    row <- c(row, transEqtl_tgenes=NA, transEqtl_tfs=NA)
+  } else {
+    if(ranges$seed == "meqtl") {
+      row <- c(row,
+               validate_trans_genes(teqtlsub, cgenes, tfs,
+                                    cgenes_selected, tfs_selected))
     } else {
-      pvs <- cbind(pvs, qval=rep(NA, nrow(pvs)))
-      use <- rep(F, nrow(pvs))
-    }
-
-    # fill matrix
-    for(i in 1:nrow(pvs)) {
-     r <- pvs[i,,drop=F]
-     if(use[i]) {
-       m[r$n1, r$n2] <- m[r$n2, r$n1] <- 1
-     } else {
-       m[r$n1, r$n2] <- m[r$n2, r$n1] <- 0
-     }
-    }
-
-    n <- intersect(colnames(m), colnames(model_adj))
-    m <- m[n,n]
-    model_adj <- model_adj[n,n]
-    res <- BDgraph::compare(model_adj, m)
-    res["MCC","estimate"]
-  })
-  names(results) <- names(expr.data)
-  # report MCC for each dataset
-  return(unlist(results))
-}
-
-#' Validate the genes in the GGM by performing a
-#' GO enrichment on them
-#'
-#' @param gnodes The nodes in the GGM graph
-#'
-#' @author Johann Hawe
-#'
-#' @return A vector containing enriched GOIDs, terms, their pvalues and
-#' qvalues or instead only containing NAs if no enrichments was found
-#'
-validate_geneenrichment <- function(gnodes) {
-
-  # get only gene nodes
-  gn <- gnodes[!grepl("^rs|^cg",gnodes)]
-
-  # define background set
-  # for now all possible symbols from the array annotation
-  # are used
-  #bgset <- dnodes[!grepl("^rs|^cg",dnodes)]
-
-  annot <- illuminaHumanv3SYMBOLREANNOTATED
-  bgset <- unique(unlist(as.list(annot)))
-
-  if(length(gn)>0 & length(gn)<length(bgset)){
-    go.tab <- go.enrichment(gn, bgset, gsc)
-    go.tab <- go.tab[go.tab$q<0.01,,drop=F]
-    if(nrow(go.tab)>0){
-      r <- c(paste0(go.tab$GOID, collapse=","),
-               paste0(go.tab$Term, collapse=","),
-               paste0(go.tab$Pvalue, collapse=","),
-               paste0(go.tab$q, collapse=","))
-      return(r)
+      row <- c(row,
+               validate_trans_genes(teqtlsub, trans_entities, tfs,
+                                    trans_entities_selected, tfs_selected))
     }
   }
-  r <- c(NA, NA, NA, NA)
-  return(r)
-}
 
-#' Validates all trans genes (tfs and cpg-genes) by using a set of
-#' previously identified trans eqtls
-#'
-#' @param teqtl The set of related trans eqtls
-#' @param cgenes The CpG-genes to be checked
-#' @param cgenes.selected THe CpG-genes selected in the GGM
-#' @param tfs The TFs to be checked
-#' @param tfs.selected The TFs selected in the GGM
-#'
-#' @author Johann Hawe
-#'
-#' @return Fisher pvalues for the two contingency table tests
-#'
-validate_trans_genes <- function(teqtl, cgenes, tfs,
-                                 cgenes.selected, tfs.selected) {
+  # we can also count how many of the identified cpg
+  # genes are eQTMs in the bonder dataset
+  # first convert bonder ensembl ids to symbols
+  # (bonder results already filtered for sign. assoc.)
+  bnd <- eqtms[, c("SNPName", "HGNCName")]
+  bnd_symbol <- unique(bnd$HGNCName)
+  row <-
+    c(row, validate_cpggenes(bnd_symbol, cgenes, cgenes_selected))
 
-  # analyze the cpggenes, total and selected
-  teqtl.cgenes <- cgenes[cgenes %in% teqtl$Transcript_GeneSymbol]
-  teqtl.cgenes.selected <- intersect(teqtl.cgenes, cgenes.selected)
+  # ------------------------------------------------------------------------------
+  print("Gene-Gene validation.")
+  # ------------------------------------------------------------------------------
+  # load geo whole blood expression data
+  geo_sym <- all_genes[all_genes %in% geo$symbol]
+  geosub <- geo[geo_sym]
+  geosub <- t(geosub[, -1, with = F])
+  colnames(geosub) <- geo_sym
 
-  # analyze the tfs, total and selected
-  teqtl.tfs <- tfs[tfs %in% teqtl$Transcript_GeneSymbol]
-  teqtl.tfs.selected <- intersect(teqtl.tfs, tfs.selected)
+  # list of all expr datasets
+  expr.data <- list(geo = geosub, cohort = data_val[, all_genes, drop = F])
+  val_g2g <- validate_gene2gene(expr.data, graph_maxcluster, all_genes)
+  names(val_g2g) <- c("geo_gene_gene", "cohort_gene_gene")
+  row <- c(row, val_g2g)
 
-  cat("CpG genes: ", cgenes, "\n")
-  cat("CpG genes with trans-eQTL: ", teqtl.cgenes, "\n")
-  cat("selected CpG genes with trans-eQTL: ", teqtl.cgenes.selected, "\n")
+  # ------------------------------------------------------------------------------
+  #print("GO enrichment.")
+  # ------------------------------------------------------------------------------
+  #go <- validate_geneenrichment(gnodes)
+  #if(!is.null(go)) {
+  #  names(go) <- c("go_ids", "go_terms", "go_pvals", "go_qvals")
+  #} else {
+  #  go <- rep(NA, 4)
+  #  names(go) <- c("go_ids", "go_terms", "go_pvals", "go_qvals")
+  #}
+  #row <- c(row, go)
 
-  cat("TFs: ", tfs, "\n")
-  cat("TFs with trans-eQTL: ", teqtl.tfs, "\n")
-  cat("selected TFs with trans-eQTL: ", teqtl.tfs.selected, "\n")
+  return(row)
+}, mc.cores=threads)
 
-  # create matrix for fisher test
-  cont <- matrix(c(length(teqtl.cgenes),length(teqtl.cgenes.selected),
-                   length(cgenes),length(cgenes.selected)),
-                 nrow=2,ncol=2, byrow = T)
-  cat("confusion matrix for cgenes:\n")
-  rownames(cont) <- c("teqtl", "no teqtl")
-  colnames(cont) <- c("not selected", "selected")
-  f1 <- fisher.test(cont)$p.value
+# write output file
+valid <- do.call(rbind, valid)
+write.table(file=fout, valid, col.names=T,
+            row.names=F, quote=F, sep="\t")
 
-  # create matrix for fisher test
-  cont <- matrix(c(length(teqtl.tfs),length(teqtl.tfs.selected),
-                   length(tfs),length(tfs.selected)),
-                 nrow=2,ncol=2, byrow = T)
-  cat("confusion matrix for TFs:\n")
-  rownames(cont) <- c("teqtl", "no teqtl")
-  colnames(cont) <- c("not selected", "selected")
-  f2 <- fisher.test(cont)$p.value
-
-  # report fisher test results
-  return(c(transEqtl_cgenes=f1,transEqtl_tfs=f2))
-}
-
-sigma.trace <- function(ggm.fit) {
-
-}
+# ------------------------------------------------------------------------------
+print("SessionInfo:")
+# ------------------------------------------------------------------------------
+sessionInfo()
+sink()
+sink(type="message")

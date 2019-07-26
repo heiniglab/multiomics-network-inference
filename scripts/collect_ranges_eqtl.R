@@ -118,7 +118,7 @@ if(length(tfs)<1){
   warning("No TFs, skipping shortest paths calculation.")
 } else {
   sp <- collect_shortest_path_genes(tfs$SYMBOL, trans_genes$SYMBOL,
-                                    tfs_by_transGene, ppi_genes, 
+                                    tfs_by_transGene, ppi_genes,
                                     snp_genes$SYMBOL, ppi_db, gene_annot)
 }
 

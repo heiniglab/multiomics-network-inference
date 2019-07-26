@@ -94,7 +94,7 @@ get_tfs_by_transGene <- function(tfbs, trans_genes, gene_annot) {
 #' @author Johann Hawe <johann.hawe@helmholtz-muenchen.de>
 #' ------------------------------------------------------------------------------
 collect_shortest_path_genes <- function(tfs, trans_genes, tfs_by_transGene,
-                                        ppi_genes, cis_genes, ppi_db, 
+                                        ppi_genes, cis_genes, ppi_db,
                                         gene_annot) {
   # add any TFs, trans genes and their binding information to the PPI db
   toadd <- setdiff(tfs, ppi_genes)
@@ -122,11 +122,12 @@ collect_shortest_path_genes <- function(tfs, trans_genes, tfs_by_transGene,
 }
 
 # ------------------------------------------------------------------------------
-# Simply helper to quickly plot ranges
+# Simple helper to quickly plot ranges
 # ------------------------------------------------------------------------------
 plot_ranges <- function(ranges, fout) {
-  library(ggplot2)
-  
+  require(ggplot2)
+  cols <- get_defaultcolors()
+
   # get number of entities
   sg <- length(ranges$snp_genes)
   tfs <- length(ranges$tfs)
@@ -138,15 +139,57 @@ plot_ranges <- function(ranges, fout) {
                        "trans associated"),
                        count=c(sg, tfs, sp, trans_assoc))
 
-  gt <- ggtitle(paste0("Entities for sentinel ", names(ranges$sentinel), 
+  gt <- ggtitle(paste0("Entities for sentinel ", names(ranges$sentinel),
                        " in tissue " , ranges$tissue, "."))
 
   pdf(fout, width=12, height=12)
-  
+
   # barplot of number of individual entity types
   print(ggplot(aes(y=count, x=name), data=toplot) +
     geom_bar(stat="identity", position="dodge") + gt + theme_linedraw() + 
     theme(axis.text.x = element_text(angle = 90, hjust = 1)))
 
   dev.off()
+}
+
+#' -----------------------------------------------------------------------------
+#' Gets the first ranges in subject, which are up-/down-stream and overlapping
+#' a range in the query
+#'
+#' @param query ranges for which to get nearby genes
+#' @param subject ranges in which to look for nearby genes
+#'
+#' @return Either the idx of the hits in the subject if idxs=T, or the identified ranges (idxs=F)
+#'
+#' -----------------------------------------------------------------------------
+get.nearby.ranges <- function(query, subject) {
+
+  nearby <- function(q,s){
+    # get preceding, following and overlapping instances of any
+    # range in query within subject ranges
+    pre <- precede(q, s, select="all", ignore.strand=T)
+    fol <- follow(q, s, select="all", ignore.strand=T)
+    ove <- findOverlaps(q, s, select="all", ignore.strand=T)
+    # combine hits
+    h <- unique(c(subjectHits(pre), subjectHits(fol), subjectHits(ove)))
+
+    return(list(hits=h, ranges=s[h]))
+  }
+
+  #return a list, where each query gets its nearby ranges annotated with their distance
+  res <- lapply(1:length(query), function(j) {
+    q <- query[j]
+    n <- nearby(q, subject)
+    if(length(n$hits)>0){
+      n$ranges$distance <- rep(-1, times=length(n$ranges))
+      for(i in 1:length(n$ranges)) {
+        d <- distance(q,n$ranges[i])
+        n$ranges[i]$distance <- d
+      }
+      return(n$ranges)
+    } else {
+      return(NULL)
+    }
+  })
+  return(res)
 }

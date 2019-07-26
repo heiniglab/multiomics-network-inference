@@ -26,6 +26,7 @@ fgene_annot <- snakemake@input$gene_annot
 # output
 fout_plot <- snakemake@output$plot
 dout_loci <- snakemake@output$loci_dir
+fout_table <- snakemake@output$table
 
 # params
 
@@ -37,8 +38,8 @@ print("Loading and processing data.")
 # ------------------------------------------------------------------------------
 load(fkora_data)
 available_snps <- colnames(geno)
-#load(flolipop_data)
-#available_snps <- intersect(available_snps, colnames(geno))
+load(flolipop_data)
+available_snps <- intersect(available_snps, colnames(geno))
 
 rm(geno,expr,meth,covars)
 gc()
@@ -52,39 +53,32 @@ eqtl <- eqtl[eqtl$SNP %in% available_snps,]
 
 # get all trans genes per SNP
 trans_genes_by_snp <- tapply(eqtl$GeneSymbol, eqtl$SNP, function(x) {
-  if(length(unique(x)) >= hots_thres) {
-    return(unique(x))
-  } else{
-    return(NULL)
-  }
+  return(length(unique(x)))
 })
 
-# remove NULLs
-trans_genes_by_snp <- trans_genes_by_snp[!unlist(lapply(trans_genes_by_snp,
-                                                        is.null))]
+ntrans <- unlist(trans_genes_by_snp, length)
+eqtl$ntrans <- ntrans[match(eqtl$SNP, names(ntrans))]
 
 # extract dataframe
-hotspots <- cbind.data.frame(sentinel=names(trans_genes_by_snp),
-                             ntrans=unlist(lapply(trans_genes_by_snp, length)),
-                             stringsAsFactors=F)
-hotspots <- cbind(hotspots,
-                  eqtl[match(hotspots$sentinel, eqtl$SNP),
-                       c("SNPPos", "SNPChr")])
-hotspot_ranges <- with(hotspots, GRanges(SNPChr, IRanges(SNPPos, width=1)))
+hotspots <- eqtl[ntrans >= hots_thres]
+hotspot_ranges <- unique(with(hotspots, GRanges(SNPChr, IRanges(SNPPos, width=1))))
 
 print("Total number of hotspots:")
-print(nrow(hotspots))
+print(length(hotspot_ranges))
 
 # ------------------------------------------------------------------------------
 print("Saving and plotting results.")
 # ------------------------------------------------------------------------------
+fwrite(file=fout_table, hotspots, sep="\t", col.names=T)
+
 # create dummy files (more convenient for snakemake) for each sentinel
 for(i in 1:nrow(hotspots)) {
-  file.create(paste0(dout_loci, hotspots[i,"sentinel"], ".dmy"))
+  file.create(paste0(dout_loci, hotspots[i,"SNP"], ".dmy"))
 }
 
 # plot a simple histogram for now
-theme_set(theme_bw())
+theme_set(theme_linedraw())
+toplot <- hotspots[!duplicated(SNP)]
 
 pdf(fout_plot)
 ggplot(aes(x=ntrans), data=hotspots) + geom_histogram() +

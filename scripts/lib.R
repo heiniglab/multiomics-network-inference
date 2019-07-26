@@ -7,9 +7,20 @@
 #'
 #' @author Johann Hawe
 # ------------------------------------------------------------------------------
-set_defaultcolors <- function() {
+get_defaultcolors <- function(n=5, name=c("wes", "rcb")) {
   suppressPackageStartupMessages(library(wesanderson))
-  cols <- wes_palette(n=5, "FantasticFox1")
+  library(RColorBrewer)
+  # wes_palette is only up to 5 colors
+  if(n<=5) {
+    if("wes" %in% name) {
+      cols <- wes_palette(n, "FantasticFox1")
+    } else {
+      cols <- brewer.pal(n, "Dark2")
+    }
+  } else {
+      # default to rcolorbrewer palette
+      cols <- brewer.pal(n, "Dark2")
+  }
   return(cols)
 }
 
@@ -135,6 +146,10 @@ load_gene_annotation <- function(fgene_annot) {
   ra$SYMBOL <- gene_name
   ra$BIOTYPE <- gene_biotype
 
+  # finally, filter out 'misc_RNA' types and unusual chromosomes
+  ra <- ra[ra$BIOTYPE != "misc_RNA"]
+  ra <- keepStandardChromosomes(ra)
+
   return(ra)
 }
 
@@ -190,6 +205,11 @@ get.snp.range <- function(snp){
 get_tfbs_context <- function(entities, fcontext) {
   cont <- readRDS(fcontext)
   tfbs_ann <- cont[rownames(cont) %in% entities,,drop=F]
+
+  if(nrow(tfbs_ann) < 1) return(tfbs_ann)
+
+  entities <- entities[entities %in% rownames(cont)]
+
   return(tfbs_ann[entities,,drop=F])
 }
 
@@ -248,7 +268,10 @@ annotate.graph <- function(g, ranges, ppi_db, fcontext){
   if(ranges$seed == "meqtl") {
     context <- get_tfbs_context(names(ranges$cpgs), fcontext)
   } else {
-    context <- get_tfbs_context(ranges$trans_genes$SYMBOL, fcontext)
+    genes <- unique(c(ranges$trans_genes$SYMBOL, ranges$cis_gene$SYMBOL,
+                      ranges$tfs$SYMBOL, ranges$snp_genes$SYMBOL, 
+                      ranges$spath$SYMBOL))
+    context <- get_tfbs_context(genes, fcontext)
   }
 
   em <- matrix(ncol=2,nrow=0)
@@ -256,7 +279,7 @@ annotate.graph <- function(g, ranges, ppi_db, fcontext){
   for(ent in rownames(context)){
     for(tf in tfs) {
       # might be that the TF was measured in more than one cell line
-      if(any(context[ent,grepl(tf, colnames(context))])) {
+      if(any(context[ent,grepl(tf, colnames(context))]>0)) {
         em <- rbind(em,c(ent,tf))
       }
     }
@@ -303,7 +326,7 @@ plot.ggm <- function(g, id, plot.on.device=T, dot.out=NULL, ...){
   suppressPackageStartupMessages(library(Rgraphviz))
 
   # get some default colors to be used here
-  cols <- set_defaultcolors()
+  cols <- get_defaultcolors(n=8)
 
   # remove any unconnected nodes (primarily for bdgraph result, since
   # such nodes are already removed for genenet)
@@ -322,14 +345,15 @@ plot.ggm <- function(g, id, plot.on.device=T, dot.out=NULL, ...){
   }
 
   # now get the cluster which contains our sentinel
-  ig = graph_from_graphnel(g)
-  cl = clusters(ig)
-  sentinel_cluster <- cl$membership[names(cl$membership) == id]
-  keep = nodes(g)[cl$membership == sentinel_cluster]
-  g = subGraph(keep, g)
+#  ig = graph_from_graphnel(g)
+#  cl = clusters(ig)
+#  sentinel_cluster <- cl$membership[names(cl$membership) == id]
+#  keep = nodes(g)[cl$membership == sentinel_cluster]
+#  g = subGraph(keep, g)
   
   # the remaining nodes
-  n <- keep
+#  n <- keep
+  n <- nodes(g)
 
   # get trans and cpg gene symbols
   snp.genes <- n[unlist(nodeData(g,n,"snp.gene"))]
@@ -345,8 +369,7 @@ plot.ggm <- function(g, id, plot.on.device=T, dot.out=NULL, ...){
   tfs <- n[unlist(nodeData(g,n,"tf"))]
 
   # prepare plot-layout
-  attrs <- list(node=list(fixedsize=TRUE, fontsize=14,
-                          style="filled", fontname="helvetica"),
+  attrs <- list(node=list(fixedsize=TRUE, fontsize=14, fontname="helvetica"),
                 graph=list(overlap="false", root=id[1], outputorder="edgesfirst"))
 
   shape = rep("ellipse", numNodes(g))
@@ -366,15 +389,23 @@ plot.ggm <- function(g, id, plot.on.device=T, dot.out=NULL, ...){
   names(label) = n
   label[grep("cg", n)] = ""
 
+  style <- rep("filled", numNodes(g))
+  names(style) <- n
+
   col = rep("#ffffff", numNodes(g))
   names(col) = n
   col[grep(id, n)] = cols[1]
   col[grep("^cg", n)] = cols[2]
-  if(!is.null(tfs)){
-    col[tfs] = cols[3]
-  }
   col[snp.genes] = cols[4]
   col[assoc_genes] = cols[5]
+  if(!is.null(tfs)){
+    col[tfs] = cols[3]
+    tf_cis <- intersect(tfs, snp.genes)
+    if(length(tf_cis) > 0) {
+      # set two colors since both TF and snp gene
+      col[tf_cis] <- cols[6]
+    }
+  }
 
   penwidth = rep(1, numNodes(g))
   names(penwidth) = n
@@ -389,7 +420,7 @@ plot.ggm <- function(g, id, plot.on.device=T, dot.out=NULL, ...){
   bordercol[assoc_genes] = "#e4d7bc";
   bordercol[id] = "#ffe30f";
 
-  nAttrs = list(shape=shape, label=label, width=width,
+  nAttrs = list(shape=shape, label=label, style=style,  width=width,
                 height=height, penwidth=penwidth, fillcolor=col,
                 color=bordercol)
 
@@ -425,16 +456,16 @@ plot.ggm <- function(g, id, plot.on.device=T, dot.out=NULL, ...){
 
   eAttrs = list(color=ecol, dir=dir)
 
-  if(numEdges(g)>600){
+  if(numEdges(g)>60000){
     warning("Skipping plotting on device due to large amount of edges")
   } else if(plot.on.device) {
     plot(g, "twopi", nodeAttrs=nAttrs, edgeAttrs=eAttrs, attrs=attrs, ...)
     # start with empty plot, then add legend
     plot(NULL ,xaxt='n',yaxt='n',bty='n',ylab='',xlab='', xlim=0:1, ylim=0:1)
 
-    legend("left", legend = c("SNP","SNP gene","TF","assoc gene"),
+    legend("left", legend = c("SNP","SNP gene","TF","assoc gene", "SNP gene/TF"),
            pch=16, pt.cex=3, cex=1.5, bty='n',
-           col = c(cols[1], cols[4], cols[3], cols[5]), title="graph legend")
+           col = c(cols[1], cols[4], cols[3], cols[5], cols[6]), title="graph legend")
   }
 
   if(!is.null(dot.out)){

@@ -104,13 +104,13 @@ print("Collecting TFs and shortest path genes.")
 # ------------------------------------------------------------------------------
 
 # load all TFBS we have available in our data and connect with trans-genes
-tfbs <- tfbs[rownames(tfbs) %in% trans_genes$SYMBOL,,drop=F]
+tfbs <- tfbs[rownames(tfbs) %in% names(trans_genes),,drop=F]
 tfs <- NULL
 sp <- NULL
 
 tfs_by_transGene <- get_tfs_by_transGene(tfbs, trans_genes, gene_annot)
 if(length(tfs_by_transGene) > 0) {
-  tfs <- unique(unlist(GenomicRangesList(tfs_by_transGene)))
+  tfs <- unique(unlist(GenomicRangesList(tfs_by_transGene), use.names=F))
 }
 
 # find the shortest path genes between the SNP genes and the annotated TFs

@@ -110,7 +110,7 @@ Below we give an a example snakemake call which utilizes the new
 SLURM cluster environment
 
 > NOTE: this call uses conda, in our case that means that we first
-# have to reset our R_LIBS (i.e. *export R_LIBS=":"*)
+> have to reset our R_LIBS (i.e. *export R_LIBS=":"*)
 > NOTE 2: for the SLURM to work, we have to log in into IRIS
 
 ```{bash}

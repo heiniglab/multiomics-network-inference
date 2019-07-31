@@ -78,8 +78,9 @@ reg_net <- function(data,
 
     # for some reason, this method yields a sporadic error. testing in an R
     # console, we found that this also appears within the same session in e.g.
-    # two subsequent calls: one with error, one withou.  it seems the error is rather
-    # rare, so we can essentially 'wait' for it to disappear..
+    # two subsequent calls: one with error, one without.
+    # it seems the error is rather rare, so we can essentially 'wait' for it to
+    # disappear..
     pcors <- try({
       ggm.estimate.pcor(data.matrix(data_no_nas))
     })

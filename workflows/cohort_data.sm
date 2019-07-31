@@ -7,8 +7,8 @@ localrules: all_cohort, summarize_validation_eqtlgen, summarize_validation_meqtl
 #-------------------------------------------------------------------------------
 rule all_cohort:
         input:
-                DCOHORT_VAL + "validation_all_meqtl.txt",
-                DCOHORT_VAL + "validation_all_eqtlgen.txt",
+                DCOHORT_VAL + "validation_all_meqtl_gwas.txt",
+                DCOHORT_VAL + "validation_all_eqtlgen_gwas.txt",
                 DRANGES + "summary.pdf",
                 DRANGES + "summary.pdf"
 
@@ -172,9 +172,10 @@ rule summarize_validation_eqtlgen:
 #------------------------------------------------------------------------------
 rule add_gwas_information:
 	input:
-		DCOHORT_VAL + "validation_all_{seed}.txt"
+		validation=DCOHORT_VAL + "validation_all_{seed}.txt",
+		gwas="data/current/gwas/gwas_catalog_v1.0.2-associations_e96_r2019-07-12.tsv"
 	output:
-		DCOHORT_VAL + "validation_all_{seed}_gwas.txt"
+		validation=DCOHORT_VAL + "validation_all_{seed}_gwas.txt"
 	conda:
 		"../envs/bioR.yaml"
 	script:
@@ -259,5 +260,6 @@ rule interesting_graphs:
 		DGRAPH_PLOTS + "rs7783715_meqtl/all.pdf",
 		DGRAPH_PLOTS + "rs2227901_eqtlgen/all.pdf",
 		DGRAPH_PLOTS + "rs730775_eqtlgen/all.pdf",
+		DGRAPH_PLOTS + "rs730775_meqtl/all.pdf",
 		DGRAPH_PLOTS + "rs17081933_meqtl/all.pdf",
 		DGRAPH_PLOTS + "rs79755767_eqtlgen/all.pdf",

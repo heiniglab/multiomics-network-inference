@@ -82,7 +82,7 @@ general performance to recover the ground truth network 2) how much they are
 influenced by the exisiting prior information and noise therein. The target rule
 for this simulation study is `all_simulation`.
 
-```{bash
+```{bash}
 
 nohup nice snakemake --use-conda -w 10 -k -u configs/cluster.json --jobs=100 --local-cores=18 \
   --cluster "qsub -pe smp {threads} -hard -l job_mem={resources.mem_mb}M \
@@ -110,7 +110,7 @@ Below we give an a example snakemake call which utilizes the new
 SLURM cluster environment
 
 > NOTE: this call uses conda, in our case that means that we first
-# have to reset our R_LIBS (i.e. *export R_LIBS=":"*)
+> have to reset our R_LIBS (i.e. *export R_LIBS=":"*)
 > NOTE 2: for the SLURM to work, we have to log in into IRIS
 
 ```{bash}

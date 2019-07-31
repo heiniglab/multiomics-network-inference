@@ -256,6 +256,25 @@ rule annotate_tss_with_tf:
         script:
                 "scripts/annotate_tss_with_tf.R"
 
+# -----------------------------------------------------------------------------
+# Calculate the TF activities. Results are data matrices containing residual
+# corrected expression/TFA values for all available genes
+# -----------------------------------------------------------------------------
+rule calculate_tfa:
+	input:
+		cohort_data="results/current/ggmdata_{cohort}.RData",
+		tfbs_annot="results/current/tfbs_tss_annot.rds"
+	output:
+		heatmap="results/current/tfa/heatmap_{cohort}.pdf",
+		tfa="results/current/tfa/activities_{cohort}.rds",
+		expr="results/current/tfa/expression_{cohort}.rds",
+	conda:
+		"envs/bioR.yaml"
+	log:
+		"logs/calculate_tfa_{cohort}.log"
+	script:
+		"scripts/calculate_tfa.R"
+
 #------------------------------------------------------------------------------
 # Collect cohort data for a single sentinel locus
 #------------------------------------------------------------------------------

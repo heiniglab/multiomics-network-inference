@@ -59,7 +59,8 @@ adjust_data <- function(sentinel, ranges, data, geno, fccosmo, fceqtl) {
 
       # get rid of cis-eqtl effects
       print("Adjusting for cis eqtls.")
-      g_resid <- adjust_cis_eqtls(g_resid, eqtls, gen)
+      cpg_gene_probes <- unique(unlist(ranges$cpg_genes$ids))
+      g_resid <- adjust_cis_eqtls(g_resid, eqtls, gen, cpg_gene_probes)
     }
 
     # process the CpG data
@@ -155,24 +156,39 @@ rm_covariate_effects <- function(data, data.type, cols=NULL) {
 
 # ------------------------------------------------------------------------------
 #' Takes a gene expression matrix and adjusts the genes' expression
-#' for cis-eQTLs
+#' for cis-eQTLs. Should be used with the 'probe_subset' feature to e.g. adjust
+#' only the expression of CpG genes.
 #'
 #' @param expr Gene expression matrix with all the genes in the column.
 #' Column names need to be illumina probe ids.
 #' @param eqtls List of eqtls for which to adjust the data
 #' @param geno_data Available genotype data
+#' @param probe_subset Subset of probes for which to adjust the data
 #'
 #' @return The gene expression matrix adjusted for cis-eQTLs
 #'
 #' @author  Johann Hawe
 #'
 # ------------------------------------------------------------------------------
-adjust_cis_eqtls <- function(expr, eqtls, geno_data){
+adjust_cis_eqtls <- function(expr, eqtls, geno_data, probe_subset=NULL){
 
-  # for all cpg-genes, adjust for potential cis-eqtls (i.e. snp-effects)
-  toUse <- which(eqtls$probe_id %in% colnames(expr))
-  if(length(toUse) == 0){
-    return(expr)
+  # sanity check
+  if(!is.null(probe_subset) && !all(probe_subset %in% colnames(expr))) {
+    stop("Invalid probe subset provided!")
+  }
+
+  if(!is.null(probe_subset)) {
+    # for the subset of probes adjust for potential cis-eqtls (i.e. snp-effects)
+    toUse <- which(eqtls$probe_id %in% probe_subset)
+    if(length(toUse) == 0){
+      return(expr)
+    }
+  } else {
+    # use all probes
+    toUse <- which(eqtls$probe_id %in% colnames(expr))
+    if(length(toUse) == 0){
+      return(expr)
+    }
   }
 
   eqtls <- eqtls[toUse, , drop=F]

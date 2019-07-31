@@ -10,6 +10,7 @@
 print("Load libraries and source scripts")
 # ------------------------------------------------------------------------------
 library(tidyverse)
+library(parallel)
 source("scripts/lib.R")
 source("scripts/snipe.R")
 
@@ -17,6 +18,8 @@ fvalidation <- snakemake@input$validation
 fgwas <- snakemake@input$gwas
 
 fout_validation <- snakemake@output$validation
+
+threads <- snakemake@threads
 
 # ------------------------------------------------------------------------------
 print("Loading and processing data.")
@@ -28,9 +31,9 @@ val <- read_tsv(fvalidation)
 snps <- unique(val$sentinel)
 
 # get gwas traits for all SNPs
-traits_per_snp <- lapply(snps, function(s) {
+traits_per_snp <- mclapply(snps, function(s) {
   return(get_gwas_traits(s, gwas))
-})
+}, mc.cores=threads)
 names(traits_per_snp) <- snps
 
 val$gwas_disease_trait <- NA

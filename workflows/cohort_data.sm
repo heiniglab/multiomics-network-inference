@@ -178,6 +178,7 @@ rule add_gwas_information:
 		validation=DCOHORT_VAL + "validation_all_{seed}_gwas.txt"
 	conda:
 		"../envs/bioR.yaml"
+	threads: 10
 	script:
 		"../scripts/validation_annotate_gwas.R"
 

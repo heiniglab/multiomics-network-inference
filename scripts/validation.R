@@ -199,9 +199,9 @@ valid <- mclapply(graph_types, function(graph_type) {
            snp_cluster=unname(snp_cluster),
            snp_cluster_size=snp_cluster_size)
 
-  # ------------------------------------------------------------------------------
+  # ----------------------------------------------------------------------------
   print("Getting largest CC for validation.")
-  # ------------------------------------------------------------------------------
+  # ----------------------------------------------------------------------------
   keep <- cl$membership == which.max(cl$csize)
   keep <- names(cl$membership[keep])
   if(!is.null(keep)) {
@@ -211,22 +211,18 @@ valid <- mclapply(graph_types, function(graph_type) {
   # the nodes retained in the fitted graph model in the largest CC
   gnodes <- graph::nodes(graph_maxcluster)
 
-  # ------------------------------------------------------------------------------
+  # ----------------------------------------------------------------------------
   print("Calculating graph score.")
-  # ------------------------------------------------------------------------------
+  # ----------------------------------------------------------------------------
   # we use the (full) igraph object for this, will be filtered for the sentinel
   # cluster
   score <- get_graph_score(ig, sentinel, ranges, gd)
   row <- c(row,
            graph_score = score)
 
-  # ------------------------------------------------------------------------------
+  # ----------------------------------------------------------------------------
   print("Defining entity sets (selected / not selected)")
-  # ------------------------------------------------------------------------------
-
-  # for now, filter only for those nodes for which data was available
-  # should change once we update the data matrix...
-  #gnodes <- gnodes[gnodes %in% dnodes]
+  # ----------------------------------------------------------------------------
 
   # get names of all entities, total and selected by ggm
   snp <- sentinel
@@ -244,18 +240,34 @@ valid <- mclapply(graph_types, function(graph_type) {
   sgenes <- intersect(dnodes, ranges$snp_genes$SYMBOL)
   if (snp %in% gnodes) {
     sgenes_selected <- sgenes[sgenes %in% unlist(adj(graph_maxcluster, snp))]
-    # snp genes also have to be connected to trans entities without traversing
-    # the snp itself
-    graph_temp <- subGraph(setdiff(gnodes, snp), graph_maxcluster)
-    print(graph_temp)
-    if(length(sgenes_selected) > 0 & length(trans_entities_selected) > 0) {
-      igraph_temp <- igraph::graph_from_graphnel(graph_temp)
-      paths <-
-        suppressWarnings(get.shortest.paths(igraph_temp, sgenes_selected,
-                                            intersect(V(igraph_temp)$name,
-                                                      trans_entities_selected)))$vpath[[1]]
 
-      sgenes_selected <- intersect(sgenes_selected, paths$name)
+    # only proceed if we have at least one selected snp gene and trans entity
+    if(length(sgenes_selected) > 0 & length(trans_entities_selected) > 0) {
+
+      # collection of 'real' selected SNP genes (with path to one of the trans
+      # entities)
+      temp_genes <- c()
+
+      # check each snp gene individually
+      for(sg in sgenes_selected) {
+        # snp genes have to be connected to trans entities without traversing
+        # the snp itself and must not go via another snp gene
+        # -> create subgraph without those entities
+        sg_other <- setdiff(sgenes_selected, sg)
+        graph_temp <- subGraph(setdiff(gnodes, c(snp, sg_other)),
+                               graph_maxcluster)
+        igraph_temp <- igraph::graph_from_graphnel(graph_temp)
+
+        # get paths
+        paths <-
+          suppressWarnings(get.shortest.paths(igraph_temp, sg,
+                                              intersect(V(igraph_temp)$name,
+                                                        trans_entities_selected)))$vpath[[1]]
+
+        # did we find a path with the current SNP gene?
+        temp_genes <- unique(c(temp_genes, intersect(sg, paths$name)))
+      }
+      sgenes_selected <- temp_genes
     } else {
       sgenes_selected <- c()
     }
@@ -305,7 +317,9 @@ valid <- mclapply(graph_types, function(graph_type) {
     tfs=length(tfs),
     tfs_selected=length(tfs_selected),
     spath=length(spath),
-    spath_selected=length(spath_selected)
+    spath_selected=length(spath_selected),
+    tfs_per_trans=length(tfs)/length(trans_entities),
+    tfs_per_trans_selected=length(tfs_selected)/length(trans_entities_selected)
   )
 
   # ------------------------------------------------------------------------------
@@ -467,17 +481,24 @@ valid <- mclapply(graph_types, function(graph_type) {
   names(val_g2g) <- c("geo_gene_gene", "cohort_gene_gene")
   row <- c(row, val_g2g)
 
-  # ------------------------------------------------------------------------------
-  #print("GO enrichment.")
-  # ------------------------------------------------------------------------------
-  #go <- validate_geneenrichment(gnodes)
-  #if(!is.null(go)) {
-  #  names(go) <- c("go_ids", "go_terms", "go_pvals", "go_qvals")
-  #} else {
-  #  go <- rep(NA, 4)
-  #  names(go) <- c("go_ids", "go_terms", "go_pvals", "go_qvals")
-  #}
-  #row <- c(row, go)
+  # ----------------------------------------------------------------------------
+  print("GO enrichment.")
+  # ----------------------------------------------------------------------------
+  # we want only genes which were selected by the model
+  network_genes <- unique(c(cgenes_selected, tfs_selected,
+                            sgenes_selected, spath_selected))
+  if(ranges$seed != "meqtl") {
+    network_genes <- unique(c(network_genes, trans_entities_selected))
+  }
+
+  go <- validate_geneenrichment(network_genes)
+  if(!is.null(go)) {
+    names(go) <- c("go_ids", "go_terms", "go_pvals", "go_qvals")
+  } else {
+    go <- rep(NA, 4)
+    names(go) <- c("go_ids", "go_terms", "go_pvals", "go_qvals")
+  }
+  row <- c(row, go)
 
   return(row)
 }, mc.cores=threads)

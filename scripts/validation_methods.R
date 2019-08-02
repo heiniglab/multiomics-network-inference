@@ -159,39 +159,37 @@ validate_gene2gene <- function(expr.data, g, all.genes){
   return(unlist(results))
 }
 
+#' -----------------------------------------------------------------------------
 #' Validate the genes in the GGM by performing a
 #' GO enrichment on them
 #'
-#' @param gnodes The nodes in the GGM graph
+#' @param genes Genes selected via the respective model for the network
 #'
 #' @author Johann Hawe
 #'
 #' @return A vector containing enriched GOIDs, terms, their pvalues and
 #' qvalues or instead only containing NAs if no enrichments was found
 #'
-validate_geneenrichment <- function(gnodes) {
+#' -----------------------------------------------------------------------------
+validate_geneenrichment <- function(genes) {
 
-  # get only gene nodes
-  gn <- gnodes[!grepl("^rs|^cg",gnodes)]
-
-  if(length(gn) < 2) return(NULL)
+  require(illuminaHumanv3.db)
 
   # define background set
   # for now all possible symbols from the array annotation
-  # are used
-  #bgset <- dnodes[!grepl("^rs|^cg",dnodes)]
-
+  # are used. We might want to think about only using those genes which were
+  # initially collected for the respective locus
   annot <- illuminaHumanv3SYMBOLREANNOTATED
   bgset <- unique(unlist(as.list(annot)))
 
-  if(length(gn)>0 & length(gn)<length(bgset)){
-    go.tab <- go.enrichment(gn, bgset, gsc)
-    go.tab <- go.tab[go.tab$q<0.01,,drop=F]
-    if(nrow(go.tab)>0){
-      r <- c(paste0(go.tab$GOID, collapse=","),
-               paste0(go.tab$Term, collapse=","),
-               paste0(go.tab$Pvalue, collapse=","),
-               paste0(go.tab$q, collapse=","))
+  if(length(genes)>2 & length(genes)<length(bgset)){
+    go_tab <- go.enrichment(genes, bgset, gsc)
+    go_tab <- go_tab[go_tab$q<0.01,,drop=F]
+    if(nrow(go_tab)>0){
+      r <- c(paste0(go_tab$GOID, collapse=","),
+               paste0(go_tab$Term, collapse=","),
+               paste0(go_tab$Pvalue, collapse=","),
+               paste0(go_tab$q, collapse=","))
       return(r)
     }
   }

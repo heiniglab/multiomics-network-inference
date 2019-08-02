@@ -41,3 +41,5 @@ dependencies:
   - bioconductor-illuminahumanv3.db
   - bioconductor-preprocesscore
   - bioconductor-sva
+  - bioconductor-gseabase
+  - bioconductor-gostats

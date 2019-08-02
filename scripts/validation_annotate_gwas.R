@@ -26,7 +26,9 @@ print("Loading and processing data.")
 # ------------------------------------------------------------------------------
 gwas <- read_tsv(fgwas) %>% as_tibble(.name_repair="universal")
 
-val <- read_tsv(fvalidation)
+# avoid the cluster_sizes column to be parsed as an integer (it's a comma
+# separated string)
+val <- read_tsv(fvalidation, col_types = cols(.default="c"))
 
 snps <- unique(val$sentinel)
 
@@ -43,7 +45,7 @@ val$gwas_disease_trait <- unlist(traits_per_snp[match(val$sentinel,
 # ------------------------------------------------------------------------------
 print("Writing output file.")
 # ------------------------------------------------------------------------------
-write_tsv(val, fout_validation, quote_escape=FALSE)
+write_tsv(val, fout_validation)
 
 # ------------------------------------------------------------------------------
 print("SessionInfo:")

@@ -24,7 +24,8 @@ threads <- snakemake@threads
 # ------------------------------------------------------------------------------
 print("Loading and processing data.")
 # ------------------------------------------------------------------------------
-gwas <- read_tsv(fgwas) %>% as_tibble(.name_repair="universal")
+gwas <- read_tsv(fgwas, col_types = cols(.default="c")) %>%
+  as_tibble(.name_repair="universal")
 
 # avoid the cluster_sizes column to be parsed as an integer (it's a comma
 # separated string)

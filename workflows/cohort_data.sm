@@ -113,7 +113,7 @@ rule validate_ggm:
         params:
                 mediation_cutoff=0.05,
                 time="01:00:00"
-        threads: 7
+        threads: 1
         resources:
                 mem_mb=4000
         conda:
@@ -226,6 +226,30 @@ rule generate_dot:
         script:
                 "../scripts/generate_dot.R"
 
+#------------------------------------------------------------------------------
+# Generate dot files for visualization with cytoscape, combine graphs from 
+# both cohorts.
+#------------------------------------------------------------------------------
+rule generate_dot_combined:
+	input:
+		new_kora=DCOHORT_FITS + "kora/{sentinel}_{seed}.rds",
+		old_kora="results/old/biogrid/fits/kora/{sentinel}_{seed}.rds",
+		new_lolipop=DCOHORT_FITS + "lolipop/{sentinel}_{seed}.rds",
+		old_lolipop="results/old/biogrid/fits/lolipop/{sentinel}_{seed}.rds",
+		ranges = DRANGES + "{sentinel}_{seed}.rds",
+		ppi_db = PPI_DB,
+		cpg_context="results/current/cpg_context.rds",
+		tss_context="results/current/tfbs_tss_annot.rds",
+
+	output:
+		dot = DGRAPH_PLOTS + "{sentinel}_{seed}/{graph_type}_combined.dot",
+		graph = DGRAPH_PLOTS + "{sentinel}_{seed}/{graph_type}_combined.rds"
+	conda:
+		"../envs/bioR.yaml"
+	log:
+		"logs/generate_dot_combined/{sentinel}_{seed}/{graph_type}.log"
+	script:
+		"../scripts/generate_dot_combined.R"
 
 #------------------------------------------------------------------------------
 # Generate PDF containing cllection of all plotted graphs for an individual
@@ -234,7 +258,8 @@ rule generate_dot:
 rule plot_graphs:
 	input:
 		kora=expand(DGRAPH_PLOTS + "{{sentinel}}_{{seed}}/kora/{graph_type}.dot", graph_type = GTYPES),
-		lolipop=expand(DGRAPH_PLOTS + "{{sentinel}}_{{seed}}/lolipop/{graph_type}.dot", graph_type = GTYPES)
+		lolipop=expand(DGRAPH_PLOTS + "{{sentinel}}_{{seed}}/lolipop/{graph_type}.dot", graph_type = GTYPES),
+		combined=expand(DGRAPH_PLOTS + "{{sentinel}}_{{seed}}/{graph_type}_combined.dot", graph_type = GTYPES)
 	output:
 		pdf=DGRAPH_PLOTS + "{sentinel}_{seed}/all.pdf"
 	params:
@@ -245,8 +270,9 @@ rule plot_graphs:
 		"""
 		cd {params.odir}
 
-		for i in kora/*.dot ; do twopi -Tpdf $i > $(basename $i .dot)_kora.pdf ; done
-		for i in lolipop/*.dot ; do twopi -Tpdf $i > $(basename $i .dot)_lolipop.pdf ; done
+		for i in kora/*.dot ; do twopi -Tpdf $i > $(basename $i .dot)_kora.pdf ; done 
+		for i in lolipop/*.dot ; do twopi -Tpdf $i > $(basename $i .dot)_lolipop.pdf ; done 
+		for i in {input.combined} ; do twopi -Tpdf $(basename $i) > $(basename $i .dot).pdf ; done 
 
 		gs -dBATCH -dNOPAUSE -q -sDEVICE=pdfwrite -sOutputFile=all.pdf *.pdf
 		"""
@@ -254,13 +280,23 @@ rule plot_graphs:
 #------------------------------------------------------------------------------
 # Generate summary graph PDFs for few of the more interesting loci
 #------------------------------------------------------------------------------
-rule interesting_graphs:
+rule plot_relevant_graphs:
 	input:
 		DGRAPH_PLOTS + "rs9859077_meqtl/all.pdf",
+		DGRAPH_PLOTS + "rs730775_eqtlgen/all.pdf",
+		DGRAPH_PLOTS + "rs730775_meqtl/all.pdf",
+		DGRAPH_PLOTS + "rs140522_eqtlgen/all.pdf",
 		DGRAPH_PLOTS + "rs6511961_meqtl/all.pdf",
 		DGRAPH_PLOTS + "rs7783715_meqtl/all.pdf",
 		DGRAPH_PLOTS + "rs2227901_eqtlgen/all.pdf",
-		DGRAPH_PLOTS + "rs730775_eqtlgen/all.pdf",
-		DGRAPH_PLOTS + "rs730775_meqtl/all.pdf",
 		DGRAPH_PLOTS + "rs17081933_meqtl/all.pdf",
 		DGRAPH_PLOTS + "rs79755767_eqtlgen/all.pdf",
+		DGRAPH_PLOTS + "rs4788084_eqtlgen/all.pdf",
+		DGRAPH_PLOTS + "rs10248490_meqtl/all.pdf",
+		DGRAPH_PLOTS + "rs8058619_meqtl/all.pdf",
+#		DGRAPH_PLOTS + "rs1364109_meqtl/all.pdf",
+#		DGRAPH_PLOTS + "rs436744_meqtl/all.pdf",
+		DGRAPH_PLOTS + "rs3171692_meqtl/all.pdf",
+		DGRAPH_PLOTS + "rs114092478_meqtl/all.pdf",
+		DGRAPH_PLOTS + "rs1064395_eqtlgen/all.pdf",
+		DGRAPH_PLOTS + "rs3748136_eqtlgen/all.pdf"

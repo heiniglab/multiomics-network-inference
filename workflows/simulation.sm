@@ -46,7 +46,7 @@ rule apply_ggm_simulation:
         params:
                 iteration="{iteration}",
                 time="24:00:00"
-        threads: 8
+        threads: 12
         resources:
                 mem_mb=4500
         conda:
@@ -62,6 +62,10 @@ rule all_apply_ggm_simulation:
 	input:
 		expand(DSIM_FITS + "{sentinel}-iter{iteration}.RData", sentinel=MEQTL.sentinel,
 		iteration=ITERATIONS)
+
+rule apply_ggm_simulation_sentinels:
+	input:
+		expand(DSIM_FITS + "{sentinel}-iter1.RData", sentinel=MEQTL.sentinel)
 
 #------------------------------------------------------------------------------
 # Validate a simulation run

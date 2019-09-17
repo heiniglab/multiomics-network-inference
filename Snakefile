@@ -16,6 +16,18 @@ rule config_r:
 	script:
 		"scripts/config_R.R"
 
+rule test_tfa:
+	conda:
+		"envs/bioR.yaml"
+	threads: 12
+	log:
+		"logs/test_tfa.out"
+	resources:
+		mem_mb=3000
+	script:
+		"scripts/test_tfa_inference.R"
+
+
 # -----------------------------------------------------------------------------
 # include the hotspot extraction workflow which extracts all the sentinels
 # for eqtlgen and meqtl as well as additional data prep

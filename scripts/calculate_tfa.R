@@ -99,8 +99,9 @@ cor_comb <- cor_tfa
 cor_comb[lower.tri(cor_comb, diag=F)] <- cor_exp[lower.tri(cor_exp, diag=F)]
 
 # plot heatmaps of correlations
-pdf(fout_heatmap)
-pheatmap(cor_comb, cluster_cols=F, cluster_rows=F)
+ph <- pheatmap(cor_comb, cluster_cols=F, cluster_rows=F)
+png(fout_heatmap, res=900)
+print(ph)
 dev.off()
 
 # ------------------------------------------------------------------------------

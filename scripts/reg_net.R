@@ -9,6 +9,19 @@
 #' @date Thu Dec 13 17:49:42 2018
 #' -----------------------------------------------------------------------------
 
+# when sourcing, check which packages are installed for quicker diagnostics
+require(BDgraph)
+require(glasso)
+require(GENIE3)
+require(iRafNet)
+require(GeneNet)
+require(doParallel)
+require(parallel)
+require(cvTools)
+require(igraph)
+require(graph)
+require(reshape2)
+
 # define the available models for network inference
 reg_net.models <- function() {
   return(c("genenet", "bdgraph", "irafnet", "glasso", "genie3" , "custom"))
@@ -65,6 +78,16 @@ reg_net <- function(data,
     ! anyNA(x))]
 
   if (!is.null(priors)) {
+    # if prior dimenions do not match, try to subset priors
+    if(ncol(data) < ncol(priors)) {
+      warning("Subsetting priors automatically. You should check your input.")
+      priors <- priors[colnames(data), colnames(data)]
+
+      # sanity check: do colnames match?
+      if(!all(colnames(priors) == colnames(data))) {
+        warning("Column names did not match after autmatic prior subsetting.")
+      }
+    }
     # we possibly lost some data when filtering for NAs, so we adjust priors too
     priors_no_nas <-
       priors[rownames(priors) %in% colnames(data_no_nas),
@@ -591,13 +614,13 @@ genie3 <-
     require(parallel)
 
     # we expect a n x p matrix, genie3 needs a p x n matrix
-    if (verbose)
+    if (verbose) {
       start <- Sys.time()
+    }
     model <- GENIE3(t(data), nCores = threads)
     linklist <- getLinkList(model, threshold = 0)
     if (verbose) {
       end <- Sys.time()
-
       print(paste0("GENIE3 benchmark: ", end - start))
     }
     all_link_weights <- sort(unique(linklist$weight))
@@ -799,3 +822,38 @@ infer_all_graphs <-
     }
     return(result)
   }
+
+#' -----------------------------------------------------------------------------
+#' Combe two graph objects. 
+#'
+#' Keeps only nodes and edges present in both graphs
+#' 
+#' @param g1 graphNEL object
+#' @param g2 graphNEL object
+#'
+#' @import graph
+#' @import igraph
+#' 
+#' @author Johann Hawe <johann.hawe@helmholtz-muenchen.de>
+#' 
+#' -----------------------------------------------------------------------------
+combine_graphs <- function(g1, g2) {
+  require(graph)
+  require(igraph)
+  
+  # get incidence matrix for both graphs for easier comparison
+  g1_mat <- as(g1, "matrix")
+  g2_mat <- as(g2, "matrix")
+  
+  # use only common nodes, also ensure ordering of columns/rows
+  use <- intersect(colnames(g1_mat), colnames(g2_mat))
+  g1_mat <- g1_mat[use,use]
+  g2_mat <- g2_mat[use,use]
+  
+  # get the graph from the combined matrix (i.e. only were edges are present in
+  # both cohorts), also remove zero-degree nodes
+  inc_combined <- (g1_mat == 1 & g2_mat == 1)
+  g_combined <- igraph::as_graphnel(graph_from_adjacency_matrix(inc_combined,
+                                                                mode="undirected"))
+  g_combined
+}

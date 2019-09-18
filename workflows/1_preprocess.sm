@@ -43,7 +43,6 @@ rule prune_snps:
 		r2_min = 0.2,
 		fdr_cutoff = 0.05,
 		time = "01:00:00",
-		tempdir = "results/current/temp/"
 	conda:
 		"../envs/bioR.yaml"
 	log:
@@ -86,9 +85,6 @@ rule preprocess_kora_individuals:
 # Gather kora data in single file for more convenient postprocessing.
 # We use the results in this file during hotspot extractions to see for which
 # sentinels genotype data is available.
-#
-# @author Johann Hawe <johann.hawe@helmholtz-muenchen.de>
-#
 #------------------------------------------------------------------------------
 rule filter_kora_genotypes:
 	input:
@@ -114,6 +110,9 @@ rule filter_kora_genotypes:
 		zcat {input.genotypes} | fgrep -f {output.temp} > {output.genotypes}
 		"""
 		
+#------------------------------------------------------------------------------
+# Collect all needed data from KORA in a single RData file
+#------------------------------------------------------------------------------
 rule prepare_kora_data:
         input:
                 genotypes="data/current/kora/snp_dosages/MAF001/full_sorted.bgz",
@@ -135,7 +134,6 @@ rule prepare_kora_data:
         threads: 4
         params:
                 time="03:00:00",
-                tempdir="results/current/temp/"
         conda:
                 "../envs/bioR.yaml"
         log:
@@ -146,7 +144,8 @@ rule prepare_kora_data:
                 "../scripts/prepare-kora-data.R"
 
 #------------------------------------------------------------------------------
-# Prepare lolipop data for more convenient postprocessing
+# Prepare lolipop data for more convenient postprocessing (collect in single
+# RData file)
 #------------------------------------------------------------------------------
 rule prepare_lolipop_data:
         input:

@@ -8,13 +8,12 @@
 # ------------------------------------------------------------------------------
 
 configfile: "configs/workflow.json"
+include: "workflows/common.sm"
 
-# rule used to configure R environment (ie install needed packages)
-rule config_r:
-	conda:
-		"envs/bioR.yaml"
-	script:
-		"scripts/config_R.R"
+# set global wildcard constraints
+wildcard_constraints:
+    sentinel="rs\d+",
+    seed="eqtlgen|meqtl"
 
 rule test_tfa:
 	conda:
@@ -27,10 +26,9 @@ rule test_tfa:
 	script:
 		"scripts/test_tfa_inference.R"
 
-
 # -----------------------------------------------------------------------------
 # include the hotspot extraction workflow which extracts all the sentinels
-# for eqtlgen and meqtl as well as additional data prep
+# for eqtlgen and meqtl as well as performs additional data prep
 # -----------------------------------------------------------------------------
 subworkflow preprocess:
     workdir:
@@ -40,23 +38,12 @@ subworkflow preprocess:
     configfile:
         "./configs/workflow.json"
 
-# -----------------------------------------------------------------------------
-# Insert global vars
-# -----------------------------------------------------------------------------
-include: "workflows/common.sm"
-
-# set global wildcard constraints
-wildcard_constraints:
-    sentinel="rs\d+",
-    seed="eqtlgen|meqtl"
-
-# the preprocess() funciton ensures the dependency on the subworkflow, 
-
 # get the loci available in eQTLgen
+# the preprocess() function ensures the dependency on the subworkflow, 
 EQTLGEN = glob_wildcards(preprocess(DHOTSPOTS + "eqtlgen_thres" + 
                          config["hots_thres"] + "/loci/{sentinel}.dmy"))
 
-# get the meQTL loci
+# same for meQTL loci
 MEQTL = glob_wildcards(preprocess(DHOTSPOTS + "meqtl_thres" + 
                          config["hots_thres"] + "/loci/{sentinel}.dmy"))
 
@@ -73,12 +60,12 @@ localrules:
 # ------------------------------------------------------------------------------
 # Include the rule-sets for the two individual analyses (cohort, simulation)
 # ------------------------------------------------------------------------------
-include: "workflows/cohort_data.sm"
-include: "workflows/simulation.sm"
+include: "workflows/2_1_cohort_data.sm"
+include: "workflows/2_2_simulation.sm"
 
 #-------------------------------------------------------------------------------
 # Overall target rule (both simulation and cohort study are executed).
-# Note: this runs a long time and should definitely be executed on a cluster
+# Note: this runs a virtually forever and should definitely be executed on a cluster
 #-------------------------------------------------------------------------------
 rule all:
         input:
@@ -88,13 +75,13 @@ rule all:
                 DRANGES + "eqtlgen_summary.pdf",
                 "results/current/simulation/simulation.html"
 
-################################################################################
+#-------------------------------------------------------------------------------
 # General rules used in both simulation and cohort studies
-################################################################################
+#-------------------------------------------------------------------------------
 
 #-------------------------------------------------------------------------------
 # Convert the precalculated cpg context to RDS
-# TODO: calculate it on our own
+# TODO: calculate the actual context on our own
 #-------------------------------------------------------------------------------
 rule convert_cpg_context:
 	input:
@@ -172,7 +159,7 @@ rule create_biogrid:
 		"scripts/create_biogrid.R"
 
 #------------------------------------------------------------------------------
-# Preprocess stringdb PPI network
+# Split the cosmo object in cis, longrange and trans
 #------------------------------------------------------------------------------
 rule create_cosmo_splits:
 	input: 
@@ -241,7 +228,7 @@ rule collect_ranges_eqtlgen:
                 "scripts/collect_ranges_eqtl.R"
 
 # -----------------------------------------------------------------------------
-# Target rule to generate all hotspot ranges collections for eqtl gen and to 
+# Target rule to generate all hotspot ranges collections for eqtlgen and to 
 # create a summary plot.
 # -----------------------------------------------------------------------------
 rule all_ranges:

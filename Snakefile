@@ -264,7 +264,7 @@ rule calculate_tfa:
 		cohort_data="results/current/ggmdata_{cohort}.RData",
 		tfbs_annot="results/current/tfbs_tss_annot.rds"
 	output:
-		heatmap="results/current/tfa/heatmap_{cohort}.pdf",
+		plot="results/current/tfa/plot_{cohort}.pdf",
 		tfa="results/current/tfa/activities_{cohort}.rds",
 		expr="results/current/tfa/expression_{cohort}.rds",
 	conda:

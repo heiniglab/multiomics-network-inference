@@ -16,6 +16,8 @@ print("Load libraries and source scripts")
 # ------------------------------------------------------------------------------
 library(plsgenomics)
 library(pheatmap)
+library(ggplot2)
+library(reshape2)
 source("scripts/lib.R")
 source("scripts/collect_data_methods.R")
 
@@ -27,7 +29,7 @@ fcohort_data <- snakemake@input$cohort_data
 ftfbs_annot <- snakemake@input$tfbs_annot
 
 # output
-fout_heatmap <- snakemake@output$heatmap
+fout_plot <- snakemake@output$plot
 fout_tfa <- snakemake@output$tfa
 fout_expr <- snakemake@output$expr
 
@@ -87,21 +89,24 @@ print("Saving results.")
 # ------------------------------------------------------------------------------
 saveRDS(file=fout_tfa, symbol_resid_tfa)
 saveRDS(file=fout_expr, symbol_resid)
+
 # ------------------------------------------------------------------------------
-print("Getting correlations of TFs/Targets and plotting heatmap.")
+print("Getting correlations of TFs/Targets and plotting.")
 # ------------------------------------------------------------------------------
 # we look at the relevant subset to speed up computations for cor/pheatmap
 gene_subset <- unique(c(targets, tf_sub))
-cor_tfa <- cor(symbol_resid_tfa[, gene_subset])
-cor_exp <- cor(symbol_resid[, gene_subset])
 
-cor_comb <- cor_tfa
-cor_comb[lower.tri(cor_comb, diag=F)] <- cor_exp[lower.tri(cor_exp, diag=F)]
+# get plotting data frame
+data <- sapply(gene_subset, function(g) { 
+  cor(symbol_resid_tfa[,g], symbol_resid[,g])
+})
 
-# plot heatmaps of correlations
-ph <- pheatmap(cor_comb, cluster_cols=F, cluster_rows=F)
-png(fout_heatmap, res=900)
-print(ph)
+toplot <- data.frame(correlation=unlist(data))
+
+pdf(fout_plot)
+ggplot(toplot, aes(x=correlation)) +
+  geom_histogram() +
+  labs(title="Correlation between TFA and Expression.")
 dev.off()
 
 # ------------------------------------------------------------------------------

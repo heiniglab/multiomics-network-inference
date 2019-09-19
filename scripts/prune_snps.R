@@ -15,7 +15,8 @@ print("Load libraries and source scripts")
 # ------------------------------------------------------------------------------
 library(data.table)
 library(parallel)
-suppressPackageStartupMessages(library(GenomicRanges))
+library(GenomicRanges)
+library(Rsamtools)
 source("scripts/lib.R")
 
 # ------------------------------------------------------------------------------
@@ -27,8 +28,6 @@ ld_max_dist <- as.numeric(snakemake@params$ld_max_dist)
 r2_min <- as.numeric(snakemake@params$r2_min)
 threads <- snakemake@threads
 fdr_cutoff <- as.numeric(snakemake@params$fdr_cutoff)
-tempdir <- snakemake@params$tempdir
-print(paste0("using ", tempdir, " as temp directory."))
 
 # input
 feqtl <- snakemake@input$eqtl
@@ -50,10 +49,13 @@ individuals <- read.table(findividuals, header=F)[,1]
 ffull <- snakemake@output$full
 fpruned <- snakemake@output$pruned
 
+# open the tabixfile 
+tf <- open(TabixFile(fdosage))
+
 # ------------------------------------------------------------------------------
 print("Pruning SNPs for all chromosomes.")
 # ------------------------------------------------------------------------------
-full <- mclapply(names(eqtl_by_chromosome), function(chr) {
+full <- lapply(names(eqtl_by_chromosome), function(chr) {
   print(paste0("Current chromosome: ", chr))
 
   # get eQTL subset for current chromosome
@@ -67,7 +69,7 @@ full <- mclapply(names(eqtl_by_chromosome), function(chr) {
   snps <- unique(snps)
 
   # get KORA genotypes
-  geno <- scan_snps(snps, fdosage, individuals, tempdir=tempdir)
+  geno <- scan_snps(snps, tf, individuals)
 
   # remove SNPs for which we do not have any genotypes
   snps <- snps[names(snps)[names(snps) %in% rownames(geno)]]
@@ -149,7 +151,7 @@ full <- mclapply(names(eqtl_by_chromosome), function(chr) {
   }
 
   eqtl_subs
-}, mc.cores = threads)
+})
 
 # get single data.table
 full <- do.call(rbind, full)

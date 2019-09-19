@@ -130,8 +130,8 @@ rule prepare_kora_data:
         output:
                 "results/current/ggmdata_kora.RData"
         resources:
-                mem_mb=23000
-        threads: 4
+                mem_mb=16000
+        threads: 6
         params:
                 time="03:00:00",
         conda:

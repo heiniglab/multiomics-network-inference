@@ -14,6 +14,7 @@ sink(log, type="message")
 print("Load libraries and source scripts.")
 # ------------------------------------------------------------------------------
 library(GenomicRanges)
+library(Rsamtools)
 library(data.table)
 source("scripts/lib.R")
 source("scripts/biomaRt.R")

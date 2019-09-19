@@ -8,7 +8,7 @@
 #' information has already been loaded
 #'
 #' @param ranges Set of ranges with the annotated data (e.g. snp.ranges,
-#' cpgs etc.) for which to extract the link priors#'
+#' cpgs etc.) for which to extract the link priors
 #' @param nodes All the nodes/entities being analyzed.
 #' @param ppi_db The loaded PPI db graph to be used (graphNEL)
 #' @param fcpgcontext The CpG TF annotation
@@ -23,7 +23,7 @@ get_link_priors <- function(ranges, nodes, ppi_db, fcpgcontext, fcpg_annot) {
   # ----------------------------------------------------------------------------
 
   # assume single SNP
-  message("WARNING: Assuming single SNP in given data.")
+  warning("Assuming single SNP in given data.")
   id <- nodes[grepl("^rs", nodes)]
 
   # ----------------------------------------------------------------------------
@@ -39,6 +39,7 @@ get_link_priors <- function(ranges, nodes, ppi_db, fcpgcontext, fcpg_annot) {
   # check whether we need CpG related priors
   # ----------------------------------------------------------------------------
   if(ranges$seed == "meqtl") {
+    print("Setting CpG-gene priors")
     # load annotation needed for cpg2gene priors
     epigen.states <- read.table(fcpg_annot,
                                 header = T, sep="\t", row.names = 1)
@@ -71,6 +72,8 @@ get_link_priors <- function(ranges, nodes, ppi_db, fcpgcontext, fcpg_annot) {
             }
             if(p>=1) p <- 1 - pseudo_prior
             priors[n,symbol] <- priors[symbol,n] <- p
+          } else {
+            stop("CpG-gene not proximal to CpG; sanity check failed")
           }
         }
       }
@@ -79,6 +82,8 @@ get_link_priors <- function(ranges, nodes, ppi_db, fcpgcontext, fcpg_annot) {
     # --------------------------------------------------------------------------
     ## SET TF-CPG PRIOR
     # --------------------------------------------------------------------------
+    print("Setting TF-CpG priors.")
+    
     # get all TFs
     tfs <- ranges$tfs$SYMBOL
     # also get the chipseq context for our cpgs
@@ -91,10 +96,11 @@ get_link_priors <- function(ranges, nodes, ppi_db, fcpgcontext, fcpg_annot) {
         if(any(context[c,grepl(tf, colnames(context))])) {
           if(c %in% colnames(priors) &
              tf %in% colnames(priors)){
-            priors[c,tf] <- 0.8
-            priors[tf,c] <- 0.8
+            # set arbitrary large prior (chip-evidence for this connection..)
+            priors[c,tf] <- priors[tf,c] <- 0.9
           } else {
-            message("WARNING: TF-CpG link not available:",c,"-", tf, "\n")
+            warning(paste0("WARNING: TF-CpG link not available:",
+                           c, "-", tf))
           }
         }
       }
@@ -107,6 +113,8 @@ get_link_priors <- function(ranges, nodes, ppi_db, fcpgcontext, fcpg_annot) {
   # iterate over each of the snp genes and set prior according to
   # gtex pre-calculated priors
   if(exists("gtex.eqtl") && !is.null(gtex.eqtl)) {
+    print("Setting SNP priors.")
+    
     snp_genes <- ranges$snp_genes$SYMBOL
     for(g in snp_genes) {
       # already filtered for sentinel id, just check gene
@@ -131,6 +139,8 @@ get_link_priors <- function(ranges, nodes, ppi_db, fcpgcontext, fcpg_annot) {
   # ----------------------------------------------------------------------------
   ## SET GENE-GENE PRIOR
   # ----------------------------------------------------------------------------
+  print("Setting Gene-Gene priors.")
+  
   # here we add the priors based on the string interaction network
   genes <- colnames(priors)[!grepl("^rs|^cg", colnames(priors))]
 
@@ -141,11 +151,11 @@ get_link_priors <- function(ranges, nodes, ppi_db, fcpgcontext, fcpg_annot) {
   rnames <- rownames(gtex.gg.cors)
 
   temp <- lapply(names(sedges), function(n) {
-    l <- sedges[[n]]$edges;
+    l <- sedges[[n]]$edges
     if (length(l) > 0) {
-      temp2 <- sapply(l, function(i) {
+      sapply(l, function(i) {
         m <- snodes[i]
-        # set priors for those validated connections found in STRING
+        # set priors for those validated connections found in the PPI DB
         # check whether we have a specific prior for this gene-gene connection
         # match genes either at the beginning with a trailing "_" or
         # at the end with a beginning "_" (rownames are: gene1_gene2)
@@ -161,20 +171,21 @@ get_link_priors <- function(ranges, nodes, ppi_db, fcpgcontext, fcpg_annot) {
         }
         return(list(g1=m, g2=n, prior=p))
       })
-      temp2
     }
   })
 
   temp <- unlist(temp)
+  
   # did we have at least one connection?
   if(!is.null(temp)) {
-    temp <- matrix(temp,ncol=3, byrow = T)
+    temp <- matrix(temp, ncol=3, byrow = T)
     for(i in 1:nrow(temp)) {
+      # get genes and prior -> set values in prior matrix
       g1 <- temp[i,1]
       g2 <- temp[i,2]
-      p <- pseudo_prior + as.numeric(temp[i,3])
-      if(p >= 1) p <- 1 - pseudo_prior
-      priors[g1,g2] <- priors[g2,g1] <- p
+      p <- as.numeric(temp[i,3])
+      
+      priors[g1, g2] <- priors[g2, g1] <- p
     }
   }
 
@@ -224,7 +235,7 @@ load.gtex.priors <- function(sentinel=NULL,
       gtex.eqtl <- gtex.eqtl[(gtex.eqtl$RS_ID_dbSNP135_original_VCF==sentinel |
                                 gtex.eqtl$RS_ID_dbSNP142_CHG37p13==sentinel), ]
     } else {
-      print(paste0("WARNING: Sentinel", sentinel, "has no GTEx eQTL!"))
+      warning(paste0("Sentinel ", sentinel, " has no GTEx eQTL!"))
       gtex.eqtl <- NULL
     }
   }
@@ -261,8 +272,8 @@ create_priors <- function(feqtl, fsnpInfo, frpkm,
   saveRDS(res, fout_eqtl_priors)
 }
 
-
-#' Creates the gtex gene-gene priors under consideration of the ----------------
+#'------------------------------------------------------------------------------
+#' Creates the gtex gene-gene priors under consideration of the
 #' STRING database.
 #'
 #' @param sampleDS.file The gtex sample information file
@@ -362,12 +373,12 @@ create.gtex.gene.priors <- function(sampleDS.file, pheno.file,
   gtex.gg.cors$prior <- 1-gtex.gg.cors$lfdr
 
   # plot correlation histogram
-  pdf(paste0(plot.dir, "/expression.correlation.pdf"))
-  hist(gtex.gg.cors$correlation, breaks=100, xlab="correlation", main="gtex gene corerlations")
+  pdf(paste0(plot.dir, "/expression_correlation.pdf"))
+  hist(gtex.gg.cors$correlation, breaks=100, xlab="correlation", main="gtex gene correlations")
   abline(v=0, col="red")
   dev.off()
 
-  # report the pi0 and the proportion of significant tests for qvalue packge
+  # report the pi0 and the proportion of significant tests for qvalue package
   pi1 <- 1-pi0est(gtex.gg.cors[,"pval"])$pi0
   print(paste0("1-pi0 is: ", pi1))
 
@@ -375,6 +386,7 @@ create.gtex.gene.priors <- function(sampleDS.file, pheno.file,
   return(gtex.gg.cors)
 }
 
+#'------------------------------------------------------------------------------
 #' Preprocesses the gtex Whole_Blood eqtl data to add a column of local FDR
 #' values which we will use (1-lfdr) for our snp-gene priors
 #' Output is written to a predetermined gz-file
@@ -382,6 +394,7 @@ create.gtex.gene.priors <- function(sampleDS.file, pheno.file,
 #' @author Johann Hawe
 #' @return nothing
 #'
+#'------------------------------------------------------------------------------
 create.gtex.eqtl.priors <- function(eqtl.file, snpInfo.file) {
 
   # open handle
@@ -424,6 +437,7 @@ create.gtex.eqtl.priors <- function(eqtl.file, snpInfo.file) {
   return(pairs)
 }
 
+#'------------------------------------------------------------------------------
 #' Method creates priors for TF~CpG links for application of the GGM
 #' Loads Remap/ENCODE TFBS and uses score column of bed files to infer
 #' prior values.
@@ -433,6 +447,7 @@ create.gtex.eqtl.priors <- function(eqtl.file, snpInfo.file) {
 #'
 #' @author Johann Hawe
 #'
+#'------------------------------------------------------------------------------
 create.tfbs.priors <- function() {
   ## annotation of CpG sites with functional genomics data and TFBS predictions
 

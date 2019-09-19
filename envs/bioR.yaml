@@ -23,6 +23,12 @@ dependencies:
   - r-fdrtool
   - r-doparallel
   - r-plsgenomics
+  - r-bdgraph
+  - r-glasso
+  - r-genenet
+  - r-rocr
+  - r-foreach
+  - bioconductor-rsamtools
   - bioconductor-GenomicRanges=1.34.0
   - bioconductor-genie3
   - bioconductor-GenomicFeatures

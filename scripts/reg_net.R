@@ -85,7 +85,7 @@ reg_net <- function(data,
 
       # sanity check: do colnames match?
       if(!all(colnames(priors) == colnames(data))) {
-        warning("Column names did not match after autmatic prior subsetting.")
+        stop("Column names did not match after autmatic prior subsetting.")
       }
     }
     # we possibly lost some data when filtering for NAs, so we adjust priors too
@@ -193,6 +193,7 @@ reg_net <- function(data,
               mtry,
               colnames(data_no_nas),
               threads = threads)
+    
     irn_perm_out <- Run_permutation(
       data_no_nas,
       priors_no_nas,

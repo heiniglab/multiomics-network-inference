@@ -61,7 +61,7 @@ cosmo <- readRDS(fcosmo)
 
 
 # load priorization table
-prio <- read.table(fprio_tab, sep="\t", header=T,stringsAsFactors = F)
+prio <- read.table(fprio_tab, sep="\t", header=T, stringsAsFactors = F)
 
 # get trans-genes which should be used for shortest path extraction
 prio <- prio[prio$sentinel == sentinel,,drop=F]

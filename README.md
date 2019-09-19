@@ -114,7 +114,7 @@ SLURM cluster environment
 > NOTE 2: for the SLURM to work, we have to log in into IRIS
 
 ```{bash}
-nohup nice snakemake --use-conda -u configs/slurm.config --jobs=100 --local-cores=1 --cluster \
+nohup nice snakemake --use-conda -u configs/slurm.json --jobs=100 --local-cores=1 --cluster \
   "sbatch -t {cluster.time} -c {cluster.cpu} --mem-per-cpu {cluster.mem} \
       -p {cluster.partition} -o {cluster.log} -e {cluster.log}" results/current/peaks/BH1-1_peaks.narrowPeak &
 

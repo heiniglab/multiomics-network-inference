@@ -1831,91 +1831,32 @@ summarize <- function(m, symbols){
 #' relative to the base directory
 #' @param ids The individual ids for the genotype data in correct order (i.e.
 #' as provided in the main directory)
-#'
+#' 
 #' @author Johann Hawe <johann.hawe@helmholtz-muenchen.de>
 #'
 # ------------------------------------------------------------------------------
-scan_snps <- function(ranges, dosage_file, individuals, tempdir=tempdir()) {
-
-  stop("This script caused major problems last time we used it. Has to be adjusted
-       before running the whole pipeline again!")
-
-  # Code below is a differen try to obtaining the genotypes (for a large number
-  # snps, ~2e6, which could be further explored)
-
-  # require(Rsamtools)
-  # chrs <- unique(as.character(seqnames(ranges)))
-  #
-  # res <- lapply(chrs, function(chr) {
-  #   ra <- ranges[as.character(seqnames(ranges)) == chr]
-  #   ra <- reduce(ra, min.gapwidth = 1e3)
-  #   dat <- scanTabix(dosage_file, ra)
-  #   if(inherits(data, "try-error")){
-  #     cat("No SNPs found in specified regions.\n")
-  #     return(data.frame())
-  #   } else {
-  #     data <- dat[!duplicated(dat[,2]),,drop=F]
-  #     message(paste("Processed", nrow(dat), "SNPs." ))
-  #
-  #     # process the genotype information to get numerics
-  #     for(i in 6:ncol(data)){
-  #       data[,i] <- (as.numeric(data[,i]))
-  #     }
-  #
-  #     ## create colnames using individual codes
-  #     colnames(data)<- c("chr", "name", "pos", "orig", "alt", individuals)
-  #     rownames(data) <- data$name
-  #
-  #     return(data[,6:ncol(data)])
-  #   }
-  # })
-
-  # create system command for tabix
-  ranges.str <- paste(ranges, collapse=" ")
-
-  # for very large ranges-objects (e.g. several thousand ranges)
-  # using the tabix cmd directly in the fread method seems not
-  # to work, neither does calling tabix via the system() command.
-  # therefore we create a temp bash file (tf), which we call using R
-  # the output (tf2) is then read using fread
-  tf <- tempfile(tmpdir = tempdir)
-  tf2 <- tempfile(tmpdir = tempdir)
-  cmd <- paste0("tabix ", dosage_file, " ", ranges.str, " > ", tf2)
-  cat(cmd, file=tf, append = F)
-  system(paste0("sh ", tf))
-
-  # read the data from the created temp file
-  data <- tryCatch( {
-    d <- fread(tf2, sep="\t", data.table=F)
-  }, warning = function(e) {
-    message(paste0("WARNING when loading SNPs:\n", e))
-    return(d)
-  }, error= function(e) {
-    message(paste0("ERROR when loading SNPs:\n", e))
-  }
-  )
-
-  # remove the temp files instantly
-  rm(tf,tf2)
-
-  if(inherits(data, "try-error")){
-    cat("No SNPs found in specified regions.\n")
-    return(list(snpInfo=data.frame(), snps=data.frame()))
-  } else {
-    data <- data[!duplicated(data[,2]),,drop=F]
-    message(paste("Processed", nrow(data), "SNPs." ))
-
-    # process the genotype information to get numerics
-    for(i in 6:ncol(data)){
-      data[,i] <- (as.numeric(data[,i]))
-    }
-
-    ## create colnames using individual codes
-    colnames(data)<- c("chr", "name", "pos", "orig", "alt", individuals)
-    rownames(data) <- data$name
-
-    return(data[,6:ncol(data)])
-  }
+scan_snps <- function(ranges, tabix_file , individuals) {
+  
+  require(Rsamtools)
+  require(data.table)
+  
+  res <- scanTabix(tabix_file, param=ranges)
+  
+  # scanTabix will also return 'empty' ranges for which no data was found
+  res_filtered <- res[sapply(res, function(x) !length(x)<1)]
+  
+  print("Scan done, converting Tabix results to data frame.")
+  
+  full <- paste0(unlist(res_filtered), collapse="\n")
+  genos <- unique(fread(text=full, sep="\t", header=FALSE, stringsAsFactors=F,
+                 data.table=FALSE))
+  
+  # set column and rownames
+  colnames(genos)<- c("chr", "name", "pos", "orig", "alt", individuals)
+  rownames(genos) <- genos$name
+  
+  # we only return the actual SNP dosages
+  return(genos[,6:ncol(genos)])
 }
 
 #' -----------------------------------------------------------------------------

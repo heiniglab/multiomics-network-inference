@@ -18,58 +18,7 @@ library(Rsamtools)
 library(data.table)
 source("scripts/lib.R")
 source("scripts/biomaRt.R")
-
-# ------------------------------------------------------------------------------
-# Method definitions
-# ------------------------------------------------------------------------------
-
-# ------------------------------------------------------------------------------
-#' Method to get the genotypes for a certain set of SNPs
-#'
-#' @param snp_ranges A GRanges of SNPs for which to get genotypes. Needed for
-#' KORA cohort only
-#'
-#' @return Matrix of genotypes with SNPs in the columns and subjects in the rows
-#'
-# ------------------------------------------------------------------------------
-get_genotypes <- function(snp_ranges, dosage_file,
-                          individuals, individuals_to_keep, threads){
-
-  if(is.null(snp_ranges)) {
-    return(NULL)
-  }
-
-  # split into junks
-  snp_ranges <- split(snp_ranges, ceiling(seq_along(snp_ranges)/10000))
-
-  # prepare tabix file reference
-  tf <- open(TabixFile(dosage_file))
-  temp <- mclapply(snp_ranges, function(r) {
-    geno <- scan_snps(r, tf, individuals)
-    if(!is.null(geno)) {
-      geno <- geno[, individuals_to_keep,drop=F]
-    }
-    geno
-  }, mc.cores = threads)
-  geno <- do.call(rbind, temp)
-
-  if(nrow(geno) < length(snp_ranges)){
-    warning("Some SNPs were NA in genotype data.")
-  }
-
-  geno <- t(geno)
-
-  # get rid of non-changing snps
-  if(any(apply(geno,2,var)==0)) {
-    warning("Removing non-varying SNPs.")
-    geno <- geno[,apply(geno,2,var)!=0, drop=F]
-  }
-  
-  # refactor column names (get rid of beginning "1.")
-  colnames(geno) <- gsub("^[0-9]+\\.", "", colnames(geno))
-}
-
-# start processing -------------------------------------------------------------
+source("scripts/prepare_kora_data_methods.R")
 
 # ------------------------------------------------------------------------------
 print("Get snakemake params.")
@@ -88,9 +37,6 @@ fcosmo <- snakemake@input[["cosmo"]]
 fceqtl <- snakemake@input[["kora_ceqtl"]]
 feqtlgen <- snakemake@input[["eqtl_gen"]]
 fimpute_indiv <- snakemake@input[["impute_indiv"]]
-
-# params
-threads <- snakemake@threads
 
 # ------------------------------------------------------------------------------
 print("Load the imputation individuals (individuals with genotypes).")
@@ -171,7 +117,7 @@ print(paste0("Using ", nrow(id_map), " samples."))
 print("Load genotypes.")
 # ------------------------------------------------------------------------------
 geno <- get_genotypes(ranges, fdosage,
-                      imputation_individuals, id_map$axiom_s4f4, threads)
+                      imputation_individuals, id_map$axiom_s4f4)
 print(paste0("Genotype dimensions: ", paste(dim(geno), collapse=",")))
 gc()
 

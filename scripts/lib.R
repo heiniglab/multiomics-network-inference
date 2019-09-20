@@ -1826,16 +1826,17 @@ summarize <- function(m, symbols){
 #' Scans genotype files for SNPs within the provided genomic ranges
 #'
 #' @param ranges GRanges object containing the ranges which to scan for SNPs
-#' @param dir Base directory in which genotype information is stored
-#' @param genotype.file Path to and including file which contains the genotypes,
+#' @param tabix_file Path to and including file which contains the genotypes,
 #' relative to the base directory
-#' @param ids The individual ids for the genotype data in correct order (i.e.
+#' @param individuals The individual ids for the genotype data in correct order (i.e.
 #' as provided in the main directory)
+#' @param filter Optional. A list of individuals which should be preselected.
+#' Needs to be a subset of `individuals`. Default: NULL
 #' 
 #' @author Johann Hawe <johann.hawe@helmholtz-muenchen.de>
 #'
 # ------------------------------------------------------------------------------
-scan_snps <- function(ranges, tabix_file , individuals) {
+scan_snps <- function(ranges, tabix_file , individuals, filter=NULL) {
   
   require(Rsamtools)
   require(data.table)
@@ -1843,16 +1844,33 @@ scan_snps <- function(ranges, tabix_file , individuals) {
   res <- scanTabix(tabix_file, param=ranges)
   
   # scanTabix will also return 'empty' ranges for which no data was found
-  res_filtered <- res[sapply(res, function(x) !length(x)<1)]
+  res_not_empty <- res[sapply(res, function(x) !length(x)<1)]
   
   print("Scan done, converting Tabix results to data frame.")
   
-  full <- paste0(unlist(res_filtered), collapse="\n")
-  genos <- unique(fread(text=full, sep="\t", header=FALSE, stringsAsFactors=F,
-                 data.table=FALSE))
+  collapsed <- paste0(unlist(res_not_empty), collapse="\n")
   
-  # set column and rownames
-  colnames(genos)<- c("chr", "name", "pos", "orig", "alt", individuals)
+  # define columns for filtering
+  all_cols <- c("chr", "name", "pos", "orig", "alt", individuals)
+  if(!is.null(filter)) {
+    filter_cols <- c("chr", "name", "pos", "orig", "alt", filter)
+  } else {
+    filter_cols <- all_cols
+  }
+  
+  select <- match(filter_cols,
+                  all_cols)
+  
+  # select argument also determines order of columns
+  genos <- unique(fread(text=collapsed, sep="\t", header=FALSE, 
+                        col.names=filter_cols,
+                        stringsAsFactors=F, data.table=FALSE, 
+                        select=select))
+  
+  print("Read data of dimension:")
+  print(dim(genos))
+  
+  # set rownames
   rownames(genos) <- genos$name
   
   # we only return the actual SNP dosages

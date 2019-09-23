@@ -125,8 +125,7 @@ names(genes_by_cpg) <- names(croi)
 # get original ranges (not promoters)
 genes_by_cpg <- lapply(names(genes_by_cpg), function(cg) {
   gs <- genes_by_cpg[[cg]]
-  gs <- gene_annot[gene_annot$SYMBOL %in% gs$SYMBOL]
-  gs
+  gene_annot[gs$hit_idx]
 })
 names(genes_by_cpg) <- names(croi)
 

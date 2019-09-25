@@ -52,10 +52,10 @@ MEQTL = glob_wildcards(preprocess(DHOTSPOTS + "meqtl_thres" +
 # -----------------------------------------------------------------------------
 localrules:
         all, preprocess_kora_individuals, summarize_validation_meqtl,
-        all_simulation, all_cohort, validate_ggm_simulation, create_priors,
+        all_simulation, all_cohort, validate_ggm_simulation,
         summarize_simulation, render_validation, summarize_validation_eqtlgen,
         create_stringdb, create_cosmo_splits, convert_cpg_context, all_ranges,
-	all_priors, all_data
+	all_priors, all_data, create_biogrid
 
 # ------------------------------------------------------------------------------
 # Include the rule-sets for the two individual analyses (cohort, simulation)
@@ -190,7 +190,7 @@ rule collect_ranges:
 	resources:
 		mem_mb=2300
 	params:
-		time="01:00:00"
+		time="02:00:00"
 	conda:
 		"envs/bioR.yaml"
 	log: 
@@ -269,8 +269,14 @@ rule calculate_tfa:
 		expr="results/current/tfa/expression_{cohort}.rds",
 	conda:
 		"envs/bioR.yaml"
+	resources:
+		mem_mb=6000
+	params:
+		time="02:00:00"
 	log:
 		"logs/calculate_tfa_{cohort}.log"
+	benchmark:
+		"benchmarks/calculate_tfa_{cohort}.bmk"
 	script:
 		"scripts/calculate_tfa.R"
 
@@ -282,6 +288,8 @@ rule collect_data:
 		ranges=DRANGES + "{sentinel}_{seed}.rds",
 		kora=preprocess("results/current/ggmdata_kora.RData"),
 		lolipop=preprocess("results/current/ggmdata_lolipop.RData"),
+		kora_activities="results/current/tfa/activities_kora.rds",
+		lolipop_activities="results/current/tfa/activities_lolipop.rds",
 		ceqtl="data/current/kora/eqtl/kora-cis-eqtls.csv",
 		ccosmo="results/current/cis-cosmopairs_combined_151216.rds"
 	output:
@@ -299,7 +307,7 @@ rule collect_data:
 	benchmark:
 		"benchmarks/collect_data/{cohort}/{sentinel}_{seed}.bmk"
 	script:
-		"scripts/collect_data.R"
+		"scripts/collect_data_tfa.R"
 
 #------------------------------------------------------------------------------
 # Meta rule to collect data for all sentinels and plot some information. 

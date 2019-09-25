@@ -862,7 +862,7 @@ normalize.expression <- function(data) {
   library(sva)
 
   # quantile normalize
-  scaled = normalize.quantiles(t(data))
+  scaled = normalize.quantiles.robust(t(data))
   rownames(scaled) <- colnames(data)
   colnames(scaled) <- rownames(data)
 

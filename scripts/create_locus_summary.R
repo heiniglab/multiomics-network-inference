@@ -10,14 +10,16 @@
 # ------------------------------------------------------------------------------
 print("Loading libraries and sourcing scripts.")
 # ------------------------------------------------------------------------------
-suppressPackageStartupMessages(library(GenomicRanges))
+library(GenomicRanges)
 library(ggplot2)
 library(reshape2)
+library(cowplot)
+
 source("scripts/lib.R")
 
 cols <- set_defaultcolors()
 sfm <- scale_fill_manual(values=cols)
-theme_set(theme_bw())
+theme_set(theme_cowplot())
 
 # ------------------------------------------------------------------------------
 print("Getting snakemake params.")
@@ -25,7 +27,7 @@ print("Getting snakemake params.")
 # input
 finputs <- snakemake@input
 
-# check seed group: twas or eqtl based
+# check seed group: eqtl or meqtl based
 seeds <- ifelse(grepl("eqtlgen", finputs), "eqtl", "meqtl")
 
 # output
@@ -40,6 +42,7 @@ data <- lapply(finputs, function(fin) {
 
   # get sentinel name
   sentinel <- names(ranges$sentinel)
+  
   # get number of entities
   sg <- length(ranges$snp_genes)
   tfs <- length(ranges$tfs)
@@ -91,7 +94,7 @@ data_fractions$cpg_genes <- data$cpg_genes / data$total
 data$total <- NULL
 data_fractions$total <- NULL
 
-# melt the data frame for use in ggplot
+# melt data frames for use in ggplot
 melted <- melt(data)
 melted_fractions <- melt(data_fractions)
 
@@ -104,6 +107,7 @@ gt <- ggtitle(paste0("Overview on number of entities gathered for\n",
 
 fw <- facet_wrap( ~ seed, ncol=2)
 vert_labels <- theme(axis.text.x = element_text(angle = 90, hjust = 1))
+
 # violin plots containing points/lines showing distributions
 gp <- ggplot(aes(y=value, x=variable, fill=variable), data=melted) +
 	geom_violin(draw_quantiles = c(0.25, 0.5, 0.75)) +
@@ -128,7 +132,6 @@ gp2
 gp3
 gp4
 
-# finally, plot the number of entities per locus
 # finally, plot the number of entities per locus
 # TODO there must be a better way for this...
 eqtl <- melted[melted$seed == "eqtl",]

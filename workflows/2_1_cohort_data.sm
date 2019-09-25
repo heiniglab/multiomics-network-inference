@@ -297,6 +297,10 @@ rule plot_relevant_graphs:
 #		DGRAPH_PLOTS + "rs1364109_meqtl/all.pdf",
 #		DGRAPH_PLOTS + "rs436744_meqtl/all.pdf",
 		DGRAPH_PLOTS + "rs3171692_meqtl/all.pdf",
-		DGRAPH_PLOTS + "rs114092478_meqtl/all.pdf",
+#		DGRAPH_PLOTS + "rs114092478_meqtl/all.pdf",
 		DGRAPH_PLOTS + "rs1064395_eqtlgen/all.pdf",
-		DGRAPH_PLOTS + "rs3748136_eqtlgen/all.pdf"
+		DGRAPH_PLOTS + "rs3748136_eqtlgen/all.pdf",
+		DGRAPH_PLOTS + "rs1364109_meqtl/all.pdf",
+		DGRAPH_PLOTS + "rs3859321_meqtl/all.pdf",
+		DGRAPH_PLOTS + "rs10103269_meqtl/all.pdf",
+		DGRAPH_PLOTS + "rs7254687_meqtl/all.pdf",

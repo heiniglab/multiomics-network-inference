@@ -78,7 +78,7 @@ if(ranges$seed == "meqtl") {
   fcontext <- ftss_context
 }
 result <- infer_all_graphs(data, priors, ranges, fcontext, ppi_db,
-                           threads, subset=TRUE)
+                           threads, subset=FALSE)
 
 dev.off()
 

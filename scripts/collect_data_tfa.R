@@ -74,8 +74,9 @@ if("kora" %in% cohort) {
 # ------------------------------------------------------------------------------
 print("Create merged data frame.")
 # ------------------------------------------------------------------------------
+genes <- colnames(acts)[colnames(acts) %in% expr_syms]
 data <- cbind.data.frame(covars,
-                         acts[,colnames(acts) %in% expr_syms, drop=F],
+                         acts[,genes, drop=F],
                          meth[,colnames(meth) %in% meth_probes, drop=F],
                          geno[,colnames(geno) %in% sentinel, drop=F],
                          geno_ids=rownames(geno),
@@ -99,7 +100,7 @@ print(paste0("Data dimensions: ", paste(dim(data), collapse=",")))
 # ------------------------------------------------------------------------------
 print("Removing covariate effects from raw data.")
 # ------------------------------------------------------------------------------
-data <- adjust_data(sentinel, ranges, data, geno, fccosmo, fceqtl)
+data <- adjust_data(sentinel, ranges, genes, data, geno, fccosmo, fceqtl)
 
 # ------------------------------------------------------------------------------
 print("Saving adjusted data.")

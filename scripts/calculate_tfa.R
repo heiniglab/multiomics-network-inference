@@ -52,7 +52,7 @@ probe_resid <- rm_covariate_effects(expr_covars, "expr")
 
 # we need one expression value per sample per gene -> summarize probes belonging
 # to one gene
-all_syms <- symbols.from.probeids(colnames(probe_resid))
+all_syms <- unique(symbols.from.probeids(colnames(probe_resid)))
 symbol_resid <- summarize(probe_resid, all_syms)
 
 # get the tfbs tss annotation

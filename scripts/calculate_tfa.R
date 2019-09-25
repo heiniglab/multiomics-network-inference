@@ -18,6 +18,9 @@ library(plsgenomics)
 library(pheatmap)
 library(ggplot2)
 library(reshape2)
+library(cowplot)
+theme_set(theme_cowplot())
+
 source("scripts/lib.R")
 source("scripts/collect_data_methods.R")
 
@@ -32,6 +35,8 @@ ftfbs_annot <- snakemake@input$tfbs_annot
 fout_plot <- snakemake@output$plot
 fout_tfa <- snakemake@output$tfa
 fout_expr <- snakemake@output$expr
+
+cohort <- snakemake@wildcards$cohort
 
 # ------------------------------------------------------------------------------
 print("Loading data.")
@@ -80,9 +85,7 @@ rownames(TFA) <- colnames(data_sub)
 
 # substitute expression of TFs with TFA
 symbol_resid_tfa <- symbol_resid
-for(tf in tf_sub) {
-  symbol_resid_tfa[,tf] <- TFA[,tf]
-}
+symbol_resid_tfa[,tf_sub] <- TFA[,tf_sub]
 
 # ------------------------------------------------------------------------------
 print("Saving results.")
@@ -93,11 +96,9 @@ saveRDS(file=fout_expr, symbol_resid)
 # ------------------------------------------------------------------------------
 print("Getting correlations of TFs/Targets and plotting.")
 # ------------------------------------------------------------------------------
-# we look at the relevant subset to speed up computations for cor/pheatmap
-gene_subset <- unique(c(targets, tf_sub))
 
 # get plotting data frame
-data <- sapply(gene_subset, function(g) { 
+data <- sapply(tf_sub, function(g) { 
   cor(symbol_resid_tfa[,g], symbol_resid[,g])
 })
 
@@ -106,7 +107,7 @@ toplot <- data.frame(correlation=unlist(data))
 pdf(fout_plot)
 ggplot(toplot, aes(x=correlation)) +
   geom_histogram() +
-  labs(title="Correlation between TFA and Expression.")
+  labs(title=paste0("Correlation between TFA and Expression in ", cohort))
 dev.off()
 
 # ------------------------------------------------------------------------------

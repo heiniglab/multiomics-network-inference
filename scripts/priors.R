@@ -322,6 +322,7 @@ create.gtex.gene.priors <- function(sampleDS.file, pheno.file,
 
   print(paste0("Processing ", nrow(samples), " GTEX samples."))
 
+  
   # now calculate the data-driven priors for gene-gene interactions
   rpkms <- fread(paste0("zcat ", rpkm.file), skip=2, sep="\t",
                  header=T, select=c("Name","Description",samples$id))
@@ -330,6 +331,8 @@ create.gtex.gene.priors <- function(sampleDS.file, pheno.file,
 
   print("Subsetting genes.")
 
+  # NOTE: We are not using covariates anymore during normalization since
+  # we rely on the first 10 PCs
   gene.matrix <- t(gene.matrix)
   gene.matrix <- log2(gene.matrix+1)
   gene.matrix <- normalize.expression(gene.matrix)
@@ -343,9 +346,8 @@ create.gtex.gene.priors <- function(sampleDS.file, pheno.file,
 
   cnames <- colnames(gene.matrix)
 
-  temp <- lapply(PPI.NODES, function(e) {
-    if(e %in% names(PPI.EDGES)) {
-      temp2 <- lapply(PPI.EDGES[[e]], function(j) {
+  temp <- lapply(names(PPI.EDGES), function(e) {
+      lapply(PPI.EDGES[[e]], function(j) {
         if((e %in% cnames) & (j %in% cnames)) {
           x <- gene.matrix[,e]
           y <- gene.matrix[,j]
@@ -357,10 +359,8 @@ create.gtex.gene.priors <- function(sampleDS.file, pheno.file,
           }
         }
       })
-      return(temp2)
-    }
   })
-
+  
   print("Done.")
 
   gtex.gg.cors <- matrix(unlist(temp), ncol=4, byrow = T)

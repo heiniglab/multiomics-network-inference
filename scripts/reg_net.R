@@ -495,6 +495,11 @@ glasso_cv <- function(data,
   n <- nrow(data)
   folds <- cvFolds(n, k, type = "random")
 
+  # define penalties to be used in glasso
+  if(!is.null(priors)) {
+    penalties <- (1 - priors)
+  }
+  
   # get the ll progression for all CV folds
   loglikes <- lapply(1:k, function(ki) {
     S_train <- cov(data[folds$which != ki, ], use = "na.or.complete")
@@ -510,7 +515,7 @@ glasso_cv <- function(data,
     unlist(mclapply(rholist, function(rho) {
       if (!is.null(priors)) {
         gl <- glasso(S_train,
-                     rho = rho * (1 - priors),
+                     rho = rho * penalties,
                      penalize.diagonal = F)
       } else {
         gl <- glasso(S_train,
@@ -548,7 +553,7 @@ glasso_cv <- function(data,
   # retrain the full model
   S <- cov(data, use = "na.or.complete")
   if (!is.null(priors)) {
-    model <- glasso(S, rho * (1 - priors), penalize.diagonal = F)
+    model <- glasso(S, rho * penalties, penalize.diagonal = F)
   } else {
     model <- glasso(S, rho, penalize.diagonal = F)
   }

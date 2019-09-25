@@ -634,7 +634,8 @@ genie3 <-
     lw <- length(all_link_weights)
     # get a subset to check if needed
     if (lw > 500) {
-      all_link_weights <- quantile(all_link_weights, seq(0, 1, by = 0.005))
+      all_link_weights <- quantile(all_link_weights, 
+                                   seq(0, 1, by = 0.005))
     }
 
     print(paste0("Checking ", length(all_link_weights), " weights."))
@@ -643,6 +644,7 @@ genie3 <-
     # to a power law distr for each weight cutoff
     fits <- mclapply(all_link_weights, function(weight) {
       g <- get_genie3_graph(colnames(data), linklist, weight)
+      print(g)
       ds <- graph::degree(g)
       if (var(ds) == 0)
         return(NULL)
@@ -711,7 +713,7 @@ genie3 <-
       fits_r2 <- subset(fits, r2 == max(r2))
     }
     fits_mcon <- subset(fits_r2, mcon == max(mcon))
-    fits_beta <- fits_mcon[which.min(-1 - fits$beta), ]
+    fits_beta <- fits_mcon[which.min(-1 - fits_mcon$beta), ]
     best_weight <- fits_beta$weight
 
     return(

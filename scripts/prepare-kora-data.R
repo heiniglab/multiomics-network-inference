@@ -118,7 +118,8 @@ print("Load genotypes.")
 # ------------------------------------------------------------------------------
 geno <- get_genotypes(ranges, fdosage,
                       imputation_individuals, id_map$axiom_s4f4)
-print(paste0("Genotype dimensions: ", paste(dim(geno), collapse=",")))
+print(paste0("Genotype dimensions: ", dim(geno)))
+
 gc()
 
 # ------------------------------------------------------------------------------

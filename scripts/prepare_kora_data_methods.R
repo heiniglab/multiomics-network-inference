@@ -30,7 +30,7 @@ get_genotypes <- function(snp_ranges, dosage_file,
   tf <- open(TabixFile(dosage_file))
   temp <- lapply(1:l, function(r) {
     # report progress
-    if(r %% 100 == 0) print(paste0("Processed ", r, " splits."))
+    if(r %% 10 == 0) print(paste0("Processed ", r, " splits."))
     
     # get genotypes
     geno <- scan_snps(snp_ranges[[r]], tf, individuals, individuals_to_keep)
@@ -54,4 +54,6 @@ get_genotypes <- function(snp_ranges, dosage_file,
   
   # refactor column names (get rid of beginning "1.")
   colnames(geno) <- gsub("^[0-9]+\\.", "", colnames(geno))
+  
+  return(geno)
 }

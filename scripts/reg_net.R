@@ -644,7 +644,7 @@ genie3 <-
     # to a power law distr for each weight cutoff
     fits <- mclapply(all_link_weights, function(weight) {
       g <- get_genie3_graph(colnames(data), linklist, weight)
-      print(g)
+#      print(g)
       ds <- graph::degree(g)
       if (var(ds) == 0)
         return(NULL)

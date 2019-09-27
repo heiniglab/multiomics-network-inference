@@ -834,12 +834,18 @@ get.g.start <- function(nodes, ranges){
 #' pairs with prior>0.5 to create the g.start
 #'
 #' @param priors Matrix of prior values for all possible node edges
-#'
+#' @param scaled Do we use a scaled (between 0.5 and 1) version of the priors?
+#' Default: FALSE
+#' 
 #' @author Johann Hawe
 #'
-get_gstart_from_priors <- function(priors){
+get_gstart_from_priors <- function(priors, scaled=FALSE){
   out <- priors
-  idx <- out>0.5
+  if(scaled) {
+    idx <- out>0.75
+  } else {
+    idx <- out>0.5
+  }
   out[idx] <- 1
   out[!idx] <- 0
   return(out)

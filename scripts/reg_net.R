@@ -78,7 +78,7 @@ reg_net <- function(data,
     ! anyNA(x))]
 
   if (!is.null(priors)) {
-    # if prior dimenions do not match, try to subset priors
+    # if prior dimensions do not match, try to subset priors
     if(ncol(data) < ncol(priors)) {
       warning("Subsetting priors automatically. You should check your input.")
       priors <- priors[colnames(data), colnames(data)]
@@ -135,8 +135,15 @@ reg_net <- function(data,
       }
     } else {
       # we have priors
-      bdpriors <- priors
-
+      
+      # TEST: we adjust the priors to be between 0.5 and 1, since
+      # values < 0.5 would actually discourage an edge when it shouldn't
+      #(there was at least some evidence, pseudo prior should be uniform prior)
+      sc <- function(x, low, high) { 
+        (high-low)*(x-min(x)) / (max(x) - min(x)) + low
+      }
+      bdpriors <- sc(priors, 0.5, 1)
+      
       # check whether to use the prior based start graph
       if (use_gstart) {
         gstart <- get_gstart_from_priors(bdpriors)
@@ -736,7 +743,6 @@ genie3 <-
 #' @param fcontext the tfbs context file
 #' @param ppi_db the ppi db (graph) underlying the data
 #' @param threads number of threads to be used. Default: 1
-#' @param subset Small hack to calculate only GENIE3 and glasso models
 #'
 #' -----------------------------------------------------------------------------
 infer_all_graphs <-
@@ -745,14 +751,12 @@ infer_all_graphs <-
            ranges,
            fcontext,
            ppi_db,
-           threads = 1,
-           subset = FALSE) {
+           threads = 1) {
 
-    if (!subset) {
-      print("Fitting model using GeneNet.")
-      genenet <- reg_net(data, NULL, "genenet", threads = threads)
-    }
-
+    
+    print("Fitting model using GeneNet.")
+    genenet <- reg_net(data, NULL, "genenet", threads = threads)
+    
     print("Fitting model using glasso.")
     glasso <- reg_net(data, priors, "glasso", threads = threads)
 
@@ -762,72 +766,70 @@ infer_all_graphs <-
     print("Fitting model using genie3.")
     genie3 <- reg_net(data, NULL, "genie3", threads = threads)
 
-    if (!subset) {
-      print("Fitting bdgraph using priors.")
-      bdgraph <- reg_net(data, priors, "bdgraph", threads = threads)
+    print("Fitting bdgraph using priors.")
+    bdgraph <- reg_net(data, priors, "bdgraph", threads = threads)
 
-      print("Fitting bdgraph without priors.")
-      bdgraph_no_priors <- reg_net(data,
-                                   NULL,
-                                   "bdgraph",
-                                   use_gstart = F,
-                                   threads = threads)
+    print("Fitting bdgraph without priors.")
+    bdgraph_no_priors <- reg_net(data,
+                                 NULL,
+                                 "bdgraph",
+                                 use_gstart = F,
+                                 threads = threads)
 
-      print("Fitting model using iRafNet.")
-      irafnet <- reg_net(data, priors, "irafnet", threads = threads)
-    }
+    print("Fitting model using iRafNet.")
+    irafnet <- reg_net(data, priors, "irafnet", threads = threads)
 
     # --------------------------------------------------------------------------
     print("Add custom annotations for the graphs.")
     # --------------------------------------------------------------------------
-    if (!subset) {
-      bdgraph$graph <-
-        annotate.graph(bdgraph$graph, ranges, ppi_db, fcontext)
-      bdgraph_no_priors$graph <- annotate.graph(bdgraph_no_priors$graph,
-                                                ranges, ppi_db, fcontext)
-      irafnet$graph <-
-        annotate.graph(irafnet$graph, ranges, ppi_db, fcontext)
-      genenet$graph <-
-        annotate.graph(genenet$graph, ranges, ppi_db, fcontext)
-    }
-    genie3$graph <-
-      annotate.graph(genie3$graph, ranges, ppi_db, fcontext)
+    bdgraph$graph <- annotate.graph(bdgraph$graph, 
+                                    ranges, ppi_db, fcontext)
+    
+    bdgraph_no_priors$graph <- annotate.graph(bdgraph_no_priors$graph,
+                                              ranges, ppi_db, fcontext)
 
-    glasso$graph <-
-      annotate.graph(glasso$graph, ranges, ppi_db, fcontext)
+    irafnet$graph <- annotate.graph(irafnet$graph, 
+                                    ranges, ppi_db, fcontext)
+    
+    genenet$graph <- annotate.graph(genenet$graph, 
+                                    ranges, ppi_db, fcontext)
+
+    genie3$graph <- annotate.graph(genie3$graph, 
+                                   ranges, ppi_db, fcontext)
+
+    glasso$graph <- annotate.graph(glasso$graph, 
+                                   ranges, ppi_db, fcontext)
+    
     glasso_no_priors$graph <- annotate.graph(glasso_no_priors$graph,
                                              ranges, ppi_db, fcontext)
 
     # --------------------------------------------------------------------------
     print("Create result list.")
     # --------------------------------------------------------------------------
-    if (!subset) {
-      result <- list(
-        bdgraph_fit = bdgraph$fit,
-        bdgraph_no_priors_fit = bdgraph_no_priors$fit,
-        bdgraph = bdgraph$graph,
-        bdgraph_no_priors = bdgraph_no_priors$graph,
-        irafnet_fit = irafnet$fit,
-        genenet_fit = genenet$fit,
-        irafnet = irafnet$graph,
-        genenet = genenet$graph,
-        glasso_fit = glasso$fit,
-        glasso = glasso$graph,
-        glasso_no_priors_fit = glasso_no_priors$fit,
-        glasso_no_priors = glasso_no_priors$graph,
-        genie3_fit = genie3$fit,
-        genie3 = genie3$graph
-      )
-    } else {
-      result <- list(
-        glasso_fit = glasso$fit,
-        glasso = glasso$graph,
-        glasso_no_priors_fit = glasso_no_priors$fit,
-        glasso_no_priors = glasso_no_priors$graph,
-        genie3_fit = genie3$fit,
-        genie3 = genie3$graph
-      )
-    }
+    result <- list(
+      # bdgraph
+      bdgraph_fit = bdgraph$fit,
+      bdgraph = bdgraph$graph,
+      # bdgraph no priors
+      bdgraph_no_priors_fit = bdgraph_no_priors$fit,
+      bdgraph_no_priors = bdgraph_no_priors$graph,
+      # irafnet
+      irafnet_fit = irafnet$fit,
+      irafnet = irafnet$graph,
+      # genenet
+      genenet_fit = genenet$fit,
+      genenet = genenet$graph,
+      # glasso
+      glasso_fit = glasso$fit,
+      glasso = glasso$graph,
+      # glasso no priors
+      glasso_no_priors_fit = glasso_no_priors$fit,
+      glasso_no_priors = glasso_no_priors$graph,
+      # genie3
+      genie3_fit = genie3$fit,
+      genie3 = genie3$graph
+    )
+
     return(result)
   }
 

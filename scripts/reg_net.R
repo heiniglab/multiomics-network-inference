@@ -142,7 +142,14 @@ reg_net <- function(data,
       sc <- function(x, low, high) { 
         (high-low)*(x-min(x)) / (max(x) - min(x)) + low
       }
-      bdpriors <- sc(priors, 0.5, 1)
+      
+      # might happen if we try out a specific uniform prior
+      # we do not adjust in that case
+      if(length(unique(as.numeric(priors))) == 1) {
+        bdpriors <- priors
+      } else {
+        bdpriors <- sc(priors, 0.5, 1)
+      }
       
       # check whether to use the prior based start graph
       if (use_gstart) {
@@ -222,7 +229,6 @@ reg_net <- function(data,
   } else if ("glasso" %in% model) {
     require(glasso)
     if (!is.null(priors)) {
-      # for now we simply call using 1-priors as penalization
       gl_out <- glasso_cv(data, priors, threads = threads)
     } else {
       gl_out <- glasso_cv(data, threads = threads)

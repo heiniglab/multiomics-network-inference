@@ -22,7 +22,7 @@ print("Getting snakemake params.")
 
 # get in and output
 ffit <- snakemake@input$new
-ffit_old <- snakemake@input$old
+#ffit_old <- snakemake@input$old
 
 fout <- snakemake@output[[1]]
 
@@ -43,11 +43,11 @@ print(graph_type)
 #------------------------------------------------------------------------------
 print("Loading data.")
 #------------------------------------------------------------------------------
-if(graph_type %in% c("glasso", "glasso_no_priors", "genie3")) {
+#if(graph_type %in% c("glasso", "glasso_no_priors", "genie3")) {
   fits <- readRDS(ffit)
-} else {
-  fits <- readRDS(ffit_old)
-}
+#} else {
+#  fits <- readRDS(ffit_old)
+#}
 g <- fits[[graph_type]]
 
 print("Loaded graph:")

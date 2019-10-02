@@ -47,8 +47,8 @@ fkora_fit <- snakemake@input[["kora_fit"]]
 flolipop_fit <- snakemake@input[["lolipop_fit"]]
 
 # contain the 'old' fits, i.e. old glasso and w/o genie3
-fkora_fit_old <- snakemake@input[["kora_fit_old"]]
-flolipop_fit_old <- snakemake@input[["lolipop_fit_old"]]
+#fkora_fit_old <- snakemake@input[["kora_fit_old"]]
+#flolipop_fit_old <- snakemake@input[["lolipop_fit_old"]]
 
 fgtex <- snakemake@input[["gtex"]]
 fgeo <- snakemake@input[["geo"]]
@@ -125,8 +125,8 @@ print("Loading GGM fits.")
 kfit <- readRDS(fkora_fit)
 lfit <- readRDS(flolipop_fit)
 
-kfit_old <- readRDS(fkora_fit_old)
-lfit_old <- readRDS(flolipop_fit_old)
+#kfit_old <- readRDS(fkora_fit_old)
+#lfit_old <- readRDS(flolipop_fit_old)
 
 fits <- list(kora = kfit, lolipop = lfit,
              kora_old=kfit_old, lolipop_old=lfit_old)
@@ -164,11 +164,11 @@ valid <- mclapply(graph_types, function(graph_type) {
   print("Preparing fit.")
   # ----------------------------------------------------------------------------
   # those were adjusted and newly fitted
-  if(graph_type %in% c("glasso", "glasso_no_priors", "genie3")) {
+ # if(graph_type %in% c("glasso", "glasso_no_priors", "genie3")) {
     graph <- fits[[cohort]][[graph_type]]
-  } else {
-    graph <- fits[[paste0(cohort, "_old")]][[graph_type]]
-  }
+ # } else {
+ #   graph <- fits[[paste0(cohort, "_old")]][[graph_type]]
+ # }
 
   # dnodes -> full set of possible nodes
   dnodes <- colnames(data_val)
@@ -332,11 +332,11 @@ valid <- mclapply(graph_types, function(graph_type) {
   # ------------------------------------------------------------------------------
   # get graph fit on other cohort
   # those were adjusted and newly fitted
-  if(graph_type %in% c("glasso", "glasso_no_priors", "genie3")) {
+  #if(graph_type %in% c("glasso", "glasso_no_priors", "genie3")) {
     graph_val <- fits[[cohort_val]][[graph_type]]
-  } else {
-    graph_val <- fits[[paste0(cohort_val, "_old")]][[graph_type]]
-  }
+  #} else {
+  #  graph_val <- fits[[paste0(cohort_val, "_old")]][[graph_type]]
+  #}
 
   # compare with largest connected component only
   #g2 <- get_largest_cc(g2)

@@ -16,6 +16,7 @@ print("Loading libraries and scripts.")
 #------------------------------------------------------------------------------
 library(graph)
 library(igraph)
+source("scripts/reg_net.R")
 source("scripts/lib.R")
 
 #------------------------------------------------------------------------------
@@ -24,10 +25,10 @@ print("Getting snakemake params.")
 
 # get in and output
 ffit_kora <- snakemake@input$new_kora
-ffit_kora_old <- snakemake@input$old_kora
+#ffit_kora_old <- snakemake@input$old_kora
 
 ffit_lolipop <- snakemake@input$new_lolipop
-ffit_lolipop_old <- snakemake@input$old_lolipop
+#ffit_lolipop_old <- snakemake@input$old_lolipop
 
 franges <- snakemake@input$ranges
 fppi_db <- snakemake@input$ppi_db
@@ -67,13 +68,13 @@ ppi_db <- readRDS(fppi_db)
 
 # we regenerated fits for glasso and genie3 without calculating all others
 # we use 'old fits' for all other models
-if(graph_type %in% c("glasso", "glasso_no_priors", "genie3")) {
+#if(graph_type %in% c("glasso", "glasso_no_priors", "genie3")) {
   fit_kora <- readRDS(ffit_kora)
   fit_lolipop <- readRDS(ffit_lolipop)
-} else {
-  fit_kora <- readRDS(ffit_kora_old)
-  fit_lolipop <- readRDS(ffit_lolipop_old)
-}
+#} else {
+#  fit_kora <- readRDS(ffit_kora_old)
+#  fit_lolipop <- readRDS(ffit_lolipop_old)
+#}
 g_kora <- fit_kora[[graph_type]]
 g_lolipop <- fit_lolipop[[graph_type]]
 

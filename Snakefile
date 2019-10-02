@@ -217,7 +217,7 @@ rule collect_ranges_eqtlgen:
         resources:
                 mem_mb=2300
         params:
-                time="01:00:00"
+                time="02:00:00"
         conda:
                 "envs/bioR.yaml"
         log:

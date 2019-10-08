@@ -114,7 +114,7 @@ rule create_priors:
 		plot_dir = "results/current/" + PPI_NAME + "/plots/",
 		time = "16:00:00"
 	resources:
-		mem_mb=45000
+		mem_mb=55000
 	conda:
 		"envs/bioR.yaml"
 	log:
@@ -237,6 +237,8 @@ rule all_ranges:
 		expand(DRANGES + "{sentinel}_meqtl.rds", sentinel=MEQTL.sentinel)
 	output:
 		DRANGES + "summary.pdf"
+	conda:
+		"envs/bioR.yaml"
 	script:
 		"scripts/create_locus_summary.R"
 

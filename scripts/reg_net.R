@@ -107,11 +107,11 @@ reg_net <- function(data,
     pcors <- try({
       ggm.estimate.pcor(data.matrix(data_no_nas))
     })
-    while (inherits(pcors, "try-error")) {
-      pcors <- try({
-        ggm.estimate.pcor(data.matrix(data_no_nas))
-      })
-    }
+  #  while (inherits(pcors, "try-error")) {
+  #    pcors <- try({
+  #      ggm.estimate.pcor(data.matrix(data_no_nas))
+  #    })
+  #  }
 
     fit <- network.test.edges(pcors, plot = F)
     fit$node1 <- colnames(data_no_nas)[fit$node1]
@@ -139,18 +139,19 @@ reg_net <- function(data,
       # TEST: we adjust the priors to be between 0.5 and 1, since
       # values < 0.5 would actually discourage an edge when it shouldn't
       #(there was at least some evidence, pseudo prior should be uniform prior)
-      sc <- function(x, low, high) { 
-        (high-low)*(x-min(x)) / (max(x) - min(x)) + low
-      }
+#      sc <- function(x, low, high) { 
+#        (high-low)*(x-min(x)) / (max(x) - min(x)) + low
+#      }
       
       # might happen if we try out a specific uniform prior
       # we do not adjust in that case
-      if(length(unique(as.numeric(priors))) == 1) {
-        bdpriors <- priors
-      } else {
-        bdpriors <- sc(priors, 0.5, 1)
-      }
-      
+#      if(length(unique(as.numeric(priors))) == 1) {
+#        bdpriors <- priors
+#      } else {
+#        bdpriors <- sc(priors, 0.5, 1)
+#      }
+      bdpriors <- priors
+     
       # check whether to use the prior based start graph
       if (use_gstart) {
         gstart <- get_gstart_from_priors(bdpriors)
@@ -174,20 +175,20 @@ reg_net <- function(data,
         cores = threads
       )
     })
-    while (inherits(fit, "try-error")) {
-      fit <- try({
-        bdgraph(
-          data,
-          method = "gcgm",
-          g.prior = bdpriors,
-          iter = iter,
-          burnin = burnin,
-          g.start = gstart,
-          save = T,
-          cores = threads
-        )
-      })
-    }
+   # while (inherits(fit, "try-error")) {
+  #    fit <- try({
+  #      bdgraph(
+  #        data,
+  #        method = "gcgm",
+  #        g.prior = bdpriors,
+  #        iter = iter,
+  #        burnin = burnin,
+  #        g.start = gstart,
+  #        save = T,
+  #        cores = threads
+#        )
+#      })
+#   }
 
     # plot convergence info for any case
     ggm_summary <- summary(fit)
@@ -504,7 +505,9 @@ glasso_cv <- function(data,
   require(glasso)
   require(cvTools)
   require(parallel)
-
+  
+  print("Starting glasso CV.")
+  
   n <- nrow(data)
   folds <- cvFolds(n, k, type = "random")
 
@@ -759,6 +762,16 @@ infer_all_graphs <-
            ppi_db,
            threads = 1) {
 
+    print("Num Threads:")
+    print(RhpcBLASctl::omp_get_num_procs())
+    print(RhpcBLASctl::blas_get_num_procs())
+    print("BLAS Num Threads")
+    
+    # we set the OMP/BLAS number of threads to 1
+    # this avoids issues we had in the glasso CV with multi-threading
+    # also necessary for BDgraph 
+    RhpcBLASctl::omp_set_num_threads(1)
+    RhpcBLASctl::blas_set_num_threads(1)
     
     print("Fitting model using GeneNet.")
     genenet <- reg_net(data, NULL, "genenet", threads = threads)

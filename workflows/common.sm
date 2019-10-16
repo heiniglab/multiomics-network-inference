@@ -1,17 +1,16 @@
-# output directories
-DHOTSPOTS = "results/current/hotspots/"
-
+# -----------------------------------------------------------------------------
 # gene annotation
 GENE_ANNOT = "data/current/gencode_annotations/gencode.v19.annotation.gene.gtf"
 
+# -----------------------------------------------------------------------------
 # general params
 COHORTS = ["lolipop", "kora"] # available cohorts
 
+# -----------------------------------------------------------------------------
 # define the available PPI networks and set the active one
 PPI_DB_BIOGRID = "results/current/biogrid.rds"
 PPI_DB_STRING = "results/current/string.v9.expr.rds"
 
-# -----------------------------------------------------------------------------
 # most files depend on the type of PPI db used.
 # so we define a nice name in accordance to the used
 # DB to be added to our directory definitions below
@@ -20,8 +19,8 @@ if PPI_NAME == "string":
   PPI_DB = PPI_DB_STRING
 else:
   PPI_DB = PPI_DB_BIOGRID
-# -----------------------------------------------------------------------------
 
+# -----------------------------------------------------------------------------
 # output directories
 DHOTSPOTS = "results/current/hotspots/"
 
@@ -33,8 +32,22 @@ DCOHORT_FITS = "results/current/" + PPI_NAME + "/fits/"
 DMEDIATION = "results/current/" + PPI_NAME + "/mediation/"
 DGRAPH_PLOTS = "results/current/" + PPI_NAME + "/graph_plots/"
 
+# -----------------------------------------------------------------------------
 # simulation study specific output directories
 DSIM_DATA = "results/current/" + PPI_NAME + "/simulation/data/"
 DSIM_VALIDATION = "results/current/" + PPI_NAME + "/simulation/validation/"
 DSIM_FITS = "results/current/" + PPI_NAME + "/simulation/fits/"
+
+# -----------------------------------------------------------------------------
+# Unspecific configuration rules
+# -----------------------------------------------------------------------------
+
+# -----------------------------------------------------------------------------
+# rule used to configure R environment (ie install needed packages)
+# TODO: configure env such that we do not need this (or wait for charliecloud)
+rule config_r:
+        conda:
+                "../envs/bioR.yaml"
+        script:
+                "../scripts/config_R.R"
 

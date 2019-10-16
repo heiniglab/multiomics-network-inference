@@ -183,9 +183,11 @@ get.nearby.ranges <- function(query, subject) {
     n <- nearby(q, subject)
     if(length(n$hits)>0){
       n$ranges$distance <- rep(-1, times=length(n$ranges))
+      n$ranges$hit_idx <- rep(NA_integer_, times=length(n$ranges))
       for(i in 1:length(n$ranges)) {
         d <- distance(q,n$ranges[i])
         n$ranges[i]$distance <- d
+        n$ranges[i]$hit_idx <- n$hits[i]
       }
       return(n$ranges)
     } else {

@@ -27,7 +27,6 @@ print("Get snakemake params.")
 fgene_priors <- snakemake@input[["gg_priors"]]
 feqtl_priors <- snakemake@input[["eqtl_priors"]]
 fcpgcontext <- snakemake@input[["cpg_context"]]
-fexpr <- snakemake@input[["ranges"]]
 fppi <- snakemake@input[["ppi"]]
 franges <- snakemake@input[["ranges"]]
 fcpg_annot <- snakemake@input[["cpg_annot"]]
@@ -50,7 +49,7 @@ ppi_db <- readRDS(fppi)
 ranges <- readRDS(franges)
 
 # get all entities as single vector
-nodes <- c(sentinel, ranges$snp_genes$SYMBOL, 
+nodes <- c(sentinel, ranges$snp_genes$SYMBOL,
            ranges$tfs$SYMBOL, ranges$spath$SYMBOL)
 
 if(ranges$seed == "meqtl") {

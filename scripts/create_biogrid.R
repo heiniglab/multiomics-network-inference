@@ -10,9 +10,10 @@
 # ------------------------------------------------------------------------------
 print("Load libraries and source scripts")
 # ------------------------------------------------------------------------------
-suppressPackageStartupMessages(library(data.table))
-suppressPackageStartupMessages(library(graph))
-suppressPackageStartupMessages(library(igraph))
+library(data.table)
+library(graph)
+library(igraph)
+library(dplyr)
 source("scripts/lib.R")
 
 # ------------------------------------------------------------------------------
@@ -30,7 +31,9 @@ fout <- snakemake@output[[1]]
 # ------------------------------------------------------------------------------
 print("Loading data.")
 # ------------------------------------------------------------------------------
-biogrid <- fread(fbiogrid, stringsAsFactors=F)
+biogrid <- fread(fbiogrid, stringsAsFactors=F) %>%
+  filter(Throughput == "Low Throughput") %>% as_tibble()
+
 gtex <- fread(fgtex, stringsAsFactors=F)
 
 # ------------------------------------------------------------------------------

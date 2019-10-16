@@ -148,6 +148,11 @@ graph_types <- c("bdgraph", "bdgraph_no_priors",
                  "genenet", "irafnet",
                  "glasso", "glasso_no_priors", "genie3")
 
+# validate all graph models
+# NOTE: although we used multi-threading before, it seems that this results in
+# problems when integrating the GO enrichment (cryptic database disk image errors)
+# Therefore we only use one thread for now, but run a lot of distinct jobs, this
+# seems to do the trick
 valid <- mclapply(graph_types, function(graph_type) {
   print(paste0("Validating ", cohort, " fit for '", graph_type , "' graph fit."))
 
@@ -505,6 +510,10 @@ valid <- mclapply(graph_types, function(graph_type) {
 
 # write output file
 valid <- do.call(rbind, valid)
+if(is.null(dim(valid)) || ncol(valid) < 2) {
+  stop("Error: wrong result dimensions.")
+}
+
 write.table(file=fout, valid, col.names=T,
             row.names=F, quote=F, sep="\t")
 

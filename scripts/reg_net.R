@@ -9,6 +9,19 @@
 #' @date Thu Dec 13 17:49:42 2018
 #' -----------------------------------------------------------------------------
 
+# when sourcing, check which packages are installed for quicker diagnostics
+require(BDgraph)
+require(glasso)
+require(GENIE3)
+require(iRafNet)
+require(GeneNet)
+require(doParallel)
+require(parallel)
+require(cvTools)
+require(igraph)
+require(graph)
+require(reshape2)
+
 # define the available models for network inference
 reg_net.models <- function() {
   return(c("genenet", "bdgraph", "irafnet", "glasso", "genie3" , "custom"))
@@ -65,6 +78,16 @@ reg_net <- function(data,
     ! anyNA(x))]
 
   if (!is.null(priors)) {
+    # if prior dimensions do not match, try to subset priors
+    if(ncol(data) < ncol(priors)) {
+      warning("Subsetting priors automatically. You should check your input.")
+      priors <- priors[colnames(data), colnames(data)]
+
+      # sanity check: do colnames match?
+      if(!all(colnames(priors) == colnames(data))) {
+        stop("Column names did not match after autmatic prior subsetting.")
+      }
+    }
     # we possibly lost some data when filtering for NAs, so we adjust priors too
     priors_no_nas <-
       priors[rownames(priors) %in% colnames(data_no_nas),
@@ -112,8 +135,15 @@ reg_net <- function(data,
       }
     } else {
       # we have priors
-      bdpriors <- priors
-
+      
+      # TEST: we adjust the priors to be between 0.5 and 1, since
+      # values < 0.5 would actually discourage an edge when it shouldn't
+      #(there was at least some evidence, pseudo prior should be uniform prior)
+      sc <- function(x, low, high) { 
+        (high-low)*(x-min(x)) / (max(x) - min(x)) + low
+      }
+      bdpriors <- sc(priors, 0.5, 1)
+      
       # check whether to use the prior based start graph
       if (use_gstart) {
         gstart <- get_gstart_from_priors(bdpriors)
@@ -170,6 +200,7 @@ reg_net <- function(data,
               mtry,
               colnames(data_no_nas),
               threads = threads)
+    
     irn_perm_out <- Run_permutation(
       data_no_nas,
       priors_no_nas,
@@ -471,6 +502,11 @@ glasso_cv <- function(data,
   n <- nrow(data)
   folds <- cvFolds(n, k, type = "random")
 
+  # define penalties to be used in glasso
+  if(!is.null(priors)) {
+    penalties <- (1 - priors)
+  }
+  
   # get the ll progression for all CV folds
   loglikes <- lapply(1:k, function(ki) {
     S_train <- cov(data[folds$which != ki, ], use = "na.or.complete")
@@ -486,7 +522,7 @@ glasso_cv <- function(data,
     unlist(mclapply(rholist, function(rho) {
       if (!is.null(priors)) {
         gl <- glasso(S_train,
-                     rho = rho * (1 - priors),
+                     rho = rho * penalties,
                      penalize.diagonal = F)
       } else {
         gl <- glasso(S_train,
@@ -524,7 +560,7 @@ glasso_cv <- function(data,
   # retrain the full model
   S <- cov(data, use = "na.or.complete")
   if (!is.null(priors)) {
-    model <- glasso(S, rho * (1 - priors), penalize.diagonal = F)
+    model <- glasso(S, rho * penalties, penalize.diagonal = F)
   } else {
     model <- glasso(S, rho, penalize.diagonal = F)
   }
@@ -591,13 +627,13 @@ genie3 <-
     require(parallel)
 
     # we expect a n x p matrix, genie3 needs a p x n matrix
-    if (verbose)
+    if (verbose) {
       start <- Sys.time()
+    }
     model <- GENIE3(t(data), nCores = threads)
     linklist <- getLinkList(model, threshold = 0)
     if (verbose) {
       end <- Sys.time()
-
       print(paste0("GENIE3 benchmark: ", end - start))
     }
     all_link_weights <- sort(unique(linklist$weight))
@@ -605,7 +641,8 @@ genie3 <-
     lw <- length(all_link_weights)
     # get a subset to check if needed
     if (lw > 500) {
-      all_link_weights <- quantile(all_link_weights, seq(0, 1, by = 0.005))
+      all_link_weights <- quantile(all_link_weights, 
+                                   seq(0, 1, by = 0.005))
     }
 
     print(paste0("Checking ", length(all_link_weights), " weights."))
@@ -614,6 +651,7 @@ genie3 <-
     # to a power law distr for each weight cutoff
     fits <- mclapply(all_link_weights, function(weight) {
       g <- get_genie3_graph(colnames(data), linklist, weight)
+#      print(g)
       ds <- graph::degree(g)
       if (var(ds) == 0)
         return(NULL)
@@ -682,7 +720,7 @@ genie3 <-
       fits_r2 <- subset(fits, r2 == max(r2))
     }
     fits_mcon <- subset(fits_r2, mcon == max(mcon))
-    fits_beta <- fits_mcon[which.min(-1 - fits$beta), ]
+    fits_beta <- fits_mcon[which.min(-1 - fits_mcon$beta), ]
     best_weight <- fits_beta$weight
 
     return(
@@ -705,7 +743,6 @@ genie3 <-
 #' @param fcontext the tfbs context file
 #' @param ppi_db the ppi db (graph) underlying the data
 #' @param threads number of threads to be used. Default: 1
-#' @param subset Small hack to calculate only GENIE3 and glasso models
 #'
 #' -----------------------------------------------------------------------------
 infer_all_graphs <-
@@ -714,14 +751,12 @@ infer_all_graphs <-
            ranges,
            fcontext,
            ppi_db,
-           threads = 1,
-           subset = FALSE) {
+           threads = 1) {
 
-    if (!subset) {
-      print("Fitting model using GeneNet.")
-      genenet <- reg_net(data, NULL, "genenet", threads = threads)
-    }
-
+    
+    print("Fitting model using GeneNet.")
+    genenet <- reg_net(data, NULL, "genenet", threads = threads)
+    
     print("Fitting model using glasso.")
     glasso <- reg_net(data, priors, "glasso", threads = threads)
 
@@ -731,71 +766,104 @@ infer_all_graphs <-
     print("Fitting model using genie3.")
     genie3 <- reg_net(data, NULL, "genie3", threads = threads)
 
-    if (!subset) {
-      print("Fitting bdgraph using priors.")
-      bdgraph <- reg_net(data, priors, "bdgraph", threads = threads)
+    print("Fitting bdgraph using priors.")
+    bdgraph <- reg_net(data, priors, "bdgraph", threads = threads)
 
-      print("Fitting bdgraph without priors.")
-      bdgraph_no_priors <- reg_net(data,
-                                   NULL,
-                                   "bdgraph",
-                                   use_gstart = F,
-                                   threads = threads)
+    print("Fitting bdgraph without priors.")
+    bdgraph_no_priors <- reg_net(data,
+                                 NULL,
+                                 "bdgraph",
+                                 use_gstart = F,
+                                 threads = threads)
 
-      print("Fitting model using iRafNet.")
-      irafnet <- reg_net(data, priors, "irafnet", threads = threads)
-    }
+    print("Fitting model using iRafNet.")
+    irafnet <- reg_net(data, priors, "irafnet", threads = threads)
 
     # --------------------------------------------------------------------------
     print("Add custom annotations for the graphs.")
     # --------------------------------------------------------------------------
-    if (!subset) {
-      bdgraph$graph <-
-        annotate.graph(bdgraph$graph, ranges, ppi_db, fcontext)
-      bdgraph_no_priors$graph <- annotate.graph(bdgraph_no_priors$graph,
-                                                ranges, ppi_db, fcontext)
-      irafnet$graph <-
-        annotate.graph(irafnet$graph, ranges, ppi_db, fcontext)
-      genenet$graph <-
-        annotate.graph(genenet$graph, ranges, ppi_db, fcontext)
-    }
-    genie3$graph <-
-      annotate.graph(genie3$graph, ranges, ppi_db, fcontext)
+    bdgraph$graph <- annotate.graph(bdgraph$graph, 
+                                    ranges, ppi_db, fcontext)
+    
+    bdgraph_no_priors$graph <- annotate.graph(bdgraph_no_priors$graph,
+                                              ranges, ppi_db, fcontext)
 
-    glasso$graph <-
-      annotate.graph(glasso$graph, ranges, ppi_db, fcontext)
+    irafnet$graph <- annotate.graph(irafnet$graph, 
+                                    ranges, ppi_db, fcontext)
+    
+    genenet$graph <- annotate.graph(genenet$graph, 
+                                    ranges, ppi_db, fcontext)
+
+    genie3$graph <- annotate.graph(genie3$graph, 
+                                   ranges, ppi_db, fcontext)
+
+    glasso$graph <- annotate.graph(glasso$graph, 
+                                   ranges, ppi_db, fcontext)
+    
     glasso_no_priors$graph <- annotate.graph(glasso_no_priors$graph,
                                              ranges, ppi_db, fcontext)
 
     # --------------------------------------------------------------------------
     print("Create result list.")
     # --------------------------------------------------------------------------
-    if (!subset) {
-      result <- list(
-        bdgraph_fit = bdgraph$fit,
-        bdgraph_no_priors_fit = bdgraph_no_priors$fit,
-        bdgraph = bdgraph$graph,
-        bdgraph_no_priors = bdgraph_no_priors$graph,
-        irafnet_fit = irafnet$fit,
-        genenet_fit = genenet$fit,
-        irafnet = irafnet$graph,
-        genenet = genenet$graph,
-        glasso_fit = glasso$fit,
-        glasso = glasso$graph,
-        glasso_no_priors_fit = glasso_no_priors$fit,
-        glasso_no_priors = glasso_no_priors$graph,
-        genie3_fit = genie3$fit,
-        genie3 = genie3$graph
-      )
-    } else {
-      result <- list(
-        glasso_fit = glasso$fit,
-        glasso = glasso$graph,
-        glasso_no_priors_fit = glasso_no_priors$fit,
-        glasso_no_priors = glasso_no_priors$graph,
-        genie3_fit = genie3$fit,
-        genie3 = genie3$graph
-      )
-    }
+    result <- list(
+      # bdgraph
+      bdgraph_fit = bdgraph$fit,
+      bdgraph = bdgraph$graph,
+      # bdgraph no priors
+      bdgraph_no_priors_fit = bdgraph_no_priors$fit,
+      bdgraph_no_priors = bdgraph_no_priors$graph,
+      # irafnet
+      irafnet_fit = irafnet$fit,
+      irafnet = irafnet$graph,
+      # genenet
+      genenet_fit = genenet$fit,
+      genenet = genenet$graph,
+      # glasso
+      glasso_fit = glasso$fit,
+      glasso = glasso$graph,
+      # glasso no priors
+      glasso_no_priors_fit = glasso_no_priors$fit,
+      glasso_no_priors = glasso_no_priors$graph,
+      # genie3
+      genie3_fit = genie3$fit,
+      genie3 = genie3$graph
+    )
+
     return(result)
   }
+
+#' -----------------------------------------------------------------------------
+#' Combe two graph objects. 
+#'
+#' Keeps only nodes and edges present in both graphs
+#' 
+#' @param g1 graphNEL object
+#' @param g2 graphNEL object
+#'
+#' @import graph
+#' @import igraph
+#' 
+#' @author Johann Hawe <johann.hawe@helmholtz-muenchen.de>
+#' 
+#' -----------------------------------------------------------------------------
+combine_graphs <- function(g1, g2) {
+  require(graph)
+  require(igraph)
+  
+  # get incidence matrix for both graphs for easier comparison
+  g1_mat <- as(g1, "matrix")
+  g2_mat <- as(g2, "matrix")
+  
+  # use only common nodes, also ensure ordering of columns/rows
+  use <- intersect(colnames(g1_mat), colnames(g2_mat))
+  g1_mat <- g1_mat[use,use]
+  g2_mat <- g2_mat[use,use]
+  
+  # get the graph from the combined matrix (i.e. only were edges are present in
+  # both cohorts), also remove zero-degree nodes
+  inc_combined <- (g1_mat == 1 & g2_mat == 1)
+  g_combined <- igraph::as_graphnel(graph_from_adjacency_matrix(inc_combined,
+                                                                mode="undirected"))
+  g_combined
+}

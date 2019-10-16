@@ -50,7 +50,7 @@ rule apply_ggm_simulation:
                 time="2-00:00:00"
         threads: 12
         resources:
-                mem_mb=4500
+                mem_mb=2500
         conda:
                 "../envs/bioR.yaml"
         log:
@@ -64,6 +64,14 @@ rule all_apply_ggm_simulation:
 	input:
 		expand(DSIM_FITS + "{sentinel}-iter{iteration}.RData", sentinel=MEQTL.sentinel,
 		iteration=ITERATIONS)
+
+rule apply_ggm_simulation_sentinels:
+	input:
+		expand(DSIM_FITS + "{sentinel}-iter1.RData", sentinel=MEQTL.sentinel)
+
+rule apply_ggm_simulation_sentinels2:
+	input:
+		expand(DSIM_FITS + "{sentinel}-iter2.RData", sentinel=MEQTL.sentinel)
 
 #------------------------------------------------------------------------------
 # Validate a simulation run

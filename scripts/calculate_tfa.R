@@ -16,6 +16,11 @@ print("Load libraries and source scripts")
 # ------------------------------------------------------------------------------
 library(plsgenomics)
 library(pheatmap)
+library(ggplot2)
+library(reshape2)
+library(cowplot)
+theme_set(theme_cowplot())
+
 source("scripts/lib.R")
 source("scripts/collect_data_methods.R")
 
@@ -27,9 +32,11 @@ fcohort_data <- snakemake@input$cohort_data
 ftfbs_annot <- snakemake@input$tfbs_annot
 
 # output
-fout_heatmap <- snakemake@output$heatmap
+fout_plot <- snakemake@output$plot
 fout_tfa <- snakemake@output$tfa
 fout_expr <- snakemake@output$expr
+
+cohort <- snakemake@wildcards$cohort
 
 # ------------------------------------------------------------------------------
 print("Loading data.")
@@ -45,7 +52,7 @@ probe_resid <- rm_covariate_effects(expr_covars, "expr")
 
 # we need one expression value per sample per gene -> summarize probes belonging
 # to one gene
-all_syms <- symbols.from.probeids(colnames(probe_resid))
+all_syms <- unique(symbols.from.probeids(colnames(probe_resid)))
 symbol_resid <- summarize(probe_resid, all_syms)
 
 # get the tfbs tss annotation
@@ -78,29 +85,29 @@ rownames(TFA) <- colnames(data_sub)
 
 # substitute expression of TFs with TFA
 symbol_resid_tfa <- symbol_resid
-for(tf in tf_sub) {
-  symbol_resid_tfa[,tf] <- TFA[,tf]
-}
+symbol_resid_tfa[,tf_sub] <- TFA[,tf_sub]
 
 # ------------------------------------------------------------------------------
 print("Saving results.")
 # ------------------------------------------------------------------------------
 saveRDS(file=fout_tfa, symbol_resid_tfa)
 saveRDS(file=fout_expr, symbol_resid)
-# ------------------------------------------------------------------------------
-print("Getting correlations of TFs/Targets and plotting heatmap.")
-# ------------------------------------------------------------------------------
-# we look at the relevant subset to speed up computations for cor/pheatmap
-gene_subset <- unique(c(targets, tf_sub))
-cor_tfa <- cor(symbol_resid_tfa[, gene_subset])
-cor_exp <- cor(symbol_resid[, gene_subset])
 
-cor_comb <- cor_tfa
-cor_comb[lower.tri(cor_comb, diag=F)] <- cor_exp[lower.tri(cor_exp, diag=F)]
+# ------------------------------------------------------------------------------
+print("Getting correlations of TFs/Targets and plotting.")
+# ------------------------------------------------------------------------------
 
-# plot heatmaps of correlations
-pdf(fout_heatmap)
-pheatmap(cor_comb, cluster_cols=F, cluster_rows=F)
+# get plotting data frame
+data <- sapply(tf_sub, function(g) { 
+  cor(symbol_resid_tfa[,g], symbol_resid[,g])
+})
+
+toplot <- data.frame(correlation=unlist(data))
+
+pdf(fout_plot)
+ggplot(toplot, aes(x=correlation)) +
+  geom_histogram() +
+  labs(title=paste0("Correlation between TFA and Expression in ", cohort))
 dev.off()
 
 # ------------------------------------------------------------------------------

@@ -834,12 +834,18 @@ get.g.start <- function(nodes, ranges){
 #' pairs with prior>0.5 to create the g.start
 #'
 #' @param priors Matrix of prior values for all possible node edges
-#'
+#' @param scaled Do we use a scaled (between 0.5 and 1) version of the priors?
+#' Default: FALSE
+#' 
 #' @author Johann Hawe
 #'
-get_gstart_from_priors <- function(priors){
+get_gstart_from_priors <- function(priors, scaled=FALSE){
   out <- priors
-  idx <- out>0.5
+  if(scaled) {
+    idx <- out>0.75
+  } else {
+    idx <- out>0.5
+  }
   out[idx] <- 1
   out[!idx] <- 0
   return(out)
@@ -862,7 +868,7 @@ normalize.expression <- function(data) {
   library(sva)
 
   # quantile normalize
-  scaled = normalize.quantiles(t(data))
+  scaled = normalize.quantiles.robust(t(data))
   rownames(scaled) <- colnames(data)
   colnames(scaled) <- rownames(data)
 
@@ -1826,96 +1832,55 @@ summarize <- function(m, symbols){
 #' Scans genotype files for SNPs within the provided genomic ranges
 #'
 #' @param ranges GRanges object containing the ranges which to scan for SNPs
-#' @param dir Base directory in which genotype information is stored
-#' @param genotype.file Path to and including file which contains the genotypes,
+#' @param tabix_file Path to and including file which contains the genotypes,
 #' relative to the base directory
-#' @param ids The individual ids for the genotype data in correct order (i.e.
+#' @param individuals The individual ids for the genotype data in correct order (i.e.
 #' as provided in the main directory)
-#'
+#' @param filter Optional. A list of individuals which should be preselected.
+#' Needs to be a subset of `individuals`. Default: NULL
+#' 
 #' @author Johann Hawe <johann.hawe@helmholtz-muenchen.de>
 #'
 # ------------------------------------------------------------------------------
-scan_snps <- function(ranges, dosage_file, individuals, tempdir=tempdir()) {
-
-  stop("This script caused major problems last time we used it. Has to be adjusted
-       before running the whole pipeline again!")
-
-  # Code below is a differen try to obtaining the genotypes (for a large number
-  # snps, ~2e6, which could be further explored)
-
-  # require(Rsamtools)
-  # chrs <- unique(as.character(seqnames(ranges)))
-  #
-  # res <- lapply(chrs, function(chr) {
-  #   ra <- ranges[as.character(seqnames(ranges)) == chr]
-  #   ra <- reduce(ra, min.gapwidth = 1e3)
-  #   dat <- scanTabix(dosage_file, ra)
-  #   if(inherits(data, "try-error")){
-  #     cat("No SNPs found in specified regions.\n")
-  #     return(data.frame())
-  #   } else {
-  #     data <- dat[!duplicated(dat[,2]),,drop=F]
-  #     message(paste("Processed", nrow(dat), "SNPs." ))
-  #
-  #     # process the genotype information to get numerics
-  #     for(i in 6:ncol(data)){
-  #       data[,i] <- (as.numeric(data[,i]))
-  #     }
-  #
-  #     ## create colnames using individual codes
-  #     colnames(data)<- c("chr", "name", "pos", "orig", "alt", individuals)
-  #     rownames(data) <- data$name
-  #
-  #     return(data[,6:ncol(data)])
-  #   }
-  # })
-
-  # create system command for tabix
-  ranges.str <- paste(ranges, collapse=" ")
-
-  # for very large ranges-objects (e.g. several thousand ranges)
-  # using the tabix cmd directly in the fread method seems not
-  # to work, neither does calling tabix via the system() command.
-  # therefore we create a temp bash file (tf), which we call using R
-  # the output (tf2) is then read using fread
-  tf <- tempfile(tmpdir = tempdir)
-  tf2 <- tempfile(tmpdir = tempdir)
-  cmd <- paste0("tabix ", dosage_file, " ", ranges.str, " > ", tf2)
-  cat(cmd, file=tf, append = F)
-  system(paste0("sh ", tf))
-
-  # read the data from the created temp file
-  data <- tryCatch( {
-    d <- fread(tf2, sep="\t", data.table=F)
-  }, warning = function(e) {
-    message(paste0("WARNING when loading SNPs:\n", e))
-    return(d)
-  }, error= function(e) {
-    message(paste0("ERROR when loading SNPs:\n", e))
-  }
-  )
-
-  # remove the temp files instantly
-  rm(tf,tf2)
-
-  if(inherits(data, "try-error")){
-    cat("No SNPs found in specified regions.\n")
-    return(list(snpInfo=data.frame(), snps=data.frame()))
+scan_snps <- function(ranges, tabix_file , individuals, filter=NULL) {
+  
+  require(Rsamtools)
+  require(data.table)
+  
+  res <- scanTabix(tabix_file, param=ranges)
+  
+  # scanTabix will also return 'empty' ranges for which no data was found
+  res_not_empty <- res[sapply(res, function(x) !length(x)<1)]
+  
+  print("Scan done, converting Tabix results to data frame.")
+  
+  collapsed <- paste0(unlist(res_not_empty), collapse="\n")
+  
+  # define columns for filtering
+  all_cols <- c("chr", "name", "pos", "orig", "alt", individuals)
+  if(!is.null(filter)) {
+    filter_cols <- c("chr", "name", "pos", "orig", "alt", filter)
   } else {
-    data <- data[!duplicated(data[,2]),,drop=F]
-    message(paste("Processed", nrow(data), "SNPs." ))
-
-    # process the genotype information to get numerics
-    for(i in 6:ncol(data)){
-      data[,i] <- (as.numeric(data[,i]))
-    }
-
-    ## create colnames using individual codes
-    colnames(data)<- c("chr", "name", "pos", "orig", "alt", individuals)
-    rownames(data) <- data$name
-
-    return(data[,6:ncol(data)])
+    filter_cols <- all_cols
   }
+  
+  select <- match(filter_cols,
+                  all_cols)
+  
+  # select argument also determines order of columns
+  genos <- unique(fread(text=collapsed, sep="\t", header=FALSE, 
+                        col.names=filter_cols,
+                        stringsAsFactors=F, data.table=FALSE, 
+                        select=select))
+  
+  print("Read data of dimension:")
+  print(dim(genos))
+  
+  # set rownames
+  rownames(genos) <- genos$name
+  
+  # we only return the actual SNP dosages
+  return(genos[,6:ncol(genos)])
 }
 
 #' -----------------------------------------------------------------------------

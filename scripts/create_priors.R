@@ -39,9 +39,6 @@ dplots <- snakemake@params$plot_dir
 fout_gene_priors <- snakemake@output$gene_priors
 fout_eqtl_priors <- snakemake@output$eqtl_priors
 
-# params
-threads <- snakemake@threads
-
 # ------------------------------------------------------------------------------
 # Start processing
 # ------------------------------------------------------------------------------

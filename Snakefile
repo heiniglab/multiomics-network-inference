@@ -188,7 +188,7 @@ rule collect_ranges:
 		DRANGES + "{sentinel}_meqtl.rds"
 	threads: 1
 	resources:
-		mem_mb=2300
+		mem_mb=3000
 	params:
 		time="02:00:00"
 	conda:
@@ -215,7 +215,7 @@ rule collect_ranges_eqtlgen:
                 plot = DRANGES + "{sentinel}_eqtlgen.pdf"
         threads: 1
         resources:
-                mem_mb=2300
+                mem_mb=3000
         params:
                 time="02:00:00"
         conda:
@@ -299,7 +299,7 @@ rule collect_data:
 		DCOHORT_DATA + "{cohort}/{sentinel}_raw_{seed}.rds"
 	threads: 1
 	resources:
-		mem_mb=20000
+		mem_mb=25000
 	conda:
 		"envs/bioR.yaml"
 	params:
@@ -342,7 +342,7 @@ rule collect_priors:
 		DPRIORS + "{sentinel}_{seed}.pdf"
 	threads: 1
 	resources:
-		mem_mb=12000
+		mem_mb=20000
 	conda:
 		"envs/bioR.yaml"
 	params:

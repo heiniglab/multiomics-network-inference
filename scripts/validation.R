@@ -128,8 +128,9 @@ lfit <- readRDS(flolipop_fit)
 #kfit_old <- readRDS(fkora_fit_old)
 #lfit_old <- readRDS(flolipop_fit_old)
 
-fits <- list(kora = kfit, lolipop = lfit,
-             kora_old=kfit_old, lolipop_old=lfit_old)
+#fits <- list(kora = kfit, lolipop = lfit,
+#             kora_old=kfit_old, lolipop_old=lfit_old)
+fits <- list(kora = kfit, lolipop = lfit)
 
 # we get the according dataset on which to validate
 if ("lolipop" %in% cohort) {

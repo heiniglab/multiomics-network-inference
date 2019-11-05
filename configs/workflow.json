@@ -1,4 +1,5 @@
 {
 	"hots_thres" : "5",
-	"ppi_db" : "biogrid"
+	"ppi_db" : "biogrid",
+	"suffix_tfa_expr" : "expr"
 }

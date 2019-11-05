@@ -24,13 +24,16 @@ else:
 # output directories
 DHOTSPOTS = "results/current/hotspots/"
 
-DCOHORT_VAL = "results/current/" + PPI_NAME + "/validation/"
-DPRIORS = "results/current/" + PPI_NAME + "/priors/"
+# TODO use this suffix for all TFA/expr related outputs
+suffix = config["suffix_tfa_expr"] + "/"
+
 DRANGES = "results/current/" + PPI_NAME + "/ranges/"
-DCOHORT_DATA = "results/current/" + PPI_NAME + "/cohort_data/"
-DCOHORT_FITS = "results/current/" + PPI_NAME + "/fits/"
-DMEDIATION = "results/current/" + PPI_NAME + "/mediation/"
-DGRAPH_PLOTS = "results/current/" + PPI_NAME + "/graph_plots/"
+DPRIORS = "results/current/" + PPI_NAME + "/priors/"
+DCOHORT_DATA = "results/current/" + PPI_NAME + "/cohort_data_" + suffix
+DCOHORT_FITS = "results/current/" + PPI_NAME + "/fits_" + suffix
+DCOHORT_VAL = "results/current/" + PPI_NAME + "/validation_" + suffix
+DMEDIATION = "results/current/" + PPI_NAME + "/mediation_" + suffix
+DGRAPH_PLOTS = "results/current/" + PPI_NAME + "/graph_plots_" + suffix
 
 # -----------------------------------------------------------------------------
 # simulation study specific output directories

@@ -32,7 +32,8 @@ fout <- snakemake@output[[1]]
 print("Loading data.")
 # ------------------------------------------------------------------------------
 biogrid <- fread(fbiogrid, stringsAsFactors=F) %>%
-  filter(Throughput == "Low Throughput") %>% as_tibble()
+  #filter(Throughput == "Low Throughput") %>% as_tibble()
+  as_tibble()
 
 gtex <- fread(fgtex, stringsAsFactors=F)
 

@@ -75,6 +75,10 @@ ppi_db <- readRDS(fppi_db)
 #  fit_kora <- readRDS(ffit_kora_old)
 #  fit_lolipop <- readRDS(ffit_lolipop_old)
 #}
+if(!graph_type %in% names(fit_kora) | !graph_type %in% names(fit_lolipop)) {
+  stop("Graph type not available in fitting results.")
+}
+
 g_kora <- fit_kora[[graph_type]]
 g_lolipop <- fit_lolipop[[graph_type]]
 

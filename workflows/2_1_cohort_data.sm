@@ -26,7 +26,7 @@ rule mediation_analysis:
 		beta_table=DMEDIATION + "{cohort}/{sentinel}_{seed}_betas.txt",
 	threads: 1
 	resources:
-		mem_mb=600
+		mem_mb=1000
 	params:
 		time="00:20:00"
 	conda:
@@ -60,11 +60,11 @@ rule apply_ggm:
                 fit=DCOHORT_FITS + "{cohort}/{sentinel}_{seed}.rds",
                 summary_file=DCOHORT_FITS + "{cohort}/{sentinel}_{seed}.pdf"
 #                gstart_file=DCOHORT_FITS + "{cohort}/{sentinel}_{seed}_gstart.pdf"
-        threads: 12
+        threads: 18
         params:
-                time="24:00:00"
+                time="36:00:00"
         resources:
-                mem_mb=1500
+                mem_mb=5000
         conda:
                 "../envs/bioR.yaml"
         benchmark:
@@ -113,10 +113,10 @@ rule validate_ggm:
 #		mediation_summary_plot=DCOHORT_VAL + "{cohort}/{sentinel}_{seed}_mediation.pdf"
         params:
                 mediation_cutoff=0.05,
-                time="01:00:00"
-        threads: 1
+                time="7:00:00"
+        threads: 7
         resources:
-                mem_mb=4000
+                mem_mb=2500
         conda:
                 "../envs/bioR.yaml"
         log:
@@ -169,6 +169,14 @@ rule summarize_validation_eqtlgen:
 		"""
 
 #------------------------------------------------------------------------------
+# Summarize validation over all loci, adding GWAS information, too
+#------------------------------------------------------------------------------
+rule all_summarize_validation:
+	input:
+		DCOHORT_VAL + "validation_all_eqtlgen_gwas.txt",
+		DCOHORT_VAL + "validation_all_meqtl_gwas.txt"
+
+#------------------------------------------------------------------------------
 # Add GWAS information to validation table
 #------------------------------------------------------------------------------
 rule add_gwas_information:
@@ -177,19 +185,15 @@ rule add_gwas_information:
 		gwas="data/current/gwas/gwas_catalog_v1.0.2-associations_e96_r2019-07-12.tsv"
 	output:
 		validation=DCOHORT_VAL + "validation_all_{seed}_gwas.txt"
-	conda:
-		"../envs/bioR.yaml"
+	params:
+		time = "05:00:00"
+	resources:
+		mem_mb=2000
 	threads: 10
+	log:
+		"logs/add_gwas_information_{seed}.log"
 	script:
 		"../scripts/validation_annotate_gwas.R"
-
-#------------------------------------------------------------------------------
-# Summarize validation over all loci, adding GWAS information, too
-#------------------------------------------------------------------------------
-rule all_summarize_validation:
-	input:
-		DCOHORT_VAL + "validation_all_eqtlgen_gwas.txt",
-		DCOHORT_VAL + "validation_all_meqtl_gwas.txt"
 
 #------------------------------------------------------------------------------
 # Create summary report
@@ -220,8 +224,8 @@ rule generate_dot:
 #                old="results/old/biogrid/fits/{cohort}/{sentinel}_{seed}.rds"
         output:
                 DGRAPH_PLOTS + "{sentinel}_{seed}/{cohort}/{graph_type}.dot"
-        conda:
-                "../envs/bioR.yaml"
+#       conda:
+#                "../envs/bioR.yaml"
         log:
                 "logs/generate_dot/{sentinel}_{seed}/{cohort}_{graph_type}.log"
         script:
@@ -245,8 +249,8 @@ rule generate_dot_combined:
 	output:
 		dot = DGRAPH_PLOTS + "{sentinel}_{seed}/{graph_type}_combined.dot",
 		graph = DGRAPH_PLOTS + "{sentinel}_{seed}/{graph_type}_combined.rds"
-	conda:
-		"../envs/bioR.yaml"
+#	conda:
+#		"../envs/bioR.yaml"
 	log:
 		"logs/generate_dot_combined/{sentinel}_{seed}/{graph_type}.log"
 	script:
@@ -297,7 +301,7 @@ rule plot_relevant_graphs:
 		DGRAPH_PLOTS + "rs8058619_meqtl/all.pdf",
 		DGRAPH_PLOTS + "rs436744_meqtl/all.pdf",
 		DGRAPH_PLOTS + "rs3171692_meqtl/all.pdf",
-		DGRAPH_PLOTS + "rs114092478_meqtl/all.pdf",
+#		DGRAPH_PLOTS + "rs114092478_meqtl/all.pdf",
 		DGRAPH_PLOTS + "rs1064395_eqtlgen/all.pdf",
 		DGRAPH_PLOTS + "rs3748136_eqtlgen/all.pdf",
 		DGRAPH_PLOTS + "rs1364109_meqtl/all.pdf",

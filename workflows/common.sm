@@ -8,17 +8,14 @@ COHORTS = ["lolipop", "kora"] # available cohorts
 
 # -----------------------------------------------------------------------------
 # define the available PPI networks and set the active one
-PPI_DB_BIOGRID = "results/current/biogrid.rds"
-PPI_DB_STRING = "results/current/string.v9.expr.rds"
+PPI_PREFIX = "results/current/ppi_"
 
 # most files depend on the type of PPI db used.
 # so we define a nice name in accordance to the used
 # DB to be added to our directory definitions below
+# PPI_NAME can be one of: biogrid, biogrid_stringent, string
 PPI_NAME = config["ppi_db"]
-if PPI_NAME == "string":
-  PPI_DB = PPI_DB_STRING
-else:
-  PPI_DB = PPI_DB_BIOGRID
+PPI_DB = PPI_PREFIX + PPI_NAME + ".rds"
 
 # -----------------------------------------------------------------------------
 # output directories

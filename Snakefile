@@ -125,38 +125,22 @@ rule create_priors:
 		"scripts/create_priors.R"
 
 #------------------------------------------------------------------------------
-# Preprocess stringdb PPI network
+# Preprocess PPI network
 #------------------------------------------------------------------------------
-rule create_stringdb:
+rule create_ppi_db:
 	input:
 		string="data/current/string/human_gene_hgnc_symbol.links.detailed.v9.0.txt",
-		gtex="data/current/gtex/GTEx_Analysis_v6_RNA-seq_RNA-SeQCv1.1.8_gene_median_rpkm.gct",
-		gene_annot = GENE_ANNOT
-	output:
-		PPI_DB_STRING
-	log:
-		"logs/create_stringdb.log"
-	conda:
-		"envs/bioR.yaml"
-	benchmark:
-		"benchmarks/create_stringdb.bmk"
-	script:
-		"scripts/create_stringdb.R"
-
-#------------------------------------------------------------------------------
-# Preprocess biogrid PPI network
-#------------------------------------------------------------------------------
-rule create_biogrid:
-	input:
 		biogrid="data/current/biogrid/3.5.166/by_organism/BIOGRID-ORGANISM-Homo_sapiens-3.5.166.tab2.txt",
 		gtex="data/current/gtex/GTEx_Analysis_v6_RNA-seq_RNA-SeQCv1.1.8_gene_median_rpkm.gct",
 		gene_annot = GENE_ANNOT
 	output:
-		PPI_DB_BIOGRID
+		PPI_DB
+	params:
+		ppi_name = config["ppi_db"]
 	conda:
 		"envs/bioR.yaml"
 	script:
-		"scripts/create_biogrid.R"
+		"scripts/create_ppi_db.R"
 
 #------------------------------------------------------------------------------
 # Split the cosmo object in cis, longrange and trans

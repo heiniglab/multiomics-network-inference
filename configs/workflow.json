@@ -1,5 +1,5 @@
 {
 	"hots_thres" : "5",
 	"ppi_db" : "biogrid_stringent",
-	"suffix_tfa_expr" : "expr"
+	"suffix_tfa_expr" : "tfa"
 }

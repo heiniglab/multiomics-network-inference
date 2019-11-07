@@ -11,10 +11,13 @@
 #' Uses the validated string network and identified the
 #' genes on the shortest paths between two given genesets.
 #'
-#' @param cis List of nodes in cis
-#' @param trans List of nodes in trans
+#' @param cis List of nodes in cis (e.g. CpGs)
+#' @param trans List of nodes in trans (e.g. SNP genes)
 #' @param snp_genes List of snp genes
 #' @param ppi_db Instance of the PPI database to be used (graphNEL)
+#' @param tfs The TFs (symbols) collected for the locus
+#' @param best_trans Optional: previously identified 'best' trans gene (e.g.
+#' according to a random walk as in the meQTL paper.
 #'
 #' @return A vector of gene symbols being on the shortest path between the
 #' two lists of genes as found in the validated string network
@@ -22,7 +25,8 @@
 #' @author Johann Hawe, Matthias Heinig
 #'
 # ------------------------------------------------------------------------------
-get_shortest_paths <- function(cis, trans, snp_genes, ppi_db, best_trans=NULL) {
+get_shortest_paths <- function(cis, trans, snp_genes, ppi_db, 
+                               tfs, best_trans=NULL) {
 
   ppi_genes <- nodes(ppi_db)
   # ensure to have only nodes in our giant cluster
@@ -52,15 +56,18 @@ get_shortest_paths <- function(cis, trans, snp_genes, ppi_db, best_trans=NULL) {
   node.weights = max(node.weights) - node.weights + 1
 
   print("Getting minimal node weight path.")
-  # extract shortest paths
-  sp = min.node.weight.path(ppi_db, node.weights, from=trans, to=best_snp_gene)
+  sp = min.node.weight.path(ppi_db, node.weights, from=cis, to=best_snp_gene)
   nodes <- setdiff(unlist(lapply(sp, "[", "path_detail")), NA)
-  nodes <- setdiff(nodes, c(trans, cis))
+  nodes_non_tf <- setdiff(nodes, c(trans, cis))
+  nodes_tf <- intersect(nodes, tfs)
 
   print("Shortest path genes:")
-  print(nodes)
+  print(nodes_non_tf)
+  print("TFs on shortest paths:")
+  print(nodes_tf)
 
-  return(nodes)
+  return(list(non_tf_sp=nodes_non_tf, 
+              tf_sp=nodes_tf))
 }
 
 #' ------------------------------------------------------------------------------
@@ -94,8 +101,9 @@ get_tfs_by_transGene <- function(tfbs, trans_genes, gene_annot) {
 #' @author Johann Hawe <johann.hawe@helmholtz-muenchen.de>
 #' ------------------------------------------------------------------------------
 collect_shortest_path_genes <- function(tfs, trans_genes, tfs_by_transGene,
-                                        ppi_genes, cis_genes, ppi_db,
+                                        ppi_genes, snp_genes, ppi_db,
                                         gene_annot) {
+
   # add any TFs, trans genes and their binding information to the PPI db
   toadd <- setdiff(tfs, ppi_genes)
   toadd <- unique(c(toadd, setdiff(trans_genes, ppi_genes)))
@@ -107,18 +115,31 @@ collect_shortest_path_genes <- function(tfs, trans_genes, tfs_by_transGene,
                           tf_sub$SYMBOL,
                           ppi_db_mod)
   }
-  syms_sp <- get_shortest_paths(cis = unique(c(tfs, cis_genes)),
-                                trans=trans_genes,
-                                cis_genes,
-                                ppi_db_mod)
+  shortest_paths <- get_shortest_paths(cis = trans_genes,
+                                trans=unique(c(snp_genes, tfs)),
+                                snp_genes,
+                                ppi_db_mod,
+                                tfs)
+
+  non_tf_sp <- shortest_paths$non_tf_sp
+  tf_sp <- shortest_paths$tf_sp
+
   # did we find any?
-  if(length(syms_sp) < 1){
+  if(length(non_tf_sp) < 1){
     warning("No shortest path genes.")
-    return(NULL)
+    non_tf_sp_ranges <- NULL
   } else {
-    sp <- gene_annot[gene_annot$SYMBOL %in% syms_sp]
-    return(sp)
+    non_tf_sp_ranges <- gene_annot[gene_annot$SYMBOL %in% non_tf_sp]
   }
+  # check also TFs on shortest paths
+  if(length(tf_sp) < 1){
+    stop("No TF on the shortest paths.")
+  } else {
+    tf_sp_ranges <- gene_annot[gene_annot$SYMBOL %in% tf_sp]
+  }
+
+  return(list(non_tf_sp = non_tf_sp_ranges,
+              tf_sp = tf_sp_ranges))
 }
 
 # ------------------------------------------------------------------------------

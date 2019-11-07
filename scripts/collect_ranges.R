@@ -155,31 +155,43 @@ locus_graph <- add.to.graphs(list(ppi_db), sentinel, snp_genes,
                              cpgs_with_tfbs, tfbs_ann)[[1]]
 
 # get tfs connected to cpgs
-tfs = unique(unlist(adj(locus_graph, cpgs_with_tfbs)))
-print(paste0("Annotated TFs: ", paste(tfs, collapse=", ")))
+tf_syms = unique(unlist(adj(locus_graph, cpgs_with_tfbs)))
+print(paste0("Annotated TFs: ", paste(tf_syms, collapse=", ")))
 
-if(length(tfs)<1){
+if(length(tf_syms)<1){
   warning("No TFs, skipping shortest paths calculation.")
 } else {
   # the nodes we want to keep
-  nodeset <- c(nodes(ppi_db), setdiff(tfs, "KAP1"),
+  # in the original meQTL paper we removed KAP1 from the TF symbols
+  nodeset <- c(nodes(ppi_db), tf_syms,
                snp_genes_in_string, cpgs_with_tfbs)
   locus_graph <- subGraph(intersect(nodes(locus_graph), nodeset), locus_graph)
 
-  syms_sp <- get_shortest_paths(cis = cpgs_with_tfbs,
+  shortest_paths <- get_shortest_paths(cis = cpgs_with_tfbs,
                                        trans=unique(c(snp_genes_in_string,
-                                                      tfs)),
-                                       snp_genes=snp_genes_in_string,
-                                       locus_graph,
-                                       best_trans)
+                                                   tf_syms)),
+                           snp_genes=snp_genes_in_string,
+                           locus_graph,
+                           tf_syms,
+                           best_trans)
 
-  if(length(syms_sp) < 1){
+  non_tf_sp <- shortest_paths$non_tf_sp
+  tf_sp <- shortest_paths$tf_sp
+
+  if(length(non_tf_sp) < 1){
     warning("No shortest path genes.")
   } else {
-    sp <- gene_annot[gene_annot$SYMBOL %in% syms_sp]
+    sp <- gene_annot[gene_annot$SYMBOL %in% non_tf_sp]
   }
-  tfs <- gene_annot[gene_annot$SYMBOL %in% tfs]
+  if(length(tf_sp) < 1) {
+    # This should not happen -> sanity check
+    stop("No TFs on shortest paths!")
+  } else {
+    tfs <- gene_annot[gene_annot$SYMBOL %in% tf_sp]
+  }
 }
+print(paste0("Annotated TFs on shortest paths: ", 
+             paste(tfs$SYMBOL, collapse=", ")))
 
 # ------------------------------------------------------------------------------
 print("Finalizing and saving results.")

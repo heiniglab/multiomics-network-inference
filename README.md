@@ -119,3 +119,14 @@ nohup nice snakemake --use-conda -u configs/slurm.json --jobs=100 --local-cores=
       -p {cluster.partition} -o {cluster.log} -e {cluster.log}" results/current/peaks/BH1-1_peaks.narrowPeak &
 
 ```
+
+## LRZ specific submit (simulations)
+
+```{bash}
+module load python/3.6_intel
+nohup nice snakemake --use-conda -u configs/slurm.json --jobs=1000 --local-cores=1 --cluster \
+  "sbatch --time=24:00:00 --ntasks 1 --clusters=mpp2 -c {cluster.cpu} --mem-per-cpu={cluster.mem} \
+      -o {cluster.log} -e {cluster.log}" all_simulation &> all_simulation.out &
+
+```
+

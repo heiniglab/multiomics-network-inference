@@ -1,40 +1,42 @@
-localrules: all_simulate_data,all_apply_ggm_simulation
+localrules: all_simulate_data, all_apply_ggm_simulation, all_simulation, all_simulation2, all_simulation3
 
 #------------------------------------------------------------------------------
 # Simulate ground truth and data for simulation study
 #------------------------------------------------------------------------------
-RUNS = 100
-rule simulate_data:
-        input:
-                data=DCOHORT_DATA + "lolipop/{sentinel}_meqtl.rds",
-                ranges=DRANGES + "{sentinel}_meqtl.rds",
-                priors=DPRIORS + "{sentinel}_meqtl.rds"
-        output:
-                DSIM_DATA + "{sentinel}.RData"
-        threads: 8
-        resources:
-                mem_mb=1200
-        params:
-                sentinel="{sentinel}",
-                runs=RUNS,
-                time="04:00:00"
-        conda:
-                "../envs/bioR.yaml"
-        log:
-                "logs/simulation/simulate_data/{sentinel}.log"
-        benchmark:
-                "benchmarks/simulation/simulate_data/{sentinel}.bmk"
-        script:
-                "../scripts/simulation/simulate_data.R"
+RUNS = 10
+#rule simulate_data:
+#        input:
+#                data=DCOHORT_DATA + "lolipop/{sentinel}_meqtl.rds",
+#                ranges=DRANGES + "{sentinel}_meqtl.rds",
+#                priors=DPRIORS + "{sentinel}_meqtl.rds"
+#        output:
+#                DSIM_DATA + "{sentinel}.RData"
+#        threads: 8
+#        resources:
+#                mem_mb=1200
+#        params:
+#                sentinel="{sentinel}",
+#                runs=RUNS,
+#                time="04:00:00"
+#        conda:
+#                "../envs/bioR.yaml"
+#        log:
+#                "logs/simulation/simulate_data/{sentinel}.log"
+#        benchmark:
+#                "benchmarks/simulation/simulate_data/{sentinel}.bmk"
+#        script:
+#                "../scripts/simulation/simulate_data.R"
 
-rule all_simulate_data:
-	input:
-		expand(DSIM_DATA + "{sentinel}.RData", sentinel=MEQTL.sentinel)
+#rule all_simulate_data:
+#	input:
+#		expand(DSIM_DATA + "{sentinel}.RData", sentinel=MEQTL.sentinel)
 
 #------------------------------------------------------------------------------
 # Apply ggm on simulated data
 #------------------------------------------------------------------------------
 ITERATIONS = range(1,RUNS+1)
+ITERATIONS2 = range(1+20, RUNS+21)
+ITERATIONS3 = range(1+30, 101)
 
 rule apply_ggm_simulation:
         input:
@@ -45,7 +47,7 @@ rule apply_ggm_simulation:
                 DSIM_FITS + "{sentinel}-iter{iteration}.RData"
         params:
                 iteration="{iteration}",
-                time="48:00:00"
+                time="2-00:00:00"
         threads: 12
         resources:
                 mem_mb=2500
@@ -112,6 +114,26 @@ rule all_simulation:
 		expand(DSIM_VALIDATION + "{sentinel}-iter{iter}.txt", sentinel=MEQTL.sentinel, iter=ITERATIONS)
 	output:
 		"results/current/biogrid/simulation/validation/validation.tsv"
+	shell:
+		"""
+		cat {input} | sort -r | uniq > {output}
+		"""
+
+rule all_simulation2:
+	input:
+		expand(DSIM_VALIDATION + "{sentinel}-iter{iter}.txt", sentinel=MEQTL.sentinel, iter=ITERATIONS2)
+	output:
+		"results/current/biogrid/simulation/validation/validation2.tsv"
+	shell:
+		"""
+		cat {input} | sort -r | uniq > {output}
+		"""
+
+rule all_simulation3:
+	input:
+		expand(DSIM_VALIDATION + "{sentinel}-iter{iter}.txt", sentinel=MEQTL.sentinel, iter=ITERATIONS3)
+	output:
+		"results/current/biogrid/simulation/validation/validation3.tsv"
 	shell:
 		"""
 		cat {input} | sort -r | uniq > {output}

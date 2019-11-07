@@ -60,11 +60,11 @@ rule apply_ggm:
                 fit=DCOHORT_FITS + "{cohort}/{sentinel}_{seed}.rds",
                 summary_file=DCOHORT_FITS + "{cohort}/{sentinel}_{seed}.pdf"
 #                gstart_file=DCOHORT_FITS + "{cohort}/{sentinel}_{seed}_gstart.pdf"
-        threads: 18
+        threads: 12
         params:
-                time="36:00:00"
+                time="24:00:00"
         resources:
-                mem_mb=5000
+                mem_mb=4500
         conda:
                 "../envs/bioR.yaml"
         benchmark:

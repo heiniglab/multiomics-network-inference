@@ -303,7 +303,8 @@ rule collect_data:
 	conda:
 		"envs/bioR.yaml"
 	params:
-		time="01:00:00"
+		time="01:00:00",
+		tfa_or_expr=config["suffix_tfa_expr"]
 	log:
 		"logs/collect_data/{cohort}/{sentinel}_{seed}.log"
 	benchmark:

@@ -56,12 +56,10 @@ get_link_priors <- function(ranges, nodes, ppi_db, fcpgcontext, fcpg_annot) {
         symbol <- g$SYMBOL
         d <- distance(g, cpg)
         if(symbol %in% colnames(priors)) {
-          # set the basic prior based on distance
-          # (the larger the distance, the lower the prior should be)
-          # but scale it to be between 0 and 1
+          # sanity check -> only CpG-CpG-gene combis in cis allowed
           if(!is.na(d)){
-            # if the cpg is in range of the tss (within 200bp),
-            # set a specific prior for active TSS...
+            # if the cpg is within 200bp of TSS, we
+            # set a specific prior for active TSS
             p <- pseudo_prior
             if(d <= 200){
               # set the cpg.state prior

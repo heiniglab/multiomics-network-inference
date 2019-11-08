@@ -158,8 +158,9 @@ locus_graph <- add.to.graphs(list(ppi_db), sentinel, snp_genes,
 tf_syms = unique(unlist(adj(locus_graph, cpgs_with_tfbs)))
 print(paste0("Annotated TFs: ", paste(tf_syms, collapse=", ")))
 
-if(length(tf_syms)<1){
-  warning("No TFs, skipping shortest paths calculation.")
+if(length(tf_syms) < 1 | length(snp_genes_in_string) < 1) {
+  warning(paste0("No TFs or none of the SNP genes are in PPI DB. ",
+                 "Skipping shortest paths calculation."))
 } else {
   # the nodes we want to keep
   # in the original meQTL paper we removed KAP1 from the TF symbols

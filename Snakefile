@@ -229,9 +229,9 @@ rule collect_ranges_eqtlgen:
         conda:
                 "envs/bioR.yaml"
         log:
-                "logs/collect_ranges_egen/{sentinel}.log"
+                "logs/collect_ranges/{sentinel}_eqtlgen.log"
         benchmark:
-                "benchmarks/collect_ranges_egen/{sentinel}.bmk"
+                "benchmarks/collect_ranges/{sentinel}_eqtlgen.bmk"
         script:
                 "scripts/collect_ranges_eqtl.R"
 

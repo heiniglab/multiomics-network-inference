@@ -161,6 +161,12 @@ print(paste0("Annotated TFs: ", paste(tf_syms, collapse=", ")))
 if(length(tf_syms) < 1 | length(snp_genes_in_string) < 1) {
   warning(paste0("No TFs or none of the SNP genes are in PPI DB. ",
                  "Skipping shortest paths calculation."))
+  # still, we want to keep the available TFs if there are no SNP genes 
+  # within the PPI DB (would get adjusted using shortest paths below)
+  if(length(snp_genes_in_string) >= 1) {
+    tfs <- gene_annot[gene_annot$SYMBOL %in% tf_syms]
+  }
+
 } else {
   # the nodes we want to keep
   # in the original meQTL paper we removed KAP1 from the TF symbols
@@ -191,7 +197,7 @@ if(length(tf_syms) < 1 | length(snp_genes_in_string) < 1) {
     tfs <- gene_annot[gene_annot$SYMBOL %in% tf_sp]
   }
 }
-print(paste0("Annotated TFs on shortest paths: ", 
+print(paste0("Annotated TFs after shortest path calculations: ", 
              paste(tfs$SYMBOL, collapse=", ")))
 
 # ------------------------------------------------------------------------------

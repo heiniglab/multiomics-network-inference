@@ -125,6 +125,30 @@ rule create_priors:
 		"scripts/create_priors.R"
 
 #------------------------------------------------------------------------------
+# eQTLgen based SNP-gene priors. Currently used for meQTL analysis instead of
+# the GTEx based priors
+#------------------------------------------------------------------------------
+rule create_priors_eqtlgen:
+	input:	
+		eqtl="data/current/eqtl_gen/cis-eQTLs_full_20180905.txt.gz",
+	output:	
+		eqtl_priors=protected("results/current/" + PPI_NAME + "/eqtlgen_eqtl_priors.rds")
+	threads: 1
+	params:
+		plot_dir = "results/current/" + PPI_NAME + "/plots/",
+		time = "03:00:00"
+	resources:
+		mem_mb=55000
+	conda:
+		"envs/bioR.yaml"
+	log:
+		"logs/create_priors_eqtlgen.log"
+	benchmark:
+		"benchmarks/create_priors_eqtlgen.bmk"
+	script:
+		"scripts/create_priors_eqtlgen.R"
+
+#------------------------------------------------------------------------------
 # Preprocess PPI network
 #------------------------------------------------------------------------------
 rule create_ppi_db:
@@ -317,7 +341,8 @@ rule all_data:
 rule collect_priors:
 	input:
 		gg_priors="results/current/" + PPI_NAME + "/gtex.gg.cors.rds", 
-		eqtl_priors="results/current/" + PPI_NAME + "/gtex.eqtl.priors.rds",
+		gtex_eqtl_priors="results/current/" + PPI_NAME + "/gtex.eqtl.priors.rds",
+		eqtlgen_eqtl_priors="results/current/" + PPI_NAME + "/eqtlgen_eqtl_priors.rds",
 		ranges=DRANGES + "{sentinel}_{seed}.rds",
 		ppi=PPI_DB,
 		cpg_context="data/current/cpgs_with_chipseq_context_100.rds",
@@ -331,7 +356,8 @@ rule collect_priors:
 	conda:
 		"envs/bioR.yaml"
 	params:
-		time="02:00:00"
+		time="02:00:00",
+		eqtl_prior_type = config["eqtl_prior_type"]
 	log:
 		"logs/collect_priors/{sentinel}_{seed}.log"
 	benchmark:

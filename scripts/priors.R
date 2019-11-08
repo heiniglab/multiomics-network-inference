@@ -23,7 +23,7 @@ get_link_priors <- function(ranges, nodes, ppi_db, fcpgcontext, fcpg_annot) {
   # ----------------------------------------------------------------------------
 
   # assume single SNP
-  warning("Assuming single SNP in given data.")
+  print("Assuming single SNP in given data.")
   id <- nodes[grepl("^rs", nodes)]
 
   # ----------------------------------------------------------------------------
@@ -97,7 +97,7 @@ get_link_priors <- function(ranges, nodes, ppi_db, fcpgcontext, fcpg_annot) {
           if(c %in% colnames(priors) &
              tf %in% colnames(priors)){
             # set arbitrary large prior (chip-evidence for this connection..)
-            priors[c,tf] <- priors[tf,c] <- 0.9
+            priors[c,tf] <- priors[tf,c] <- 0.99
           } else {
             warning(paste0("WARNING: TF-CpG link not available:",
                            c, "-", tf))
@@ -111,8 +111,9 @@ get_link_priors <- function(ranges, nodes, ppi_db, fcpgcontext, fcpg_annot) {
   ## SET SNP PRIOR (if available)
   # ----------------------------------------------------------------------------
   # iterate over each of the snp genes and set prior according to
-  # gtex pre-calculated priors
-  if(exists("gtex.eqtl") && !is.null(gtex.eqtl)) {
+  # pre-calculated priors
+  # NOTE: eqtl_priors are already filtered for our SNP
+  if(exists("eqtl_priors") && !is.null(eqtl_priors)) {
     print("Setting SNP priors.")
     
     snp_genes <- ranges$snp_genes$SYMBOL
@@ -121,10 +122,10 @@ get_link_priors <- function(ranges, nodes, ppi_db, fcpgcontext, fcpg_annot) {
       idx <- which(grepl(paste0(paste0(",",g,"$"),"|",
                                 paste0(",",g,","),"|",
                                 paste0("^",g,","),"|",
-                                paste0("^",g,"$")), gtex.eqtl$symbol))[1]
+                                paste0("^",g,"$")), eqtl_priors$symbol))[1]
       # did we find the gene? then set prior
       if(!is.na(idx)){
-        p <- (1-gtex.eqtl[idx]$lfdr)
+        p <- (1-eqtl_priors[idx]$lfdr)
         if(p <= pseudo_prior) {
           p <- pseudo_prior
         }
@@ -134,13 +135,18 @@ get_link_priors <- function(ranges, nodes, ppi_db, fcpgcontext, fcpg_annot) {
         priors[g,id] <- priors[id,g] <- p
       }
     }
+  } else if(!exists(eqtl_priors)){
+    stop("eQTL priors not loaded.")
   }
 
   # ----------------------------------------------------------------------------
   ## SET GENE-GENE PRIOR
   # ----------------------------------------------------------------------------
   print("Setting Gene-Gene priors.")
-  
+  if(!exists("genegene_priors")) {
+    stop("genegene priors not loaded!")
+  }
+
   # here we add the priors based on the string interaction network
   genes <- colnames(priors)[!grepl("^rs|^cg", colnames(priors))]
 
@@ -148,7 +154,7 @@ get_link_priors <- function(ranges, nodes, ppi_db, fcpgcontext, fcpg_annot) {
   PPI_SUB <- subGraph(intersect(nodes(ppi_db), genes), ppi_db)
   sedges <- edgeL(PPI_SUB)
   snodes <- nodes(PPI_SUB)
-  rnames <- rownames(gtex.gg.cors)
+  rnames <- rownames(genegene_priors)
 
   temp <- lapply(names(sedges), function(n) {
     l <- sedges[[n]]$edges
@@ -164,7 +170,7 @@ get_link_priors <- function(ranges, nodes, ppi_db, fcpgcontext, fcpg_annot) {
                         (grepl(paste0("^", m, "_"), rnames) &
                            grepl(paste0("_", n, "$"), rnames)))[1]
         if(!is.na(idxs)) {
-          p <- pseudo_prior + gtex.gg.cors[idxs, "prior"]
+          p <- pseudo_prior + genegene_priors[idxs, "prior"]
           if(p >= 1) p <- 1 - pseudo_prior
         } else {
           p <- pseudo_prior
@@ -200,50 +206,73 @@ get_link_priors <- function(ranges, nodes, ppi_db, fcpgcontext, fcpg_annot) {
 }
 
 #'------------------------------------------------------------------------------
-#' Load gtex priors into environment
+#' Load eqtl priors into environment
 #'
-#' @param sentinel The sentinel id. If given, eqtl data will immediately
-#' be filtered for this SNP id. default: NULL
+#' @param sentinel The sentinel id. eQTL data will immediately
+#' be filtered for this SNP id.
+#' @param feqtl_priors The RDS file containing the eqtl priors
+#' @param prior_type The type of the eQTL priors to be loaded (eqtlgen or gtex)
+#' @parma env The environment in which to load the priors. Default: .GlobalEnv
 #'
 #' @author Johann Hawe
 #' @return nothing
 #'------------------------------------------------------------------------------
-load.gtex.priors <- function(sentinel=NULL,
-                             fgene_priors, feqtl_priors,
+load_eqtl_priors <- function(sentinel,
+                             feqtl_priors,
+                             prior_type = c("eqtlgen","gtex"),
                              env=.GlobalEnv) {
+
   # check whether prior were already loaded
-  if(with(env, exists("gtex.eqtl")) &
-     with(env, exists("gtex.gg.cors"))){
+  if(with(env, exists("eqtl_priors"))) {
     # nothing to do
+    warning("eQTL priors already loaded, doing nothing.")
     return()
   }
 
-  print("Loading gtex priors.")
-  gtex.eqtl <- readRDS(feqtl_priors);
-  gtex.gg.cors <- readRDS(fgene_priors);
-
-  # keep only some of the columns of the eqtl priors
-  gtex.eqtl <- gtex.eqtl[,c("symbol",
-                            "RS_ID_dbSNP135_original_VCF",
-                            "RS_ID_dbSNP142_CHG37p13",
-                            "lfdr")]
+  print("Loading eQTL priors.")
+  eqtl_priors <- readRDS(feqtl_priors);
 
   # check whether to filter eqtl data
-  if(!is.null(sentinel)){
-    if(sentinel %in% gtex.eqtl$RS_ID_dbSNP135_original_VCF |
-       sentinel %in% gtex.eqtl$RS_ID_dbSNP142_CHG37p13) {
-      gtex.eqtl <- gtex.eqtl[(gtex.eqtl$RS_ID_dbSNP135_original_VCF==sentinel |
-                                gtex.eqtl$RS_ID_dbSNP142_CHG37p13==sentinel), ]
+  if("gtex" %in% prior_type) {
+    if(sentinel %in% eqtl_priors$RS_ID_dbSNP135_original_VCF |
+       sentinel %in% eqtl_priors$RS_ID_dbSNP142_CHG37p13) {
+      eqtl_priors <- eqtl_priors[(eqtl_priors$RS_ID_dbSNP135_original_VCF==sentinel |
+                                eqtl_priors$RS_ID_dbSNP142_CHG37p13==sentinel), ]
+    } else {
+      warning(paste0("Sentinel ", sentinel, " has no GTEx eQTL."))
+      eqtl_priors <- NULL
+    }
+  } else {
+    if(sentinel %in% eqtl_priors$SNP) {
+      eqtl_priors <- eqtl_priors[eqtl_priors$SNP==sentinel, ]
     } else {
       warning(paste0("Sentinel ", sentinel, " has no GTEx eQTL!"))
-      gtex.eqtl <- NULL
+      eqtl_priors <- NULL
     }
   }
-  # check whether we have eqtl results
-  if(!is.null(gtex.eqtl)){
-    assign("gtex.eqtl", gtex.eqtl, env);
+
+  assign("eqtl_priors", eqtl_priors, env)
+}
+
+#'------------------------------------------------------------------------------
+#' Load gene-gene priors into environment
+#'
+#' @author Johann Hawe
+#' @return nothing
+#'------------------------------------------------------------------------------
+load_genegene_priors <- function(fgene_priors,
+                                 env=.GlobalEnv) {
+  # check whether prior were already loaded
+  if(with(env, exists("genegene_priors"))){
+    # nothing to do
+    warning("gene-gene priors already loaded, doing nothing.")
+    return()
   }
-  assign("gtex.gg.cors", gtex.gg.cors, env);
+
+  print("Loading genegene_priors priors.")
+  genegene_priors <- readRDS(fgene_priors);
+
+  assign("genegene_priors", genegene_priors, env);
 }
 
 #'------------------------------------------------------------------------------
@@ -432,6 +461,36 @@ create.gtex.eqtl.priors <- function(eqtl.file, snpInfo.file) {
 
   symbols.by.id <- tapply(symbols$SYMBOL, symbols$ENSEMBL, function(x) paste(x,collapse=","))
   pairs[, ("symbol") := symbols.by.id[ids]]
+
+  # output rds file
+  return(pairs)
+}
+
+#'------------------------------------------------------------------------------
+#' Preprocesses the eQTLgen Whole_Blood eqtl data to add a column of local FDR
+#' values which we will use (1-lfdr) for our snp-gene priors
+#'
+#' @author Johann Hawe
+#'
+#' @return nothing
+#'
+#'------------------------------------------------------------------------------
+create_eqtlgen_eqtl_priors <- function(eqtl_file) {
+
+  require(data.table)
+  require(fdrtool)
+
+  # format: Pvalue  SNP     SNPChr  SNPPos  Zscore  AssessedAllele  OtherAllele     
+  # Gene    GeneSymbol      GeneChr GenePos NrCohortsNrSamples       FDR
+  pairs <- fread(eqtl_file,
+                 header=T,
+                 select=c("Pvalue", "SNP", "Gene", "GeneSymbol"),
+                 data.table=T)
+  colnames(pairs) <- c("Pvalue", "SNP", "Gene", "symbol")
+
+  # get local fdr for all entries
+  pairs[, ("lfdr") := fdrtool(pairs$Pvalue, statistic="pvalue")$lfdr]
+  pairs[, ("prior") := 1-pairs$lfdr]
 
   # output rds file
   return(pairs)

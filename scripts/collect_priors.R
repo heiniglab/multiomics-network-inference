@@ -25,7 +25,8 @@ print("Get snakemake params.")
 # ------------------------------------------------------------------------------
 # input
 fgene_priors <- snakemake@input[["gg_priors"]]
-feqtl_priors <- snakemake@input[["eqtl_priors"]]
+feqtlgen_eqtl_priors <- snakemake@input[["eqtlgen_eqtl_priors"]]
+fgtex_eqtl_priors <- snakemake@input[["gtex_eqtl_priors"]]
 fcpgcontext <- snakemake@input[["cpg_context"]]
 fppi <- snakemake@input[["ppi"]]
 franges <- snakemake@input[["ranges"]]
@@ -33,6 +34,7 @@ fcpg_annot <- snakemake@input[["cpg_annot"]]
 
 # params
 sentinel <- snakemake@wildcards$sentinel
+eqtl_prior_type <- snakemake@params$eqtl_prior_type
 
 # output
 fout <- snakemake@output[[1]]
@@ -63,12 +65,18 @@ nodes <- unique(nodes)
 # ------------------------------------------------------------------------------
 print("Load gtex priors, extract link priors.")
 # ------------------------------------------------------------------------------
-load.gtex.priors(sentinel, fgene_priors, feqtl_priors)
+feqtl <- ifelse("eqtlgen" %in% eqtl_prior_type, 
+                feqtlgen_eqtl_priors, 
+                fgtex_eqtl_priors)
+load_eqtl_priors(sentinel, feqtl, eqtl_prior_type)
+load_genegene_priors(fgene_priors)
 
-pr <- get_link_priors(ranges, nodes, ppi_db, fcpgcontext, fcpg_annot)
+print("Retrieving link priors.")
+pr <- get_link_priors(ranges, nodes, ppi_db, fcpgcontext, 
+                      fcpg_annot)
 
 # create a heatmap to be able to look at the priors
-pheatmap(filename = fplot, pr)
+pheatmap(filename = fplot, pr, cex=0.7)
 
 # ------------------------------------------------------------------------------
 print("Saving data.")

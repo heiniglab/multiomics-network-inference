@@ -13,61 +13,12 @@ sink(log, type="message")
 # ------------------------------------------------------------------------------
 print("Load libraries and source scripts.")
 # ------------------------------------------------------------------------------
-suppressPackageStartupMessages(library(GenomicRanges))
-library(parallel)
+library(GenomicRanges)
+library(Rsamtools)
 library(data.table)
 source("scripts/lib.R")
 source("scripts/biomaRt.R")
-
-# ------------------------------------------------------------------------------
-# Method definitions
-# ------------------------------------------------------------------------------
-
-# ------------------------------------------------------------------------------
-#' Method to get the genotypes for a certain set of SNPs
-#'
-#' @param snp_ranges A GRanges of SNPs for which to get genotypes. Needed for
-#' KORA cohort only
-#'
-#' @return Matrix of genotypes with SNPs in the columns and subjects in the rows
-#'
-# ------------------------------------------------------------------------------
-get_genotypes <- function(snp_ranges, dosage_file,
-                          individuals, individuals_to_keep, tempdir,
-                          threads){
-
-  if(is.null(snp_ranges) | is.na(snp_ranges)) {
-    return(NULL)
-  }
-
-  # split into junks
-  snp_ranges <- split(snp_ranges, ceiling(seq_along(snp_ranges)/10000))
-
-  temp <- mclapply(snp_ranges, function(r) {
-    geno <- scan_snps(r, dosage_file, individuals, tempdir)
-    if(!is.null(geno)) {
-      geno <- geno[, individuals_to_keep,drop=F]
-    }
-    geno
-  }, mc.cores=threads)
-  geno <- do.call(rbind, temp)
-
-  if(nrow(geno) < length(snp_ranges)){
-    warning("Some SNPs were NA in genotype data.")
-  }
-
-  geno <- t(geno)
-
-  # get rid of non-changing snps
-  if(any(apply(geno,2,var)==0)) {
-    warning("Removing non-varying SNPs.")
-    geno <- geno[,apply(geno,2,var)!=0, drop=F]
-  }
-  # refactor column names (get rid of beginning "1.")
-  colnames(geno) <- gsub("^[0-9]+\\.", "", colnames(geno))
-}
-
-# start processing -------------------------------------------------------------
+source("scripts/prepare_kora_data_methods.R")
 
 # ------------------------------------------------------------------------------
 print("Get snakemake params.")
@@ -86,11 +37,6 @@ fcosmo <- snakemake@input[["cosmo"]]
 fceqtl <- snakemake@input[["kora_ceqtl"]]
 feqtlgen <- snakemake@input[["eqtl_gen"]]
 fimpute_indiv <- snakemake@input[["impute_indiv"]]
-
-# params
-threads <- snakemake@threads
-tempdir <- snakemake@params$tempdir
-print(paste0("using ", tempdir, " as temp directory."))
 
 # ------------------------------------------------------------------------------
 print("Load the imputation individuals (individuals with genotypes).")
@@ -125,6 +71,7 @@ ranges <- unique(c(ranges, with(cosmo,
 rm(cosmo, ceqtl)
 gc()
 
+ranges <- sort(ranges)
 print(paste0("Got ", length(ranges), " genotype ranges to process."))
 
 # ------------------------------------------------------------------------------
@@ -153,7 +100,7 @@ expr_sids <-as.character(covars.f4$ZZ.NR)
 load(fmethylation_cov)
 meth_sids <- rownames(pcs)
 
-# gets as 687 individuals, having all data available (some ids of the id
+# gets us 687 individuals, having all data available (some ids of the id
 # map are not contained within the data frame...)
 toUse <- which(id_map$genexp_s4f4ogtt %in% expr_sids &
                  id_map$methylierung_f4 %in% meth_sids &
@@ -170,9 +117,9 @@ print(paste0("Using ", nrow(id_map), " samples."))
 print("Load genotypes.")
 # ------------------------------------------------------------------------------
 geno <- get_genotypes(ranges, fdosage,
-                      imputation_individuals, id_map$axiom_s4f4, tempdir,
-                      threads)
-print(paste0("Genotype dimensions: ", paste(dim(geno), collapse=",")))
+                      imputation_individuals, id_map$axiom_s4f4)
+print(paste0("Genotype dimensions: ", dim(geno)))
+
 gc()
 
 # ------------------------------------------------------------------------------

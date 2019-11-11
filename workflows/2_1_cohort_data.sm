@@ -1,5 +1,6 @@
 localrules: all_cohort, summarize_validation_eqtlgen, summarize_validation_meqtl,
-            generate_dot, render_validation, all_ggm, all_summarize_validation
+            generate_dot, render_validation, all_ggm, all_summarize_validation,
+            plot_graphs, plot_relevant_graphs, generate_dot_combined
 
 #-------------------------------------------------------------------------------
 # Target rule to run the complete cohort study.
@@ -7,8 +8,8 @@ localrules: all_cohort, summarize_validation_eqtlgen, summarize_validation_meqtl
 #-------------------------------------------------------------------------------
 rule all_cohort:
         input:
-                DCOHORT_VAL + "validation_all_meqtl.txt",
-                DCOHORT_VAL + "validation_all_eqtlgen.txt",
+                DCOHORT_VAL + "validation_all_meqtl_gwas.txt",
+                DCOHORT_VAL + "validation_all_eqtlgen_gwas.txt",
                 DRANGES + "summary.pdf",
                 DRANGES + "summary.pdf"
 
@@ -25,7 +26,7 @@ rule mediation_analysis:
 		beta_table=DMEDIATION + "{cohort}/{sentinel}_{seed}_betas.txt",
 	threads: 1
 	resources:
-		mem_mb=600
+		mem_mb=1000
 	params:
 		time="00:20:00"
 	conda:
@@ -59,11 +60,11 @@ rule apply_ggm:
                 fit=DCOHORT_FITS + "{cohort}/{sentinel}_{seed}.rds",
                 summary_file=DCOHORT_FITS + "{cohort}/{sentinel}_{seed}.pdf"
 #                gstart_file=DCOHORT_FITS + "{cohort}/{sentinel}_{seed}_gstart.pdf"
-        threads: 20
+        threads: 12
         params:
                 time="24:00:00"
         resources:
-                mem_mb=1500
+                mem_mb=4500
         conda:
                 "../envs/bioR.yaml"
         benchmark:
@@ -103,8 +104,8 @@ rule validate_ggm:
                 lolipop_data=DCOHORT_DATA + "lolipop/{sentinel}_{seed}.rds",
                 kora_fit=DCOHORT_FITS + "kora/{sentinel}_{seed}.rds",
                 lolipop_fit=DCOHORT_FITS + "lolipop/{sentinel}_{seed}.rds",
-                kora_fit_old="results/old/biogrid/fits/kora/{sentinel}_{seed}.rds",
-                lolipop_fit_old="results/old/biogrid/fits/lolipop/{sentinel}_{seed}.rds",
+#                kora_fit_old="results/old/biogrid/fits/kora/{sentinel}_{seed}.rds",
+#                lolipop_fit_old="results/old/biogrid/fits/lolipop/{sentinel}_{seed}.rds",
 		mediation_kora=DMEDIATION + "kora/{sentinel}_{seed}.rds",
 		mediation_lolipop=DMEDIATION + "lolipop/{sentinel}_{seed}.rds"
         output:
@@ -112,10 +113,10 @@ rule validate_ggm:
 #		mediation_summary_plot=DCOHORT_VAL + "{cohort}/{sentinel}_{seed}_mediation.pdf"
         params:
                 mediation_cutoff=0.05,
-                time="01:00:00"
+                time="7:00:00"
         threads: 7
         resources:
-                mem_mb=4000
+                mem_mb=2500
         conda:
                 "../envs/bioR.yaml"
         log:
@@ -168,25 +169,31 @@ rule summarize_validation_eqtlgen:
 		"""
 
 #------------------------------------------------------------------------------
-# Add GWAS information to validation table
-#------------------------------------------------------------------------------
-rule add_gwas_information:
-	input:
-		DCOHORT_VAL + "validation_all_{seed}.txt"
-	output:
-		DCOHORT_VAL + "validation_all_{seed}_gwas.txt"
-	conda:
-		"../envs/bioR.yaml"
-	script:
-		"../scripts/validation_annotate_gwas.R"
-
-#------------------------------------------------------------------------------
 # Summarize validation over all loci, adding GWAS information, too
 #------------------------------------------------------------------------------
 rule all_summarize_validation:
 	input:
 		DCOHORT_VAL + "validation_all_eqtlgen_gwas.txt",
 		DCOHORT_VAL + "validation_all_meqtl_gwas.txt"
+
+#------------------------------------------------------------------------------
+# Add GWAS information to validation table
+#------------------------------------------------------------------------------
+rule add_gwas_information:
+	input:
+		validation=DCOHORT_VAL + "validation_all_{seed}.txt",
+		gwas="data/current/gwas/gwas_catalog_v1.0.2-associations_e96_r2019-07-12.tsv"
+	output:
+		validation=DCOHORT_VAL + "validation_all_{seed}_gwas.txt"
+	params:
+		time = "05:00:00"
+	resources:
+		mem_mb=2000
+	threads: 10
+	log:
+		"logs/add_gwas_information_{seed}.log"
+	script:
+		"../scripts/validation_annotate_gwas.R"
 
 #------------------------------------------------------------------------------
 # Create summary report
@@ -214,16 +221,40 @@ rule render_validation:
 rule generate_dot:
         input:
                 new=DCOHORT_FITS + "{cohort}/{sentinel}_{seed}.rds",
-                old="results/old/biogrid/fits/{cohort}/{sentinel}_{seed}.rds"
+#                old="results/old/biogrid/fits/{cohort}/{sentinel}_{seed}.rds"
         output:
                 DGRAPH_PLOTS + "{sentinel}_{seed}/{cohort}/{graph_type}.dot"
-        conda:
-                "../envs/bioR.yaml"
+#       conda:
+#                "../envs/bioR.yaml"
         log:
                 "logs/generate_dot/{sentinel}_{seed}/{cohort}_{graph_type}.log"
         script:
                 "../scripts/generate_dot.R"
 
+#------------------------------------------------------------------------------
+# Generate dot files for visualization with cytoscape, combine graphs from 
+# both cohorts.
+#------------------------------------------------------------------------------
+rule generate_dot_combined:
+	input:
+		new_kora=DCOHORT_FITS + "kora/{sentinel}_{seed}.rds",
+		#old_kora="results/old/biogrid/fits/kora/{sentinel}_{seed}.rds",
+		new_lolipop=DCOHORT_FITS + "lolipop/{sentinel}_{seed}.rds",
+		#old_lolipop="results/old/biogrid/fits/lolipop/{sentinel}_{seed}.rds",
+		ranges = DRANGES + "{sentinel}_{seed}.rds",
+		ppi_db = PPI_DB,
+		cpg_context="results/current/cpg_context.rds",
+		tss_context="results/current/tfbs_tss_annot.rds",
+
+	output:
+		dot = DGRAPH_PLOTS + "{sentinel}_{seed}/{graph_type}_combined.dot",
+		graph = DGRAPH_PLOTS + "{sentinel}_{seed}/{graph_type}_combined.rds"
+#	conda:
+#		"../envs/bioR.yaml"
+	log:
+		"logs/generate_dot_combined/{sentinel}_{seed}/{graph_type}.log"
+	script:
+		"../scripts/generate_dot_combined.R"
 
 #------------------------------------------------------------------------------
 # Generate PDF containing cllection of all plotted graphs for an individual
@@ -232,7 +263,8 @@ rule generate_dot:
 rule plot_graphs:
 	input:
 		kora=expand(DGRAPH_PLOTS + "{{sentinel}}_{{seed}}/kora/{graph_type}.dot", graph_type = GTYPES),
-		lolipop=expand(DGRAPH_PLOTS + "{{sentinel}}_{{seed}}/lolipop/{graph_type}.dot", graph_type = GTYPES)
+		lolipop=expand(DGRAPH_PLOTS + "{{sentinel}}_{{seed}}/lolipop/{graph_type}.dot", graph_type = GTYPES),
+		combined=expand(DGRAPH_PLOTS + "{{sentinel}}_{{seed}}/{graph_type}_combined.dot", graph_type = GTYPES)
 	output:
 		pdf=DGRAPH_PLOTS + "{sentinel}_{seed}/all.pdf"
 	params:
@@ -243,8 +275,9 @@ rule plot_graphs:
 		"""
 		cd {params.odir}
 
-		for i in kora/*.dot ; do twopi -Tpdf $i > $(basename $i .dot)_kora.pdf ; done
-		for i in lolipop/*.dot ; do twopi -Tpdf $i > $(basename $i .dot)_lolipop.pdf ; done
+		for i in kora/*.dot ; do twopi -Tpdf $i > $(basename $i .dot)_kora.pdf ; done 
+		for i in lolipop/*.dot ; do twopi -Tpdf $i > $(basename $i .dot)_lolipop.pdf ; done 
+		for i in {input.combined} ; do twopi -Tpdf $(basename $i) > $(basename $i .dot).pdf ; done 
 
 		gs -dBATCH -dNOPAUSE -q -sDEVICE=pdfwrite -sOutputFile=all.pdf *.pdf
 		"""
@@ -252,12 +285,26 @@ rule plot_graphs:
 #------------------------------------------------------------------------------
 # Generate summary graph PDFs for few of the more interesting loci
 #------------------------------------------------------------------------------
-rule interesting_graphs:
+rule plot_relevant_graphs:
 	input:
 		DGRAPH_PLOTS + "rs9859077_meqtl/all.pdf",
+		DGRAPH_PLOTS + "rs730775_eqtlgen/all.pdf",
+		DGRAPH_PLOTS + "rs730775_meqtl/all.pdf",
+		DGRAPH_PLOTS + "rs140522_eqtlgen/all.pdf",
 		DGRAPH_PLOTS + "rs6511961_meqtl/all.pdf",
 		DGRAPH_PLOTS + "rs7783715_meqtl/all.pdf",
 		DGRAPH_PLOTS + "rs2227901_eqtlgen/all.pdf",
-		DGRAPH_PLOTS + "rs730775_eqtlgen/all.pdf",
 		DGRAPH_PLOTS + "rs17081933_meqtl/all.pdf",
 		DGRAPH_PLOTS + "rs79755767_eqtlgen/all.pdf",
+		DGRAPH_PLOTS + "rs4788084_eqtlgen/all.pdf",
+		DGRAPH_PLOTS + "rs10248490_meqtl/all.pdf",
+		DGRAPH_PLOTS + "rs8058619_meqtl/all.pdf",
+		DGRAPH_PLOTS + "rs436744_meqtl/all.pdf",
+		DGRAPH_PLOTS + "rs3171692_meqtl/all.pdf",
+#		DGRAPH_PLOTS + "rs114092478_meqtl/all.pdf",
+		DGRAPH_PLOTS + "rs1064395_eqtlgen/all.pdf",
+		DGRAPH_PLOTS + "rs3748136_eqtlgen/all.pdf",
+		DGRAPH_PLOTS + "rs1364109_meqtl/all.pdf",
+		DGRAPH_PLOTS + "rs3859321_meqtl/all.pdf",
+		DGRAPH_PLOTS + "rs10103269_meqtl/all.pdf",
+		DGRAPH_PLOTS + "rs7254687_meqtl/all.pdf",

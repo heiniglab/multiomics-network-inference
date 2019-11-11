@@ -16,8 +16,7 @@ print("Prep libraries and source scripts.")
 
 # load needed packages
 suppressPackageStartupMessages(library(graph))
-suppressPackageStartupMessages(library(BDgraph,
-                                       lib="/storage/groups/epigenereg01/tools/2017/R/3.4/"))
+suppressPackageStartupMessages(library(BDgraph))
 
 # source needed scripts
 source("scripts/priors.R")

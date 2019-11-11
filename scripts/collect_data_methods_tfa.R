@@ -23,33 +23,23 @@
 #' @author Johann Hawe
 #'
 # ------------------------------------------------------------------------------
-adjust_data <- function(sentinel, ranges, data, geno, fccosmo, fceqtl) {
-
-  # collect gene symbols to get summarized probe levels
-  symbols <- unique(c(ranges$cpg_genes$SYMBOL,
-                      ranges$snp_genes$SYMBOL,
-                      ranges$spath$SYMBOL,
-                      ranges$tfs$SYMBOL,
-                      ranges$trans_genes$SYMBOL))
-  symbols <- symbols[!sapply(symbols, is.na)]
+adjust_data <- function(sentinel, ranges, genes, data, geno, fccosmo, fceqtl) {
 
   # retrieve the genotype data
   s <- data[,sentinel,drop=F]
-
-  # correct for covariate variation
-  g_resid <- rm_covariate_effects(data[,!grepl("^rs|^cg",
-                                               colnames(data))], "expr")
+  g <- data[,genes,drop=F]
 
   # ----------------------------------------------------------------------------
-  # meQTL seed sepcific processing
+  # meQTL seed specific processing
   # ----------------------------------------------------------------------------
   if(ranges$seed == "meqtl") {
     # remember cpg genes' probe ids -> used for adjusting cis eqtl effects
-    cpg_gene_probes <- unique(unlist(ranges$cpg_genes$ids))
+    cpg_genes <- unique(unlist(ranges$cpg_genes$SYMBOL))
+    cpg_genes <- cpg_genes[cpg_genes %in% genes]
 
     # process gene data
     print("Loading eQTLs.")
-    eqtls <- load_eqtls(fceqtl, cpg_gene_probes)
+    eqtls <- load_eqtls(fceqtl, cpg_genes)
 
     # get genotype data for eqtls and meqtls
     ids <- unique(eqtls$snp_id)
@@ -59,8 +49,7 @@ adjust_data <- function(sentinel, ranges, data, geno, fccosmo, fceqtl) {
 
       # get rid of cis-eqtl effects
       print("Adjusting for cis eqtls.")
-      cpg_gene_probes <- unique(unlist(ranges$cpg_genes$ids))
-      g_resid <- adjust_cis_eqtls(g_resid, eqtls, gen, cpg_gene_probes)
+      g <- adjust_cis_eqtls(g, eqtls, gen, cpg_genes)
     }
 
     # process the CpG data
@@ -79,18 +68,14 @@ adjust_data <- function(sentinel, ranges, data, geno, fccosmo, fceqtl) {
     }
   }
 
-  print("Summarizing probe levels.")
-  # summarize to gene level estimates from expression probes
-  g_resid <- summarize(g_resid, symbols = symbols)
-
   # create complete matrix, containing all the information
   if(ranges$seed == "meqtl") {
     # scale and center
-    resid <- scale(cbind.data.frame(g_resid, c_resid))
+    resid <- scale(cbind.data.frame(g, c_resid))
     data <- cbind.data.frame(resid, s,
                              stringsAsFactors=F)
   } else {
-    resid <- scale(g_resid)
+    resid <- scale(g)
     data <- cbind.data.frame(resid, s,
                              stringsAsFactors=F)
   }
@@ -170,22 +155,22 @@ rm_covariate_effects <- function(data, data.type, cols=NULL) {
 #' @author  Johann Hawe
 #'
 # ------------------------------------------------------------------------------
-adjust_cis_eqtls <- function(expr, eqtls, geno_data, probe_subset=NULL){
+adjust_cis_eqtls <- function(expr, eqtls, geno_data, gene_sub=NULL){
 
   # sanity check
-  if(!is.null(probe_subset) && !all(probe_subset %in% colnames(expr))) {
+  if(!is.null(gene_sub) && !all(gene_sub %in% colnames(expr))) {
     stop("Invalid probe subset provided!")
   }
 
-  if(!is.null(probe_subset)) {
+  if(!is.null(gene_sub)) {
     # for the subset of probes adjust for potential cis-eqtls (i.e. snp-effects)
-    toUse <- which(eqtls$probe_id %in% probe_subset)
+    toUse <- which(eqtls$gene %in% gene_sub)
     if(length(toUse) == 0){
       return(expr)
     }
   } else {
     # use all probes
-    toUse <- which(eqtls$probe_id %in% colnames(expr))
+    toUse <- which(eqtls$gene %in% colnames(expr))
     if(length(toUse) == 0){
       return(expr)
     }
@@ -195,7 +180,7 @@ adjust_cis_eqtls <- function(expr, eqtls, geno_data, probe_subset=NULL){
   # for each gene, check whether we have an associated cis-eqtl
   temp <- lapply(colnames(expr), function(x) {
     # indices of ciseqtls
-    idxs <- which((eqtls$probe_id == x) & eqtls$snp_id %in% colnames(geno_data))
+    idxs <- which((eqtls$gene == x) & eqtls$snp_id %in% colnames(geno_data))
     if(length(idxs) < 1) {
       return(NULL)
     }
@@ -305,15 +290,15 @@ adjust_cis_meqtls <- function(betas, meqtls, geno_data){
 #' @return GRanges objects containing the eqtl information
 #'
 # ------------------------------------------------------------------------------
-load_eqtls <- function(fceqtl, expr.probes=NULL) {
+load_eqtls <- function(fceqtl, genes_sub=NULL) {
   # columns: top SNP KORA F4;Chr SNP;minor allele KORA F4;MAF KORA F4;Probe_Id;Gene;Chr Gene; etc...
   eqtls <- read.csv(fceqtl,
                     sep=";", header=T, stringsAsFactors=F)
 
   sids <- eqtls$top.SNP.KORA.F4
   keep <- which(rep(T,length(sids)))
-  if(!is.null(expr.probes)){
-    keep <- which(eqtls$Probe_Id %in% expr.probes)
+  if(!is.null(genes_sub)){
+    keep <- which(eqtls$Gene %in% genes_sub)
   }
 
   sids <- sids[keep]

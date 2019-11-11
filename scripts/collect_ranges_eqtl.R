@@ -117,9 +117,16 @@ if(length(tfs_by_transGene) > 0) {
 if(length(tfs)<1){
   warning("No TFs, skipping shortest paths calculation.")
 } else {
-  sp <- collect_shortest_path_genes(tfs$SYMBOL, trans_genes$SYMBOL,
+  shortest_paths <- collect_shortest_path_genes(tfs$SYMBOL, trans_genes$SYMBOL,
                                     tfs_by_transGene, ppi_genes,
                                     snp_genes$SYMBOL, ppi_db, gene_annot)
+  sp <- shortest_paths$non_tf_sp
+  tf_sp <- shortest_paths$tf_sp
+
+  # adjust the mapping to the transGenes to be consistent
+  tfs_by_transGene <- lapply(tfs_by_transGene, function(tf_sub) {
+    tf_sub[tf_sub$SYMBOL %in% tf_sp$SYMBOL]
+  })
 }
 
 # ------------------------------------------------------------------------------
@@ -132,8 +139,8 @@ result <-  list(sentinel = sentinel_range,
 if(!is.null(sp)){
   result$spath <- sp
 }
-if(!is.null(tfs)){
-  result$tfs <- tfs
+if(!is.null(tf_sp)){
+  result$tfs <- tf_sp
   result$tfs_by_transGene <- tfs_by_transGene
 }
 

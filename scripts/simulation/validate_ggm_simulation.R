@@ -35,9 +35,6 @@ print(paste0("Processing file: ", ffits, "."))
 # load data
 load(ffits)
 
-# the result table
-tab <- c()
-
 # check each individual simulated result
 temp <- lapply(names(result), function(n) {
   # get validation data
@@ -70,10 +67,10 @@ temp <- lapply(names(result), function(n) {
   perf <- lapply(names(gs), function(g) {
     # we need the adjacency matrix for comparison
     perf <- t(BDgraph::compare(d, as(gs[[g]], "matrix")))
-    comparisons <- c("Target", g)
+    comparisons <- c("True", g)
     perf <- as.data.frame(perf)
     rownames(perf) <- paste(n, comparisons, sep="_")
-    perf <- perf[!grepl("Target", rownames(perf)),]
+    perf <- perf[!grepl("True", rownames(perf)),]
 
     # annotate density for comparison
     ig <- igraph::igraph.from.graphNEL(gs[[g]])
@@ -91,15 +88,18 @@ temp <- lapply(names(result), function(n) {
   perf$comparison <- names(gs)
   perf$density_true <- edge_density(igraph.from.graphNEL(r$graph.observed))
 
-  # ----------------------------------------------------------------------------
-  # Add to result table
-  # ----------------------------------------------------------------------------
-  tab <<- rbind(tab, perf)
+  perf
 })
+
+tab <- do.call(rbind.data.frame, temp)
 
 # ------------------------------------------------------------------------------
 # write result to output file
 write.table(file=foutput, tab, col.names=NA, sep="\t",
             quote=F, row.names = TRUE)
 
+# ------------------------------------------------------------------------------
+print("SessionInfo:")
+# ------------------------------------------------------------------------------
+sessionInfo()
 sink()

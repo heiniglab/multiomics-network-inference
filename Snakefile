@@ -8,17 +8,27 @@
 # ------------------------------------------------------------------------------
 
 configfile: "configs/workflow.json"
+include: "workflows/common.sm"
 
-# rule used to configure R environment (ie install needed packages)
-rule config_r:
+# set global wildcard constraints
+wildcard_constraints:
+    sentinel="rs\d+",
+    seed="eqtlgen|meqtl"
+
+rule test_tfa:
 	conda:
 		"envs/bioR.yaml"
+	threads: 12
+	log:
+		"logs/test_tfa.out"
+	resources:
+		mem_mb=3000
 	script:
-		"scripts/config_R.R"
+		"scripts/test_tfa_inference.R"
 
 # -----------------------------------------------------------------------------
 # include the hotspot extraction workflow which extracts all the sentinels
-# for eqtlgen and meqtl as well as additional data prep
+# for eqtlgen and meqtl as well as performs additional data prep
 # -----------------------------------------------------------------------------
 subworkflow preprocess:
     workdir:
@@ -28,23 +38,12 @@ subworkflow preprocess:
     configfile:
         "./configs/workflow.json"
 
-# -----------------------------------------------------------------------------
-# Insert global vars
-# -----------------------------------------------------------------------------
-include: "workflows/common.sm"
-
-# set global wildcard constraints
-wildcard_constraints:
-    sentinel="rs\d+",
-    seed="eqtlgen|meqtl"
-
-# the preprocess() funciton ensures the dependency on the subworkflow, 
-
 # get the loci available in eQTLgen
+# the preprocess() function ensures the dependency on the subworkflow, 
 EQTLGEN = glob_wildcards(preprocess(DHOTSPOTS + "eqtlgen_thres" + 
                          config["hots_thres"] + "/loci/{sentinel}.dmy"))
 
-# get the meQTL loci
+# same for meQTL loci
 MEQTL = glob_wildcards(preprocess(DHOTSPOTS + "meqtl_thres" + 
                          config["hots_thres"] + "/loci/{sentinel}.dmy"))
 
@@ -53,20 +52,20 @@ MEQTL = glob_wildcards(preprocess(DHOTSPOTS + "meqtl_thres" +
 # -----------------------------------------------------------------------------
 localrules:
         all, preprocess_kora_individuals, summarize_validation_meqtl,
-        all_simulation, all_cohort, validate_ggm_simulation, create_priors,
+        all_simulation, all_cohort, validate_ggm_simulation,
         summarize_simulation, render_validation, summarize_validation_eqtlgen,
         create_stringdb, create_cosmo_splits, convert_cpg_context, all_ranges,
-	all_priors, all_data
+	all_priors, all_data, create_biogrid
 
 # ------------------------------------------------------------------------------
 # Include the rule-sets for the two individual analyses (cohort, simulation)
 # ------------------------------------------------------------------------------
-include: "workflows/cohort_data.sm"
-include: "workflows/simulation.sm"
+include: "workflows/2_1_cohort_data.sm"
+include: "workflows/2_2_simulation.sm"
 
 #-------------------------------------------------------------------------------
 # Overall target rule (both simulation and cohort study are executed).
-# Note: this runs a long time and should definitely be executed on a cluster
+# Note: this runs a virtually forever and should definitely be executed on a cluster
 #-------------------------------------------------------------------------------
 rule all:
         input:
@@ -76,13 +75,13 @@ rule all:
                 DRANGES + "eqtlgen_summary.pdf",
                 "results/current/simulation/simulation.html"
 
-################################################################################
+#-------------------------------------------------------------------------------
 # General rules used in both simulation and cohort studies
-################################################################################
+#-------------------------------------------------------------------------------
 
 #-------------------------------------------------------------------------------
 # Convert the precalculated cpg context to RDS
-# TODO: calculate it on our own
+# TODO: calculate the actual context on our own
 #-------------------------------------------------------------------------------
 rule convert_cpg_context:
 	input:
@@ -115,7 +114,7 @@ rule create_priors:
 		plot_dir = "results/current/" + PPI_NAME + "/plots/",
 		time = "16:00:00"
 	resources:
-		mem_mb=45000
+		mem_mb=55000
 	conda:
 		"envs/bioR.yaml"
 	log:
@@ -126,41 +125,49 @@ rule create_priors:
 		"scripts/create_priors.R"
 
 #------------------------------------------------------------------------------
-# Preprocess stringdb PPI network
+# eQTLgen based SNP-gene priors. Currently used for meQTL analysis instead of
+# the GTEx based priors
 #------------------------------------------------------------------------------
-rule create_stringdb:
-	input:
-		string="data/current/string/human_gene_hgnc_symbol.links.detailed.v9.0.txt",
-		gtex="data/current/gtex/GTEx_Analysis_v6_RNA-seq_RNA-SeQCv1.1.8_gene_median_rpkm.gct",
-		gene_annot = GENE_ANNOT
-	output:
-		PPI_DB_STRING
-	log:
-		"logs/create_stringdb.log"
+rule create_priors_eqtlgen:
+	input:	
+		eqtl="data/current/eqtl_gen/cis-eQTLs_full_20180905.txt.gz",
+	output:	
+		eqtl_priors=protected("results/current/" + PPI_NAME + "/eqtlgen_eqtl_priors.rds")
+	threads: 1
+	params:
+		plot_dir = "results/current/" + PPI_NAME + "/plots/",
+		time = "03:00:00"
+	resources:
+		mem_mb=55000
 	conda:
 		"envs/bioR.yaml"
+	log:
+		"logs/create_priors_eqtlgen.log"
 	benchmark:
-		"benchmarks/create_stringdb.bmk"
+		"benchmarks/create_priors_eqtlgen.bmk"
 	script:
-		"scripts/create_stringdb.R"
+		"scripts/create_priors_eqtlgen.R"
 
 #------------------------------------------------------------------------------
-# Preprocess biogrid PPI network
+# Preprocess PPI network
 #------------------------------------------------------------------------------
-rule create_biogrid:
+rule create_ppi_db:
 	input:
+		string="data/current/string/human_gene_hgnc_symbol.links.detailed.v9.0.txt",
 		biogrid="data/current/biogrid/3.5.166/by_organism/BIOGRID-ORGANISM-Homo_sapiens-3.5.166.tab2.txt",
 		gtex="data/current/gtex/GTEx_Analysis_v6_RNA-seq_RNA-SeQCv1.1.8_gene_median_rpkm.gct",
 		gene_annot = GENE_ANNOT
 	output:
-		PPI_DB_BIOGRID
+		PPI_DB
+	params:
+		ppi_name = config["ppi_db"]
 	conda:
 		"envs/bioR.yaml"
 	script:
-		"scripts/create_biogrid.R"
+		"scripts/create_ppi_db.R"
 
 #------------------------------------------------------------------------------
-# Preprocess stringdb PPI network
+# Split the cosmo object in cis, longrange and trans
 #------------------------------------------------------------------------------
 rule create_cosmo_splits:
 	input: 
@@ -189,9 +196,9 @@ rule collect_ranges:
 		DRANGES + "{sentinel}_meqtl.rds"
 	threads: 1
 	resources:
-		mem_mb=2300
+		mem_mb=3000
 	params:
-		time="01:00:00"
+		time="02:00:00"
 	conda:
 		"envs/bioR.yaml"
 	log: 
@@ -216,20 +223,20 @@ rule collect_ranges_eqtlgen:
                 plot = DRANGES + "{sentinel}_eqtlgen.pdf"
         threads: 1
         resources:
-                mem_mb=2300
+                mem_mb=3000
         params:
-                time="01:00:00"
+                time="02:00:00"
         conda:
                 "envs/bioR.yaml"
         log:
-                "logs/collect_ranges_egen/{sentinel}.log"
+                "logs/collect_ranges/{sentinel}_eqtlgen.log"
         benchmark:
-                "benchmarks/collect_ranges_egen/{sentinel}.bmk"
+                "benchmarks/collect_ranges/{sentinel}_eqtlgen.bmk"
         script:
                 "scripts/collect_ranges_eqtl.R"
 
 # -----------------------------------------------------------------------------
-# Target rule to generate all hotspot ranges collections for eqtl gen and to 
+# Target rule to generate all hotspot ranges collections for eqtlgen and to 
 # create a summary plot.
 # -----------------------------------------------------------------------------
 rule all_ranges:
@@ -238,6 +245,8 @@ rule all_ranges:
 		expand(DRANGES + "{sentinel}_meqtl.rds", sentinel=MEQTL.sentinel)
 	output:
 		DRANGES + "summary.pdf"
+	conda:
+		"envs/bioR.yaml"
 	script:
 		"scripts/create_locus_summary.R"
 
@@ -256,6 +265,31 @@ rule annotate_tss_with_tf:
         script:
                 "scripts/annotate_tss_with_tf.R"
 
+# -----------------------------------------------------------------------------
+# Calculate the TF activities. Results are data matrices containing residual
+# corrected expression/TFA values for all available genes
+# -----------------------------------------------------------------------------
+rule calculate_tfa:
+	input:
+		cohort_data="results/current/ggmdata_{cohort}.RData",
+		tfbs_annot="results/current/tfbs_tss_annot.rds"
+	output:
+		plot="results/current/tfa/plot_{cohort}.pdf",
+		tfa="results/current/tfa/activities_{cohort}.rds",
+		expr="results/current/tfa/expression_{cohort}.rds",
+	conda:
+		"envs/bioR.yaml"
+	resources:
+		mem_mb=6000
+	params:
+		time="02:00:00"
+	log:
+		"logs/calculate_tfa_{cohort}.log"
+	benchmark:
+		"benchmarks/calculate_tfa_{cohort}.bmk"
+	script:
+		"scripts/calculate_tfa.R"
+
 #------------------------------------------------------------------------------
 # Collect cohort data for a single sentinel locus
 #------------------------------------------------------------------------------
@@ -264,6 +298,8 @@ rule collect_data:
 		ranges=DRANGES + "{sentinel}_{seed}.rds",
 		kora=preprocess("results/current/ggmdata_kora.RData"),
 		lolipop=preprocess("results/current/ggmdata_lolipop.RData"),
+		kora_activities="results/current/tfa/activities_kora.rds",
+		lolipop_activities="results/current/tfa/activities_lolipop.rds",
 		ceqtl="data/current/kora/eqtl/kora-cis-eqtls.csv",
 		ccosmo="results/current/cis-cosmopairs_combined_151216.rds"
 	output:
@@ -271,17 +307,18 @@ rule collect_data:
 		DCOHORT_DATA + "{cohort}/{sentinel}_raw_{seed}.rds"
 	threads: 1
 	resources:
-		mem_mb=20000
+		mem_mb=25000
 	conda:
 		"envs/bioR.yaml"
 	params:
-		time="01:00:00"
+		time="01:00:00",
+		tfa_or_expr=config["suffix_tfa_expr"]
 	log:
 		"logs/collect_data/{cohort}/{sentinel}_{seed}.log"
 	benchmark:
 		"benchmarks/collect_data/{cohort}/{sentinel}_{seed}.bmk"
 	script:
-		"scripts/collect_data.R"
+		"scripts/collect_data_tfa.R"
 
 #------------------------------------------------------------------------------
 # Meta rule to collect data for all sentinels and plot some information. 
@@ -304,7 +341,8 @@ rule all_data:
 rule collect_priors:
 	input:
 		gg_priors="results/current/" + PPI_NAME + "/gtex.gg.cors.rds", 
-		eqtl_priors="results/current/" + PPI_NAME + "/gtex.eqtl.priors.rds",
+		gtex_eqtl_priors="results/current/" + PPI_NAME + "/gtex.eqtl.priors.rds",
+		eqtlgen_eqtl_priors="results/current/" + PPI_NAME + "/eqtlgen_eqtl_priors.rds",
 		ranges=DRANGES + "{sentinel}_{seed}.rds",
 		ppi=PPI_DB,
 		cpg_context="data/current/cpgs_with_chipseq_context_100.rds",
@@ -314,11 +352,12 @@ rule collect_priors:
 		DPRIORS + "{sentinel}_{seed}.pdf"
 	threads: 1
 	resources:
-		mem_mb=12000
+		mem_mb=20000
 	conda:
 		"envs/bioR.yaml"
 	params:
-		time="02:00:00"
+		time="02:00:00",
+		eqtl_prior_type = config["eqtl_prior_type"]
 	log:
 		"logs/collect_priors/{sentinel}_{seed}.log"
 	benchmark:

@@ -21,8 +21,8 @@ print("Getting snakemake params.")
 #------------------------------------------------------------------------------
 
 # get in and output
-ffit <- snakemake@input$new
-ffit_old <- snakemake@input$old
+ffit <- snakemake@input$fits
+#ffit_old <- snakemake@input$old
 
 fout <- snakemake@output[[1]]
 
@@ -30,10 +30,12 @@ fout <- snakemake@output[[1]]
 graph_type <- snakemake@wildcards$graph_type
 sentinel <- snakemake@wildcards$sentinel
 cohort <- snakemake@wildcards$cohort
+if(is.null(cohort)) cohort <- "GTEx"
 
 # define available graph types
 gtypes <- c("bdgraph", "bdgraph_no_priors", "genenet", "irafnet", 
             "glasso", "glasso_no_priors", "genie3")
+
 if(!graph_type %in% gtypes) {
   stop(paste0("Graph type not supported: ", graph_type))
 }
@@ -43,11 +45,11 @@ print(graph_type)
 #------------------------------------------------------------------------------
 print("Loading data.")
 #------------------------------------------------------------------------------
-if(graph_type %in% c("glasso", "glasso_no_priors", "genie3")) {
+#if(graph_type %in% c("glasso", "glasso_no_priors", "genie3")) {
   fits <- readRDS(ffit)
-} else {
-  fits <- readRDS(ffit_old)
-}
+#} else {
+#  fits <- readRDS(ffit_old)
+#}
 g <- fits[[graph_type]]
 
 print("Loaded graph:")

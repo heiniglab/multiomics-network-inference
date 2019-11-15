@@ -77,18 +77,18 @@ get_shortest_paths <- function(cis, trans, snp_genes, ppi_db,
 #' ------------------------------------------------------------------------------
 get_tfs_by_transGene <- function(tfbs, trans_genes, gene_annot) {
   # get TFs and map their corresponding trans gene
-  trans_genes <- trans_genes[trans_genes$SYMBOL %in% rownames(tfbs)]
+  trans_genes <- trans_genes[names(trans_genes) %in% rownames(tfbs)]
   tfs_by_transGene <- c()
   for(i in 1:length(trans_genes)){
     s <- trans_genes[i]$SYMBOL
-    tfbs_sub <- tfbs[s,,drop=F]
-    tfbs_sub <- unique(colnames(tfbs_sub[,apply(tfbs_sub,2,any),drop=F]))
+    n <- names(trans_genes)[i]
+    tfbs_sub <- tfbs[n,,drop=F]
+    tfbs_sub <- unique(colnames(tfbs_sub[,apply(tfbs_sub,2,function(x) sum(x) > 0),drop=F]))
     if(length(tfbs_sub)>0) {
-      tfbs_sub <- unique(unlist(lapply(strsplit(tfbs_sub, "\\."), "[[", 1)))
       tfs <- gene_annot[gene_annot$SYMBOL %in% tfbs_sub]
-      n <- names(tfs_by_transGene)
+      na <- names(tfs_by_transGene)
       tfs_by_transGene <- c(tfs_by_transGene, unique(tfs))
-      names(tfs_by_transGene) <- c(n,s)
+      names(tfs_by_transGene) <- c(na,s)
     }
   }
   return(tfs_by_transGene)
@@ -147,8 +147,7 @@ collect_shortest_path_genes <- function(tfs, trans_genes, tfs_by_transGene,
 # ------------------------------------------------------------------------------
 plot_ranges <- function(ranges, fout) {
   require(ggplot2)
-  cols <- set_defaultcolors()
-  sfm <- scale_fill_manual(values=cols)
+  cols <- get_defaultcolors()
 
   # get number of entities
   sg <- length(ranges$snp_genes)
@@ -164,12 +163,12 @@ plot_ranges <- function(ranges, fout) {
   gt <- ggtitle(paste0("Entities for sentinel ", names(ranges$sentinel),
                        " in tissue " , ranges$tissue, "."))
 
-  pdf(fout, width=8, height=8)
+  pdf(fout, width=12, height=12)
 
   # barplot of number of individual entity types
-  ggplot(aes(y=count, x=name), data=toplot) +
-    geom_bar(stat="identity", position="dodge") + gt +
-    theme(axis.text.x = element_text(angle = 90, hjust = 1))
+  print(ggplot(aes(y=count, x=name), data=toplot) +
+    geom_bar(stat="identity", position="dodge") + gt + theme_linedraw() + 
+    theme(axis.text.x = element_text(angle = 90, hjust = 1)))
 
   dev.off()
 }

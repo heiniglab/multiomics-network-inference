@@ -107,6 +107,7 @@ print("Collecting TFs and shortest path genes.")
 tfbs <- tfbs[rownames(tfbs) %in% trans_genes$SYMBOL,,drop=F]
 tfs <- NULL
 sp <- NULL
+tf_sp <- NULL
 
 tfs_by_transGene <- get_tfs_by_transGene(tfbs, trans_genes, gene_annot)
 if(length(tfs_by_transGene) > 0) {
@@ -114,8 +115,13 @@ if(length(tfs_by_transGene) > 0) {
 }
 
 # find the shortest path genes between the SNP genes and the annotated TFs
-if(length(tfs)<1){
+snp_genes_in_ppi <- snp_genes[snp_genes$SYMBOL %in% ppi_genes]
+
+if(length(tfs)<1 | length(snp_genes_in_ppi)<1) {
   warning("No TFs, skipping shortest paths calculation.")
+  if(length(tfs) > 0) {
+    tf_sp <- tfs
+  }
 } else {
   shortest_paths <- collect_shortest_path_genes(tfs$SYMBOL, trans_genes$SYMBOL,
                                     tfs_by_transGene, ppi_genes,

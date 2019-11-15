@@ -17,14 +17,14 @@ sink(log, type="message")
 # ------------------------------------------------------------------------------
 print("Load libraries and source scripts.")
 # ------------------------------------------------------------------------------
-suppressPackageStartupMessages(library(BDgraph))
-suppressPackageStartupMessages(library(igraph))
-suppressPackageStartupMessages(library(graph))
-suppressPackageStartupMessages(library(data.table))
-suppressPackageStartupMessages(library(GenomicRanges))
-suppressPackageStartupMessages(library(qvalue))
-suppressPackageStartupMessages(library(illuminaHumanv3.db))
-suppressPackageStartupMessages(library(ggplot2))
+library(BDgraph)
+library(igraph)
+library(graph)
+library(data.table)
+library(GenomicRanges)
+library(qvalue)
+library(illuminaHumanv3.db)
+library(ggplot2)
 library(parallel)
 library(reshape2)
 library(cowplot)
@@ -309,6 +309,15 @@ valid <- mclapply(graph_types, function(graph_type) {
   spath <- ranges$spath$SYMBOL
   spath_selected <- spath[spath %in% gnodes]
 
+  # collection of non snp genes which got selected
+  non_snp_genes_selected <- c(tfs_selected, spath_selected)
+  if(ranges$seed == "meqtl") {
+    non_snp_genes_selected <- c(non_snp_genes_selected, cgenes_selected)
+  } else {
+    non_snp_genes_selected <- c(non_snp_genes_selected, trans_entities_selected)
+  }
+  non_snp_genes_selected <- unique(non_snp_genes_selected)
+  
   # add to row
   row <- c(
     row,
@@ -324,6 +333,7 @@ valid <- mclapply(graph_types, function(graph_type) {
     tfs_selected=length(tfs_selected),
     spath=length(spath),
     spath_selected=length(spath_selected),
+    non_snp_genes_selected.list=paste0(non_snp_genes_selected, collapse=";"),
     tfs_per_trans=length(tfs)/length(trans_entities),
     tfs_per_trans_selected=length(tfs_selected)/length(trans_entities_selected)
   )
@@ -497,14 +507,14 @@ valid <- mclapply(graph_types, function(graph_type) {
     network_genes <- unique(c(network_genes, trans_entities_selected))
   }
 
-  go <- validate_geneenrichment(network_genes)
-  if(!is.null(go)) {
-    names(go) <- c("go_ids", "go_terms", "go_pvals", "go_qvals")
-  } else {
-    go <- rep(NA, 4)
-    names(go) <- c("go_ids", "go_terms", "go_pvals", "go_qvals")
-  }
-  row <- c(row, go)
+#  go <- validate_geneenrichment(network_genes)
+#  if(!is.null(go)) {
+#    names(go) <- c("go_ids", "go_terms", "go_pvals", "go_qvals")
+#  } else {
+#    go <- rep(NA, 4)
+#    names(go) <- c("go_ids", "go_terms", "go_pvals", "go_qvals")
+#  }
+#  row <- c(row, go)
 
   return(row)
 }, mc.cores=threads)

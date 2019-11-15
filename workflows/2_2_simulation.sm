@@ -3,33 +3,33 @@ localrules: all_simulate_data, all_apply_ggm_simulation, all_simulation, all_sim
 #------------------------------------------------------------------------------
 # Simulate ground truth and data for simulation study
 #------------------------------------------------------------------------------
-RUNS = 10
-#rule simulate_data:
-#        input:
-#                data=DCOHORT_DATA + "lolipop/{sentinel}_meqtl.rds",
-#                ranges=DRANGES + "{sentinel}_meqtl.rds",
-#                priors=DPRIORS + "{sentinel}_meqtl.rds"
-#        output:
-#                DSIM_DATA + "{sentinel}.RData"
-#        threads: 8
-#        resources:
-#                mem_mb=1200
-#        params:
-#                sentinel="{sentinel}",
-#                runs=RUNS,
-#                time="04:00:00"
-#        conda:
-#                "../envs/bioR.yaml"
-#        log:
-#                "logs/simulation/simulate_data/{sentinel}.log"
-#        benchmark:
-#                "benchmarks/simulation/simulate_data/{sentinel}.bmk"
-#        script:
-#                "../scripts/simulation/simulate_data.R"
+RUNS = 100
+rule simulate_data:
+        input:
+                data=DCOHORT_DATA + "lolipop/{sentinel}_meqtl.rds",
+                ranges=DRANGES + "{sentinel}_meqtl.rds",
+                priors=DPRIORS + "{sentinel}_meqtl.rds"
+        output:
+                DSIM_DATA + "{sentinel}.RData"
+        threads: 8
+        resources:
+                mem_mb=1500
+        params:
+                sentinel="{sentinel}",
+                runs=RUNS,
+                time="10:00:00"
+        conda:
+                "../envs/bioR.yaml"
+        log:
+                "logs/simulation/simulate_data/{sentinel}.log"
+        benchmark:
+                "benchmarks/simulation/simulate_data/{sentinel}.bmk"
+        script:
+                "../scripts/simulation/simulate_data.R"
 
-#rule all_simulate_data:
-#	input:
-#		expand(DSIM_DATA + "{sentinel}.RData", sentinel=MEQTL.sentinel)
+rule all_simulate_data:
+	input:
+		expand(DSIM_DATA + "{sentinel}.RData", sentinel=MEQTL.sentinel)
 
 #------------------------------------------------------------------------------
 # Apply ggm on simulated data

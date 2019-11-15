@@ -1854,7 +1854,11 @@ scan_snps <- function(ranges, tabix_file , individuals, filter=NULL) {
   
   print("Scan done, converting Tabix results to data frame.")
   
-  collapsed <- paste0(unlist(res_not_empty), collapse="\n")
+  if(length(res_not_empty) < 2) {
+    collapsed <- paste0(unlist(res_not_empty), "\n")
+  } else {
+    collapsed <- paste0(unlist(res_not_empty), collapse="\n")
+  }
   
   # define columns for filtering
   all_cols <- c("chr", "name", "pos", "orig", "alt", individuals)
@@ -1912,7 +1916,7 @@ get_gwas_traits <- function(snp, gwas_table, ld.rsquared=0.95, collapse=TRUE) {
   ld_snps <- unique(ld_snps)
 
   # gather gwas traits for SNPs within this LD block
-  gwas_sub <- subset(gwas, SNPS %in% ld_snps)
+  gwas_sub <- subset(gwas_table, SNPS %in% ld_snps)
   if(nrow(gwas_sub) > 0) {
     if(collapse) {
       paste0(unique(gwas_sub$DISEASE.TRAIT), collapse="|")

@@ -192,13 +192,6 @@ simulate_data <- function(graphs, sentinel, data, nodes) {
 fdata <- snakemake@input[["data"]]
 franges <- snakemake@input[["ranges"]]
 fpriors <- snakemake@input[["priors"]]
-#sentinel <- "rs9859077"
-#sentinel <- "rs7500738"
-#sentinel <- "rs9674439"
-#sentinel <- "rs77767885"
-#fdata <- paste0("results/current/cohort-data/lolipop/", sentinel, ".rds")
-#franges <- paste0("results/current/ranges/", sentinel, ".rds")
-#fpriors <- paste0("results/current/priors/", sentinel, ".rds")
 
 # ------------------------------------------------------------------------------
 print("Getting snakemake params.")

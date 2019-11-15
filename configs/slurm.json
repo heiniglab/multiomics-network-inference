@@ -6,6 +6,6 @@
 	"ntasks"   : 1,
 	"cpu"      : "{threads}",
 	"log"      : "{log[0]}",
-	"partition": "serial_fed28"
+	"partition": "icb_cpu"
     }
 }

@@ -8,19 +8,10 @@
 #' @author Johann Hawe
 # ------------------------------------------------------------------------------
 get_defaultcolors <- function(n=5, name=c("wes", "rcb")) {
-  suppressPackageStartupMessages(library(wesanderson))
   library(RColorBrewer)
-  # wes_palette is only up to 5 colors
-  if(n<=5) {
-    if("rcb" %in% name) {
-      cols <- brewer.pal(n, "Set2")
-    } else {
-      cols <- wes_palette(n, "FantasticFox1")
-    }
-  } else {
-      # default to rcolorbrewer palette
-      cols <- brewer.pal(n, "Set2")
-  }
+  # default to rcolorbrewer palette
+  cols <- brewer.pal(n, "Set2")
+  
   return(cols)
 }
 

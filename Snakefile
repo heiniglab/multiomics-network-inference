@@ -52,9 +52,9 @@ MEQTL = glob_wildcards(preprocess(DHOTSPOTS + "meqtl_thres" +
 # -----------------------------------------------------------------------------
 localrules:
         all, preprocess_kora_individuals, summarize_validation_meqtl,
-        all_simulation, all_cohort, validate_ggm_simulation,
+        all_simulation, all_cohort,
         summarize_simulation, render_validation, summarize_validation_eqtlgen,
-        create_stringdb, create_cosmo_splits, convert_cpg_context, all_ranges,
+        create_stringdb, create_cosmo_splits, convert_cpg_context,
 	all_priors, all_data, create_biogrid
 
 # ------------------------------------------------------------------------------
@@ -190,7 +190,7 @@ rule collect_ranges:
 		ppi_db=PPI_DB,
 		meqtl="data/current/meQTLs/transpairs_r02_110117_converted_1MB.txt",
 		tcosmo="results/current/trans-cosmopairs_combined_151216.rds",
-		priorization="data/current/rw_string_v9_ld_wb_prioritize_full_with_empirical_p_lte_0.05.txt",
+		priorization="data/current/rw_string_v9_ld_wb_prioritize_full_with_empirical_p_lte_0.05_bck.txt",
 		gene_annot = GENE_ANNOT
 	output: 
 		DRANGES + "{sentinel}_meqtl.rds"
@@ -245,8 +245,11 @@ rule all_ranges:
 		expand(DRANGES + "{sentinel}_meqtl.rds", sentinel=MEQTL.sentinel)
 	output:
 		DRANGES + "summary.pdf"
-	conda:
-		"envs/bioR.yaml"
+	threads: 1
+	resources:
+		mem_mb=1000
+	params:
+		time="00:10:00"
 	script:
 		"scripts/create_locus_summary.R"
 
@@ -277,10 +280,8 @@ rule calculate_tfa:
 		plot="results/current/tfa/plot_{cohort}.pdf",
 		tfa="results/current/tfa/activities_{cohort}.rds",
 		expr="results/current/tfa/expression_{cohort}.rds",
-	conda:
-		"envs/bioR.yaml"
 	resources:
-		mem_mb=6000
+		mem_mb=10000
 	params:
 		time="02:00:00"
 	log:

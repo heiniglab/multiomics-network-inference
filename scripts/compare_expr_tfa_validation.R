@@ -57,8 +57,8 @@ plot_overview <- function(data) {
 }
 
 # read the validation results for meqtls
-expr <- read_tsv("results/current/biogrid/validation_old/validation_all_meqtl.txt")
-tfa <- read_tsv("results/current/biogrid/validation/validation_all_meqtl.txt")
+expr <- read_tsv("results/current/biogrid/validation_expr/validation_all_meqtl.txt")
+tfa <- read_tsv("results/current/biogrid/validation_tfa/validation_all_meqtl.txt")
 
 expr <- expr %>% filter(sentinel %in% tfa$sentinel)
 
@@ -68,8 +68,8 @@ data <- mutate(data, type=c(rep("expr", nrow(expr)), rep("tfa", nrow(tfa))))
 plot_overview(data)
 
 # do the same for the eQTLgen results
-expr <- read_tsv("results/current/biogrid/validation_old/validation_all_eqtlgen.txt")
-tfa <- read_tsv("results/current/biogrid/validation/validation_all_eqtlgen.txt")
+expr <- read_tsv("results/current/biogrid_stringent/validation_expr/validation_all_eqtlgen.txt")
+tfa <- read_tsv("results/current/biogrid_stringent/validation_tfa/validation_all_eqtlgen.txt")
 
 expr <- expr %>% filter(sentinel %in% tfa$sentinel)
 

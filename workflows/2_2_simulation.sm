@@ -4,6 +4,8 @@ localrules: all_simulate_data, all_apply_ggm_simulation, all_simulation, all_sim
 # Simulate ground truth and data for simulation study
 #------------------------------------------------------------------------------
 RUNS = 100
+ITERATIONS = range(1,RUNS+1)
+
 rule simulate_data:
         input:
                 data=DCOHORT_DATA + "lolipop/{sentinel}_meqtl.rds",
@@ -17,7 +19,7 @@ rule simulate_data:
         params:
                 sentinel="{sentinel}",
                 runs=RUNS,
-                time="10:00:00"
+                time="2-00:00:00"
         conda:
                 "../envs/bioR.yaml"
         log:
@@ -34,10 +36,6 @@ rule all_simulate_data:
 #------------------------------------------------------------------------------
 # Apply ggm on simulated data
 #------------------------------------------------------------------------------
-ITERATIONS = range(1,RUNS+1)
-ITERATIONS2 = range(1+20, RUNS+21)
-ITERATIONS3 = range(1+30, 101)
-
 rule apply_ggm_simulation:
         input:
                 data=DSIM_DATA + "{sentinel}.RData",
@@ -83,7 +81,7 @@ rule validate_ggm_simulation:
                 DSIM_VALIDATION + "{sentinel}-iter{iteration}.txt"
         threads: 1
         resources:
-                mem_mb=200
+                mem_mb=400
         params:
                 iteration="{iteration}",
                 time="00:10:00"
@@ -100,10 +98,10 @@ rule validate_ggm_simulation:
 TEMP = glob_wildcards(DSIM_FITS + "{sentinel}-iter{iteration}.RData")
 rule validate_subset:
 	input:
-		expand(DSIM_VALIDATION + "{sentinel}-iter{iter}.txt",zip, sentinel=TEMP.sentinel, iter=TEMP.iteration)
+		expand(DSIM_VALIDATION + "{sentinel}-iter{iter}.txt", zip, sentinel=TEMP.sentinel, iter=TEMP.iteration)
 
-#rule validate_all:
-#       input: expand(DSIM_VALIDATION + "{sentinel}-iter{iter}.txt", sentinel=LISTS.sentinel, iter=ITERATIONS)
+rule validate_all:
+       input: expand(DSIM_VALIDATION + "{sentinel}-iter{iter}.txt", sentinel=MEQTL.sentinel, iter=ITERATIONS)
 
 
 #------------------------------------------------------------------------------
@@ -118,24 +116,3 @@ rule all_simulation:
 		"""
 		cat {input} | sort -r | uniq > {output}
 		"""
-
-rule all_simulation2:
-	input:
-		expand(DSIM_VALIDATION + "{sentinel}-iter{iter}.txt", sentinel=MEQTL.sentinel, iter=ITERATIONS2)
-	output:
-		"results/current/biogrid/simulation/validation/validation2.tsv"
-	shell:
-		"""
-		cat {input} | sort -r | uniq > {output}
-		"""
-
-rule all_simulation3:
-	input:
-		expand(DSIM_VALIDATION + "{sentinel}-iter{iter}.txt", sentinel=MEQTL.sentinel, iter=ITERATIONS3)
-	output:
-		"results/current/biogrid/simulation/validation/validation3.tsv"
-	shell:
-		"""
-		cat {input} | sort -r | uniq > {output}
-		"""
-

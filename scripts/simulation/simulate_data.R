@@ -23,7 +23,7 @@ source("scripts/priors.R")
 source("scripts/lib.R")
 
 #define colors
-cols <- set_defaultcolors()
+cols <- get_defaultcolors()
 palette(cols)
 
 # ------------------------------------------------------------------------------

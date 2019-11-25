@@ -14,7 +14,7 @@ sink(file=snakemake@log[[1]])
 library(BDgraph)
 library(graph)
 library(igraph)
-suppressPackageStartupMessages(library(GenomicRanges))
+library(GenomicRanges)
 source("scripts/lib.R")
 
 # ------------------------------------------------------------------------------

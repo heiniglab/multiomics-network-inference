@@ -668,7 +668,7 @@ probes.from.symbols <- function(symbols, mapping=F, as.list=F, annot=NULL) {
 
   if(is.null(annot)) {
     library(illuminaHumanv3.db)
-    annot <- as.list(illuminaHumanv3ALIAS2PROBE)
+    annot <- as.list(illuminaHumanv3SYMBOLREANNOTATED)
     annot <- annot[!is.na(annot)]
   }
 
@@ -1812,7 +1812,7 @@ get_largest_cc <- function(g) {
 summarize <- function(m, symbols){
   # prepare annotation
   library(illuminaHumanv3.db)
-  annot <- as.list(illuminaHumanv3ALIAS2PROBE)
+  annot <- as.list(illuminaHumanv3SYMBOLREANNOTATED)
   annot <- annot[!is.na(annot)]
   n <- lapply(symbols, function(sym) {
     gid <- probes.from.symbols(sym, annot=annot)

@@ -77,15 +77,18 @@ get_shortest_paths <- function(cis, trans, snp_genes, ppi_db,
 #' ------------------------------------------------------------------------------
 get_tfs_by_transGene <- function(tfbs, trans_genes, gene_annot) {
   # get TFs and map their corresponding trans gene
-  trans_genes <- trans_genes[names(trans_genes) %in% rownames(tfbs)]
+  trans_genes <- trans_genes[trans_genes$SYMBOL %in% rownames(tfbs)]
+  print("Trans genes:")
+  print(trans_genes)
   tfs_by_transGene <- c()
   for(i in 1:length(trans_genes)){
     s <- trans_genes[i]$SYMBOL
     n <- names(trans_genes)[i]
-    tfbs_sub <- tfbs[n,,drop=F]
+    tfbs_sub <- tfbs[s,,drop=F]
     tfbs_sub <- unique(colnames(tfbs_sub[,apply(tfbs_sub,2,function(x) sum(x) > 0),drop=F]))
     if(length(tfbs_sub)>0) {
-      tfs <- gene_annot[gene_annot$SYMBOL %in% tfbs_sub]
+      tf_symbols <- unique(sapply(strsplit(tfbs_sub, "\\."), "[[", 1))
+      tfs <- gene_annot[gene_annot$SYMBOL %in% tf_symbols]
       na <- names(tfs_by_transGene)
       tfs_by_transGene <- c(tfs_by_transGene, unique(tfs))
       names(tfs_by_transGene) <- c(na,s)

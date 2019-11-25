@@ -49,7 +49,7 @@ print("Loading data.")
 
 gene_annot <- load_gene_annotation(fgene_annot)
 gene_annot$ids <- probes.from.symbols(gene_annot$SYMBOL,
-                                           as.list=T)
+                                           as_list=T)
 ppi_db <- readRDS(fppi_db)
 
 # load trans-meQTL table

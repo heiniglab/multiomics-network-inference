@@ -659,12 +659,12 @@ simple.heatmap <- function(x, cors=F, cannot=NA, cluster=F) {
 #'
 #' @param symbols List of symbols for which to get ids
 #' @param mapping Flag whether to return a mapping ID->SYMBOL (default: F)
-#' @param as.list Flag whether to return result as list or vector in
+#' @param as_list Flag whether to return result as list or vector in
 #' case mapping=F. (default:F)
 #'
 #' @author Johann Hawe
 #'
-probes.from.symbols <- function(symbols, mapping=F, as.list=F, annot=NULL) {
+probes.from.symbols <- function(symbols, mapping=F, as_list=F, annot=NULL) {
 
   if(is.null(annot)) {
     library(illuminaHumanv3.db)
@@ -672,11 +672,12 @@ probes.from.symbols <- function(symbols, mapping=F, as.list=F, annot=NULL) {
     annot <- annot[!is.na(annot)]
   }
 
-  annot <- annot[which(names(annot) %in% symbols)];
-
+  annot <- annot[which(annot %in% symbols)]
+  annot <- unlist(annot)
+  
   if(length(annot) > 0){
     if(mapping) {
-      probes <- unlist(annot)
+      probes <- names(annot)
       uprobes <- unique(probes)
       if(length(uprobes) != length(probes)){
         dprobes <- unname(probes[duplicated(probes)])
@@ -684,28 +685,21 @@ probes.from.symbols <- function(symbols, mapping=F, as.list=F, annot=NULL) {
                        using only one symbol for those probes:\n",
                        dprobes))
       }
-      map <- matrix(nrow=length(unlist(annot)))
-      rownames(map) <- unlist(annot)
-      temp <- lapply(symbols, function(s) {
-        ids <- annot[[s]]
-        if(!is.null(ids)) {
-          map[ids,1] <<- s
-        }
-      })
-      map <- map[!is.na(map[,1]),,drop=F]
-      colnames(map) <- "symbol"
+      map <- data.matrix(cbind(names(annot), annot))
+      map <- map[!is.na(map[,2]),,drop=F]
+      colnames(map) <- c("id", "symbol")
       dropped <- length(symbols) - nrow(map)
       if(dropped>0) {
-        cat("Dropped",dropped,"symbols since they had no probe.id available.\n")
+        cat("Dropped", dropped, "symbols since they had no probe.id available.\n")
       }
       return(map)
     }
-    if(as.list) {
-      tmp <- annot[symbols]
+    if(as_list) {
+      tmp <- sapply(symbols, function(s) { names(annot[annot %in% s])})
       names(tmp) <- symbols
       return(tmp)
     } else {
-      return(unlist(annot[symbols]))
+      return(unique(names(annot[annot %in% symbols])))
     }
   } else {
 	return(NULL)
@@ -1763,11 +1757,10 @@ min.node.weight.path <- function(g, weights, from, to) {
 #'
 symbols.from.probeids <- function(ids, mapping=F){
   library(illuminaHumanv3.db)
-  annot <- illuminaHumanv3SYMBOLREANNOTATED
-  avail <- mappedkeys(annot)
+  annot <- as.list(illuminaHumanv3SYMBOLREANNOTATED)
+  avail <- unique(names(annot))
   ids.avail <- ids[which(ids %in% avail)]
-
-  symbols <- unlist(as.list(annot[ids.avail]))
+  symbols <- unlist(annot[ids.avail])
 
   if(mapping) {
     return(data.frame(id=ids.avail,symbol=symbols))

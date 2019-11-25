@@ -50,7 +50,7 @@ ppi_genes <- nodes(ppi_db)
 # gene annotation
 gene_annot <- load_gene_annotation(fgene_annot)
 gene_annot$ids <- probes.from.symbols(gene_annot$SYMBOL,
-                                      as.list=T)
+                                      as_list=T)
 
 # load trans-eQTL
 eqtl = fread(feqtl)
@@ -104,7 +104,7 @@ print("Collecting TFs and shortest path genes.")
 # ------------------------------------------------------------------------------
 
 # load all TFBS we have available in our data and connect with trans-genes
-tfbs <- tfbs[rownames(tfbs) %in% names(trans_genes),,drop=F]
+tfbs <- tfbs[rownames(tfbs) %in% trans_genes$SYMBOL,,drop=F]
 tfs <- NULL
 sp <- NULL
 tf_sp <- NULL
@@ -123,9 +123,11 @@ if(length(tfs)<1 | length(snp_genes_in_ppi)<1) {
     tf_sp <- tfs
   }
 } else {
+  print("Getting paths...")
   shortest_paths <- collect_shortest_path_genes(tfs$SYMBOL, trans_genes$SYMBOL,
                                     tfs_by_transGene, ppi_genes,
                                     snp_genes$SYMBOL, ppi_db, gene_annot)
+  print("Done collecting paths.")
   sp <- shortest_paths$non_tf_sp
   tf_sp <- shortest_paths$tf_sp
 

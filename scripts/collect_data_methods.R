@@ -174,7 +174,11 @@ adjust_cis_eqtls <- function(expr, eqtls, geno_data, probe_subset=NULL){
 
   # sanity check
   if(!is.null(probe_subset) && !all(probe_subset %in% colnames(expr))) {
-    stop("Invalid probe subset provided!")
+    # this might happen for the LOLIPOP data, where we did not get all probes
+    # initially. This is rare though, but nevertheless we should revisit
+    # this once we get all the probe data
+    warning(paste0("Missing probe in data: ", probe_subset[!probe_subset %in% colnames(expr)]))
+    probe_subset <- probe_subset[probe_subset %in% colnames(expr)]
   }
 
   if(!is.null(probe_subset)) {

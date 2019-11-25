@@ -99,29 +99,21 @@ reg_net <- function(data,
   if ("genenet" %in% model) {
     require(GeneNet)
 
-    # for some reason, this method yields a sporadic error. testing in an R
-    # console, we found that this also appears within the same session in e.g.
-    # two subsequent calls: one with error, one without.
-    # it seems the error is rather rare, so we can essentially 'wait' for it to
-    # disappear..
-    pcors <- try({
-      ggm.estimate.pcor(data.matrix(data_no_nas))
-    })
-  #  while (inherits(pcors, "try-error")) {
-  #    pcors <- try({
-  #      ggm.estimate.pcor(data.matrix(data_no_nas))
-  #    })
-  #  }
+    # get partial correlation estimates
+    pcors <- ggm.estimate.pcor(data.matrix(data_no_nas))
+    
 
     fit <- network.test.edges(pcors, plot = F)
     fit$node1 <- colnames(data_no_nas)[fit$node1]
     fit$node2 <- colnames(data_no_nas)[fit$node2]
     class(fit) <- c(class(fit), "genenet")
+    
   } else if ("bdgraph" %in% model) {
     require(BDgraph)
     # check some conditions before applying the model
     # no priors
     if (is.null(priors)) {
+      print("Setting uniform prior.")
       # set default uniform prior
       bdpriors <- 0.5
 
@@ -135,21 +127,6 @@ reg_net <- function(data,
       }
     } else {
       # we have priors
-      
-      # TEST: we adjust the priors to be between 0.5 and 1, since
-      # values < 0.5 would actually discourage an edge when it shouldn't
-      #(there was at least some evidence, pseudo prior should be uniform prior)
-#      sc <- function(x, low, high) { 
-#        (high-low)*(x-min(x)) / (max(x) - min(x)) + low
-#      }
-      
-      # might happen if we try out a specific uniform prior
-      # we do not adjust in that case
-#      if(length(unique(as.numeric(priors))) == 1) {
-#        bdpriors <- priors
-#      } else {
-#        bdpriors <- sc(priors, 0.5, 1)
-#      }
       bdpriors <- priors
      
       # check whether to use the prior based start graph
@@ -160,9 +137,6 @@ reg_net <- function(data,
       }
     }
     # perform the model fitting
-    # as for GeneNet, we have some random hiccups using this methods atm.
-    # probably this is a problem between genenet and bdgraph package versions
-    # for now, we apply the same solution as for genenet -> run until no error...
     fit <- try({
       bdgraph(
         data,
@@ -175,20 +149,6 @@ reg_net <- function(data,
         cores = threads
       )
     })
-   # while (inherits(fit, "try-error")) {
-  #    fit <- try({
-  #      bdgraph(
-  #        data,
-  #        method = "gcgm",
-  #        g.prior = bdpriors,
-  #        iter = iter,
-  #        burnin = burnin,
-  #        g.start = gstart,
-  #        save = T,
-  #        cores = threads
-#        )
-#      })
-#   }
 
     # plot convergence info for any case
     ggm_summary <- summary(fit)
@@ -270,11 +230,10 @@ graph_from_fit <- function(ggm.fit,
     stop("Ranges must not be null for annotating graphs!")
   }
 
-  suppressPackageStartupMessages(library(BDgraph))
-  suppressPackageStartupMessages(library(graph))
-  suppressPackageStartupMessages(library(igraph))
+  library(BDgraph)
+  library(graph)
+  library(igraph)
   require(reshape2)
-  #  suppressPackageStartupMessages(require(tidyverse))
 
   # get the graph instance from the ggm fits
   if (inherits(ggm.fit, "bdgraph")) {
@@ -547,6 +506,7 @@ glasso_cv <- function(data,
       g <- graph_from_fit(gl, annotate = F)
       ne <- numEdges(g)
 
+      # eBIC?
       bic <- bic(ll = ll, n = n, k = ne)
 
       c(ll, bic, ne)
@@ -768,7 +728,7 @@ infer_all_graphs <-
     print("BLAS Num Threads")
     
     # we set the OMP/BLAS number of threads to 1
-    # this avoids issues we had in the glasso CV with multi-threading
+    # this avoids issues we had in the glasso CV with multi-threading on cluster
     # also necessary for BDgraph 
     RhpcBLASctl::omp_set_num_threads(1)
     RhpcBLASctl::blas_set_num_threads(1)

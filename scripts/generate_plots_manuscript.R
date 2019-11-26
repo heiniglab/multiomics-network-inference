@@ -23,8 +23,10 @@ hg19info <- seqinfo(BSgenome.Hsapiens.UCSC.hg19)
 
 # set up theme and colors
 theme_set(theme_cowplot())
-theme_update(legend.text = element_text(size=10), 
-             legend.title=element_text(size=10))
+theme_update(legend.text = element_text(size=11), 
+             legend.title=element_text(size=12),
+             axis.text.x = element_text(size=10),
+             axis.text.y = element_text(size=10))
 
 sfb_graphs <- scale_fill_brewer(palette="Set2")
 scb_graphs <- scale_color_brewer(palette="Set2")
@@ -38,76 +40,11 @@ COLORS <- list(MEQTL = group_cols[1],
 # ------------------------------------------------------------------------------
 print("Figure 1 - Panel A")
 # ------------------------------------------------------------------------------
+# This panel is the graphical abstract of the study and was manually designed 
+# in inkscape.
 
 # ------------------------------------------------------------------------------
-# Now we create the plot showing the overview over the locus graphs
-# ------------------------------------------------------------------------------
-# get meqtl ranges
-fmeqtl_ranges <- list.files("results/current/biogrid_stringent/ranges/", "*_meqtl.rds", 
-                            full.names = T)
-
-# extract entity counts
-meqtl_counts <- lapply(fmeqtl_ranges, function(fi) {
-  ranges <- readRDS(fi)
-  
-  # filter out genes for which we didnt have and probe ids
-  # (those were not used in inference)
-  ncpgs <- length(ranges$cpgs)
-  ntfs <- length(ranges$tfs[!sapply(ranges$tfs$ids, is.null)])
-  nspath <- length(ranges$spath[!sapply(ranges$spath$ids, is.null)])
-  nsnp_genes <- length(ranges$snp_genes[!sapply(ranges$snp_genes$ids, is.null)])
-  ncpg_genes <- length(ranges$cpg_genes[!sapply(ranges$cpg_genes$ids, is.null)])
-  
-  data.frame(cis_genes = nsnp_genes, 
-             trans_associations = ncpgs,
-             trans_genes = ncpg_genes,
-             TFs = ntfs,
-             PPI = nspath, 
-             group = "meQTL")
-})
-meqtl_counts <- bind_rows(meqtl_counts)
-
-# get the eqtl entity counts
-feqtl_ranges <- list.files("results/current/biogrid_stringent/ranges/", "*_eqtlgen.rds", 
-                           full.names = T)
-eqtl_counts <- lapply(feqtl_ranges, function(fi) {
-  ranges <- readRDS(fi)
-  
-  # filter out genes for which we didnt have and probe ids
-  # (those were not used in inference)
-  ntrans_genes <- length(ranges$trans_genes[!sapply(ranges$trans_genes$ids, is.null)])
-  ntfs <- length(ranges$tfs[!sapply(ranges$tfs$ids, is.null)])
-  nspath <- length(ranges$spath[!sapply(ranges$spath$ids, is.null)])
-  nsnp_genes <- length(ranges$snp_genes[!sapply(ranges$snp_genes$ids, is.null)])
-  
-  data.frame(cis_genes = nsnp_genes, 
-             trans_associations = ntrans_genes,
-             trans_genes = NA,
-             TFs = ntfs,
-             PPI = nspath,
-             group = "eQTL")
-})
-eqtl_counts <- bind_rows(eqtl_counts)
-
-# gather in single df
-counts <- bind_rows(meqtl_counts, eqtl_counts)
-
-# ------------------------------------------------------------------------------
-# Plot the distributions
-# ------------------------------------------------------------------------------
-toplot <- melt(counts) %>% 
-  arrange(value)
-
-panel_b <- ggplot(toplot, aes(color=group, x=variable, y=value)) +
-  geom_boxplot(outlier.shape = NA) + 
-  geom_jitter(shape=23, position = position_jitterdodge(jitter.width = 0.15)) + 
-  scale_color_manual(values=c(meQTL = COLORS$MEQTL, eQTL = COLORS$EQTL, TWAS = COLORS$TWAS)) + 
-  scale_y_log10() +
-  xlab("entity type") + 
-  ylab("count") + theme(plot.margin = margin(1,0.2,0.2,0.2, unit="lines"))
-
-# ------------------------------------------------------------------------------
-print("Figure 1 - Panel A")
+print("Figure 1 - Panel B")
 # ------------------------------------------------------------------------------
 eqtl_hotspots <- read_tsv("results/current/hotspots/eqtlgen_thres5/hotspots.tsv")
 
@@ -185,7 +122,9 @@ plot_pairs <- function(genome, ranges_x, ranges_y, log=FALSE,
     geom_point(aes(x=x_bin, y=count), color=color, shape=23) + 
     scale_x_continuous(expand = c(0.01, 0.01), breaks = as.vector(breaks), labels = NULL) + 
     xlab("") + 
-    background_grid(major = "xy")
+    background_grid(major = "xy") + 
+    theme(axis.text.y = element_text(size=9),
+          axis.title.y = element_text(size=10))
   
   ymp <- ggplot(y_margin) + 
     geom_point(aes(x=y_bin, y=count), color=color, shape=23) + 
@@ -194,7 +133,9 @@ plot_pairs <- function(genome, ranges_x, ranges_y, log=FALSE,
       breaks = as.vector(breaks),
       labels = NULL) + 
     xlab("") + 
-    theme(axis.text.x = element_text(angle=90, 
+    theme(axis.title.y = element_text(size=10),
+          axis.text.x = element_text(size=9,
+                                     angle=90, 
                                      vjust=0.5, 
                                      hjust=1)) + 
     background_grid(major = "xy")
@@ -205,9 +146,10 @@ plot_pairs <- function(genome, ranges_x, ranges_y, log=FALSE,
     geom_tile(..., fill=color,
               aes(x = x_bin, y = y_bin)) +
     theme(
-      text = element_text(size = 11),
+      text = element_text(size = 10),
       legend.text = element_text(size = 8),
-      axis.text.x = element_text(vjust = 0.5, angle = 90),
+      axis.text.x = element_text(size=9, vjust = 0.5, angle = 90),
+      axis.text.y = element_text(size=9),
       legend.title = element_text(size = 10),
       plot.margin = margin(0,0.1,0,0, "cm")) +
     xlab(label_x) + ylab(label_y) +
@@ -227,16 +169,16 @@ plot_pairs <- function(genome, ranges_x, ranges_y, log=FALSE,
        data_disc = pairs_binned_discrete, pair_plot_disc=gd)
 }
 
-tile_width <- 10
+tile_width <- 5
 
 eqtl_plot <- plot_pairs(hg19info, 
                         eqtl_regions, 
                         eqtl_regions$trans_ranges, 
-                        log = F, "SNPs", "trans Genes", resolution = 1e6, width=tile_width, color=COLORS$EQTL)
+                        log = F, "SNPs", "trans Genes", resolution = 2e6, width=tile_width, color=COLORS$EQTL)
 meqtl_plot <- plot_pairs(hg19info, 
                          meqtl_regions, 
                          meqtl_regions$trans_ranges, 
-                         log=F, "SNPs", "CpGs", resolution = 1e6, width=tile_width, color=COLORS$MEQTL)
+                         log=F, "SNPs", "CpGs", resolution = 5e6, width=tile_width, color=COLORS$MEQTL)
 
 wr <- c(85,15)
 hr <- c(15,85)
@@ -260,8 +202,8 @@ cp <- cp + theme(plot.margin = side_margins)
 
 # possible alternative:
 meqtl_ggplot <- ggarrange(ggarrange(ap, nullGrob(), widths = wr, ncol=2), 
-          ggarrange(bp, cp, widths=wr, ncol=2, align="h"), 
-          nrow=2, heights = hr, align="v")
+                          ggarrange(bp, cp, widths=wr, ncol=2, align="h"), 
+                          nrow=2, heights = hr, align="v")
 
 # eqtl subplot
 top_margins <- margin(0.7, 0.2,-0.8, 0.1, unit = "lines")
@@ -278,28 +220,131 @@ cp <- cp + theme(plot.margin = side_margins)
 #                        nullGrob(), ncol=2, widths = wr))
 
 eqtl_ggplot <- ggarrange(ggarrange(ap, nullGrob(), widths = wr, ncol=2), 
-                          ggarrange(bp, cp, widths=wr, ncol=2, align="h"), 
-                          nrow=2, heights = hr, align="v")
+                         ggarrange(bp, cp, widths=wr, ncol=2, align="h"), 
+                         nrow=2, heights = hr, align="v")
 
-panel_a <- grid.arrange(meqtl_ggplot, 
-                        eqtl_ggplot,
-                        ncol=2)
+panel_b1 <- meqtl_ggplot
+panel_b2 <- eqtl_ggplot
 
-# extract legend for wide plot
-panel_b <- panel_b + 
-  theme(legend.text=element_text(size=rel(1)),
-        legend.title=element_text(size=rel(1.5)),
-        legend.key.size = unit(2,"lines"))
+# ------------------------------------------------------------------------------
+print("Figure 1 - Panel C")
+# ------------------------------------------------------------------------------
+# get meqtl ranges
+fmeqtl_ranges <- list.files("results/current/biogrid_stringent/ranges/", "*_meqtl.rds", 
+                            full.names = T)
 
-legend <- cowplot::get_legend(panel_b)
-panel_b <- panel_b + theme(legend.position = "none")
+# extract entity counts
+meqtl_counts <- lapply(fmeqtl_ranges, function(fi) {
+  ranges <- readRDS(fi)
+  
+  # filter out genes for which we didnt have and probe ids
+  # (those were not used in inference)
+  ncpgs <- length(ranges$cpgs)
+  ntfs <- length(ranges$tfs[!sapply(ranges$tfs$ids, is.null)])
+  nspath <- length(ranges$spath[!sapply(ranges$spath$ids, is.null)])
+  nsnp_genes <- length(ranges$snp_genes[!sapply(ranges$snp_genes$ids, is.null)])
+  ncpg_genes <- length(ranges$cpg_genes[!sapply(ranges$cpg_genes$ids, is.null)])
+  
+  data.frame(cis_genes = nsnp_genes, 
+             trans_associations = ncpgs,
+             trans_genes = ncpg_genes,
+             TFs = ntfs,
+             PPI = nspath, 
+             group = "meQTL")
+})
+meqtl_counts <- bind_rows(meqtl_counts)
 
-final_wide <- ggarrange(ggarrange(panel_a, panel_b, nrow=2), legend, 
-                        ncol=2, widths = c(0.8,0.2))
+# get the eqtl entity counts
+feqtl_ranges <- list.files("results/current/biogrid_stringent/ranges/", "*_eqtlgen.rds", 
+                           full.names = T)
+eqtl_counts <- lapply(feqtl_ranges, function(fi) {
+  ranges <- readRDS(fi)
+  
+  # filter out genes for which we didnt have and probe ids
+  # (those were not used in inference)
+  ntrans_genes <- length(ranges$trans_genes[!sapply(ranges$trans_genes$ids, is.null)])
+  ntfs <- length(ranges$tfs[!sapply(ranges$tfs$ids, is.null)])
+  nspath <- length(ranges$spath[!sapply(ranges$spath$ids, is.null)])
+  nsnp_genes <- length(ranges$snp_genes[!sapply(ranges$snp_genes$ids, is.null)])
+  
+  data.frame(cis_genes = nsnp_genes, 
+             trans_associations = ntrans_genes,
+             trans_genes = NA,
+             TFs = ntfs,
+             PPI = nspath,
+             group = "eQTL")
+})
+eqtl_counts <- bind_rows(eqtl_counts)
+
+# gather in single df
+counts <- bind_rows(meqtl_counts, eqtl_counts)
+
+# create the actual plot
+toplot <- melt(counts) %>% 
+  arrange(value) %>% 
+  mutate(variable = gsub("cis_genes", "cis genes", variable)) %>%
+  mutate(variable = gsub("trans_associations", "trans CpGs/genes", variable)) %>%
+  mutate(variable = gsub("trans_genes", "CpG genes", variable)) %>%
+  mutate(variable = gsub("PPI", "PPI genes", variable))
+
+panel_c <- ggplot(toplot, aes(color=group, x=reorder(variable, -value, FUN=median), y=value)) +
+  geom_boxplot(outlier.shape = NA) + 
+  geom_jitter(shape=23, position = position_jitterdodge(jitter.width = 0.15)) + 
+  scale_color_manual(values=c(meQTL = COLORS$MEQTL, eQTL = COLORS$EQTL)) + 
+  scale_y_log10() +
+  labs(x="",
+       y="count") + 
+  theme(legend.position = "bottom", 
+        plot.margin = margin(1,0.5, 0, 0.2, unit="lines"),
+        axis.text.x = element_text(size=11,angle=-45, hjust=0,vjust=1))
+
+# ------------------------------------------------------------------------------
+print("Figure 1 - Panel D")
+# ------------------------------------------------------------------------------
+# prior plot test
+finput <- list.files("results/current/biogrid_stringent/priors/", "*.rds", full.names = T)
+tab <- lapply(finput, function(f) {
+  priors <- readRDS(f)
+  
+  total_priors <- unname(table(priors[upper.tri(priors)]>min(priors))["TRUE"])
+  total_nodes <- ncol(priors)
+  total_edges <- (total_nodes * (total_nodes-1)) / 2
+  c(total_priors, total_nodes, total_edges)
+})
+
+tab <- cbind.data.frame(total_priors = sapply(tab, "[[", 1),
+                        total_nodes = sapply(tab, "[[", 2),
+                        total_edges = sapply(tab, "[[", 3))
+tab$fraction_priors <- tab$total_priors / tab$total_edges
+
+# this might be an interesting option for the paper.
+# Another ideas is to stratify the priors by prior type and create a freqpoly plot
+panel_d <- tab %>%
+  ggplot(aes(x=total_priors)) + 
+  geom_histogram(bins = 150) + 
+  geom_vline(xintercept = min(tab$total_priors), col="red") + 
+  annotate(geom="text", 
+           x=min(tab$total_priors),
+           y=0, 
+           size=2.5,
+           label=paste0("min(x) = ", min(tab$total_priors)), 
+           hjust=-0.1, 
+           vjust=1.2, 
+           col="red") + 
+  labs(x="number of edges with priors") + 
+  theme(plot.margin = margin(1,1.5,1,1, unit="lines"))
+
+# ------------------------------------------------------------------------------
+print("Figure 1 - Combine panels and saving.")
+# ------------------------------------------------------------------------------
+final_wide <- ggarrange(ggarrange(nullGrob(), panel_b1, panel_b2, ncol=3, align="v", 
+                                  widths=c(0.02,0.49,0.49)),
+                        ggarrange(panel_c, panel_d, ncol=2, align="v", labels = c("C", "D")),
+                        nrow=2, labels = c("B"))
 final_wide
 
 save_plot("figure1_wide.pdf",
-          plot=final_wide, nrow = 2, base_aspect_ratio = 4)
+          plot=final_wide, nrow = 2, ncol = 2, base_aspect_ratio = 1)
 
 # ------------------------------------------------------------------------------
 print("Figure 2 - Panel A")
@@ -310,12 +355,13 @@ dinput <- "results/current/biogrid_stringent/simulation/validation/"
 finput <- list.files(dinput, "*.txt", full.names = T)
 
 # create data-matrix
+print("Reading simulation validation results...")
 temp <- lapply(finput, function(f) {
-  f <- read_tsv(f)
-  if(nrow(f) > 0) {
-    f <- f %>%
+  res <- read_tsv(f)
+  if(nrow(res) > 0) {
+    res <- res %>%
       mutate(R = paste0("R=", rdegree)) %>%
-      rename(name = X1)
+      dplyr::rename(name = X1)
   }
 })
 tab <- bind_rows(temp)

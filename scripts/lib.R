@@ -7,7 +7,7 @@
 #'
 #' @author Johann Hawe
 # ------------------------------------------------------------------------------
-get_defaultcolors <- function(n=5, name=c("wes", "rcb")) {
+get_defaultcolors <- function(n=5, name=c("rcb")) {
   library(RColorBrewer)
   # default to rcolorbrewer palette
   cols <- brewer.pal(n, "Set2")
@@ -1812,7 +1812,7 @@ summarize <- function(m, symbols){
     # for LST1 symbol (and possibly others) there is a probe which should likely
     # be only appointed to the NFKBIL1 gene (according to UCSC genome browser).
     # Might be an error in annotation. Remove probe for LST1 manually for now
-    if(sym=="LST1"){
+    if(sym %in% "LST1"){
       gid <- gid[which(!(gid %in% "ILMN_2046344"))]
     }
     if(is.null(gid)){

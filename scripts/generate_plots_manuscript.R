@@ -37,6 +37,9 @@ group_cols <- brewer.pal("Set2", n=3)
 COLORS <- list(MEQTL = group_cols[1],
                EQTL = group_cols[2])
 
+# for the main results (not including hotspot information)
+RESULT_PATH <- "results/current/biogrid_stringent/"
+
 # ------------------------------------------------------------------------------
 print("Figure 1 - Panel A")
 # ------------------------------------------------------------------------------
@@ -192,15 +195,8 @@ bp <- meqtl_plot$pair_plot_disc
 cp <- meqtl_plot$y_margin_plot
 ap <- ap + theme(plot.margin = top_margins)
 cp <- cp + theme(plot.margin = side_margins)
-#meqtl_ggplot <- ggdraw() + 
-#  draw_plot(arrangeGrob(nullGrob(), 
-#                        plot_grid(bp+theme(plot.background = element_rect(fill="transparent")), 
-#                                  cp, ncol=2, align="h", rel_widths=wr), 
-#                        nrow=2, heights = hr)) +
-#  draw_plot(arrangeGrob(plot_grid(ap,bp, nrow=2, align="v", rel_heights=hr), 
-#                        nullGrob(), ncol=2, widths = wr))
 
-# possible alternative:
+# combine our individual grobs
 meqtl_ggplot <- ggarrange(ggarrange(ap, nullGrob(), widths = wr, ncol=2), 
                           ggarrange(bp, cp, widths=wr, ncol=2, align="h"), 
                           nrow=2, heights = hr, align="v")
@@ -212,13 +208,8 @@ bp <- eqtl_plot$pair_plot_disc
 cp <- eqtl_plot$y_margin_plot
 ap <- ap + theme(plot.margin = top_margins)
 cp <- cp + theme(plot.margin = side_margins)
-#eqtl_ggplot <- ggdraw() + 
-#  draw_plot(arrangeGrob(nullGrob(), 
-#                        plot_grid(bp+theme(plot.background = element_rect(fill="transparent")), cp, ncol=2, align="h", rel_widths=wr), 
-#                        nrow=2, heights = hr)) +
-#  draw_plot(arrangeGrob(plot_grid(ap,bp, nrow=2, align="v", rel_heights=hr), 
-#                        nullGrob(), ncol=2, widths = wr))
 
+# combine again
 eqtl_ggplot <- ggarrange(ggarrange(ap, nullGrob(), widths = wr, ncol=2), 
                          ggarrange(bp, cp, widths=wr, ncol=2, align="h"), 
                          nrow=2, heights = hr, align="v")
@@ -230,7 +221,7 @@ panel_b2 <- eqtl_ggplot
 print("Figure 1 - Panel C")
 # ------------------------------------------------------------------------------
 # get meqtl ranges
-fmeqtl_ranges <- list.files("results/current/biogrid_stringent/ranges/", "*_meqtl.rds", 
+fmeqtl_ranges <- list.files(paste0(RESULT_PATH, "ranges/"), "*_meqtl.rds", 
                             full.names = T)
 
 # extract entity counts
@@ -255,7 +246,7 @@ meqtl_counts <- lapply(fmeqtl_ranges, function(fi) {
 meqtl_counts <- bind_rows(meqtl_counts)
 
 # get the eqtl entity counts
-feqtl_ranges <- list.files("results/current/biogrid_stringent/ranges/", "*_eqtlgen.rds", 
+feqtl_ranges <- list.files(paste0(RESULT_PATH, "ranges/"), "*_eqtlgen.rds", 
                            full.names = T)
 eqtl_counts <- lapply(feqtl_ranges, function(fi) {
   ranges <- readRDS(fi)
@@ -302,7 +293,7 @@ panel_c <- ggplot(toplot, aes(color=group, x=reorder(variable, -value, FUN=media
 print("Figure 1 - Panel D")
 # ------------------------------------------------------------------------------
 # prior plot test
-finput <- list.files("results/current/biogrid_stringent/priors/", "*.rds", full.names = T)
+finput <- list.files(paste0(RESULT_PATH, "priors/"), "*.rds", full.names = T)
 tab <- lapply(finput, function(f) {
   priors <- readRDS(f)
   
@@ -351,7 +342,7 @@ print("Figure 2 - Panel A")
 # ------------------------------------------------------------------------------
 # input directory containing individual simulation validation
 # for the meQTL analysis
-dinput <- "results/current/biogrid_stringent/simulation/validation/"
+dinput <- paste0(RESULT_PATH, "simulation/validation/")
 finput <- list.files(dinput, "*.txt", full.names = T)
 
 # create data-matrix
@@ -401,14 +392,14 @@ simulation_mcc <- ggplot(tab,
 print("Figure 2 - Panel B")
 # ------------------------------------------------------------------------------
 # read the validation results for meqtls and eqtls and combine them
-meqtl_expr <- read_tsv("results/current/biogrid_stringent/validation_expr/validation_all_meqtl.txt")
-meqtl_tfa <- read_tsv("results/current/biogrid_stringent/validation_tfa/validation_all_meqtl.txt")
+meqtl_expr <- read_tsv(paste0(RESULT_PATH, "validation_expr/validation_all_meqtl.txt"))
+meqtl_tfa <- read_tsv(paste0(RESULT_PATH, "validation_tfa/validation_all_meqtl.txt"))
 meqtl <- bind_rows(meqtl_expr,meqtl_tfa) %>%
   mutate(type=c(rep("expr", nrow(meqtl_expr)), rep("tfa", nrow(meqtl_tfa))),
          qtl_type="meQTL")
 
-eqtl_expr <- read_tsv("results/current/biogrid_stringent/validation_expr/validation_all_eqtlgen.txt")
-eqtl_tfa <- read_tsv("results/current/biogrid_stringent/validation_tfa/validation_all_eqtlgen.txt")
+eqtl_expr <- read_tsv(paste0(RESULT_PATH, "validation_expr/validation_all_eqtlgen.txt"))
+eqtl_tfa <- read_tsv(paste0(RESULT_PATH, "validation_tfa/validation_all_eqtlgen.txt"))
 eqtl <- bind_rows(eqtl_expr,eqtl_tfa) %>%
   mutate(type=c(rep("expr", nrow(eqtl_expr)), rep("tfa", nrow(eqtl_tfa))),
          qtl_type="eQTL")

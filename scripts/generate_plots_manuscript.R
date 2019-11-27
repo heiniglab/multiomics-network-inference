@@ -11,6 +11,7 @@ print("Load libraries and source scripts")
 # ------------------------------------------------------------------------------
 library(dplyr)
 library(readr)
+library(grid)
 library(ggplot2)
 library(cowplot)
 library(RColorBrewer)
@@ -136,7 +137,7 @@ plot_pairs <- function(genome, ranges_x, ranges_y, log=FALSE,
       breaks = as.vector(breaks),
       labels = NULL) + 
     xlab("") + 
-    theme(axis.title.y = element_text(size=10),
+    theme(axis.title.x = element_text(size=10),
           axis.text.x = element_text(size=9,
                                      angle=90, 
                                      vjust=0.5, 
@@ -285,7 +286,7 @@ panel_c <- ggplot(toplot, aes(color=group, x=reorder(variable, -value, FUN=media
   scale_y_log10() +
   labs(x="",
        y="count") + 
-  theme(legend.position = "bottom", 
+  theme(legend.position = "none", 
         plot.margin = margin(1,0.5, 0, 0.2, unit="lines"),
         axis.text.x = element_text(size=11,angle=-45, hjust=0,vjust=1))
 
@@ -300,20 +301,29 @@ tab <- lapply(finput, function(f) {
   total_priors <- unname(table(priors[upper.tri(priors)]>min(priors))["TRUE"])
   total_nodes <- ncol(priors)
   total_edges <- (total_nodes * (total_nodes-1)) / 2
-  c(total_priors, total_nodes, total_edges)
+  if(grepl("meqtl", f)) {
+    group = "meQTL"
+  } else {
+    group = "eQTL"
+  }
+  c(total_priors, total_nodes, total_edges, group)
 })
 
-tab <- cbind.data.frame(total_priors = sapply(tab, "[[", 1),
-                        total_nodes = sapply(tab, "[[", 2),
-                        total_edges = sapply(tab, "[[", 3))
+tab <- cbind.data.frame(total_priors = as.numeric(sapply(tab, "[[", 1)),
+                        total_nodes = as.numeric(sapply(tab, "[[", 2)),
+                        total_edges = as.numeric(sapply(tab, "[[", 3)),
+                        group = sapply(tab, "[[", 4),
+                        stringsAsFactors=F)
 tab$fraction_priors <- tab$total_priors / tab$total_edges
 
 # this might be an interesting option for the paper.
 # Another ideas is to stratify the priors by prior type and create a freqpoly plot
 panel_d <- tab %>%
   ggplot(aes(x=total_priors)) + 
-  geom_histogram(bins = 150) + 
-  geom_vline(xintercept = min(tab$total_priors), col="red") + 
+
+  geom_freqpoly(aes(color=group), size=1, bins = 100) +
+  scale_color_manual(values=c(meQTL = COLORS$MEQTL, eQTL = COLORS$EQTL)) + 
+  geom_vline(xintercept = min(tab$total_priors), col="#777777", linetype="dashed") + 
   annotate(geom="text", 
            x=min(tab$total_priors),
            y=0, 
@@ -321,21 +331,23 @@ panel_d <- tab %>%
            label=paste0("min(x) = ", min(tab$total_priors)), 
            hjust=-0.1, 
            vjust=1.2, 
-           col="red") + 
+           col="#777777") + 
   labs(x="number of edges with priors") + 
-  theme(plot.margin = margin(1,1.5,1,1, unit="lines"))
+  theme(plot.margin = margin(1,1.5,1,1, unit="lines"), 
+        legend.position = c(0.8,0.8))
 
 # ------------------------------------------------------------------------------
 print("Figure 1 - Combine panels and saving.")
 # ------------------------------------------------------------------------------
-final_wide <- ggarrange(ggarrange(nullGrob(), panel_b1, panel_b2, ncol=3, align="v", 
+final_figure1 <- ggarrange(ggarrange(nullGrob(), panel_b1, panel_b2, ncol=3, align="v", 
                                   widths=c(0.02,0.49,0.49)),
-                        ggarrange(panel_c, panel_d, ncol=2, align="v", labels = c("C", "D")),
+                        ggarrange(panel_c, panel_d, ncol=2, align="v", 
+                                  labels = c("C", "D")),
                         nrow=2, labels = c("B"))
-final_wide
+final_figure1
 
-save_plot("figure1_wide.pdf",
-          plot=final_wide, nrow = 2, ncol = 2, base_aspect_ratio = 1)
+save_plot("figure1.pdf",
+          plot=final_figure1, nrow = 2, ncol = 2, base_aspect_ratio = 1)
 
 # ------------------------------------------------------------------------------
 print("Figure 2 - Panel A")

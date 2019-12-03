@@ -344,7 +344,6 @@ final_figure1 <- ggarrange(ggarrange(nullGrob(), panel_b1, panel_b2, ncol=3, ali
                         ggarrange(panel_c, panel_d, ncol=2, align="v", 
                                   labels = c("C", "D")),
                         nrow=2, labels = c("B"))
-final_figure1
 
 save_plot("figure1.pdf",
           plot=final_figure1, nrow = 2, ncol = 2, base_aspect_ratio = 1)
@@ -398,7 +397,13 @@ simulation_mcc <- ggplot(tab,
   labs(x="prior error",
        y="MCC",
        fill="", color="method") + 
-  theme(legend.position = "bottom")
+  theme(legend.position = "bottom",
+        legend.text = element_text(size=12),
+        legend.title = element_text(size=14), 
+        axis.text.x = element_text(hjust=0, vjust=0.5, angle=-45, size=12),
+        axis.title.x = element_text(size=14, 
+                                    margin = margin(-1, 0, 0, 0, unit = "lines")))
+simulation_mcc
 
 # ------------------------------------------------------------------------------
 print("Figure 2 - Panel B")
@@ -417,11 +422,18 @@ eqtl <- bind_rows(eqtl_expr,eqtl_tfa) %>%
          qtl_type="eQTL")
 
 data <- bind_rows(meqtl, eqtl)
-
+data <- data %>% 
+  mutate(graph_type = gsub("bdgraph$", "bdgraph (priors)", graph_type),
+         graph_type = gsub("glasso$", "glasso (priors)", graph_type),
+         graph_type = gsub("_no_priors", "", graph_type))
 tfa_expr_plot <- data %>%
   ggplot(aes(x=reorder(graph_type, -cross_cohort_mcc, FUN=median), 
              y=cross_cohort_mcc, color=type)) + 
-  geom_boxplot(position = "dodge") + 
+  #geom_violin(position = "dodge", draw_quantiles = 0.5, scale = "width") + 
+  geom_boxplot(position="dodge") +
+  geom_point(position=position_jitterdodge(jitter.width = 0.15,
+                                           dodge.width = 0.75),
+             alpha=0.2) +
   scb_binary + 
   geom_hline(yintercept = 0, linetype="dotted", color="black") +
   labs(title="",
@@ -430,16 +442,23 @@ tfa_expr_plot <- data %>%
        color = "measure:") + 
   theme(plot.title = element_text(hjust = 0.5),
         axis.title.x = element_blank(),
-        axis.text.x = element_text(hjust=0, vjust=0.5, angle=-45),
-        legend.position = "bottom")
-tfa_expr_plot
+        axis.text.x = element_text(hjust=0, vjust=0.5, angle=-45, size=12),
+        legend.position = "bottom",
+        legend.text = element_text(size=12),
+        legend.title = element_text(size=14))
 
 # ------------------------------------------------------------------------------
 print("Figure 2 - Compile full plot")
 # ------------------------------------------------------------------------------
-ggarrange(simulation_mcc,
-          tfa_expr_plot,
-          ncol = 2, labels = c("A", "B"))
+figure2 <- ggarrange(simulation_mcc,
+                     tfa_expr_plot,
+                     ncol = 2, labels = c("A", "B"),
+                     align="h")
+figure2
+
+save_plot("figure2.pdf",
+          plot=figure2, nrow = 2, ncol = 2, 
+          base_aspect_ratio = 3)
 
 # ------------------------------------------------------------------------------
 print("Done.\nSessionInfo:")

@@ -1912,6 +1912,7 @@ scan_snps <- function(ranges, tabix_file , individuals, filter=NULL) {
 #' @param snp The snp rsID for which to get GWAS hits
 #' @param gwas_table The loaded gwas table. Needs columns 'DISEASE.TRAIT' and
 #' SNPS
+#' @param get.ld.snps Whether or not to check for LD snps. Default: TRUE
 #' @param ld.rsquared Rsquared cutoff to be used in SNiPA to get LD SNPs.
 #' Default: 0.95
 #' @param collapse Whether to collapse the result traits in a single string.
@@ -1919,19 +1920,26 @@ scan_snps <- function(ranges, tabix_file , individuals, filter=NULL) {
 #'
 #' @author Johann Hawe
 #' -----------------------------------------------------------------------------
-get_gwas_traits <- function(snp, gwas_table, ld.rsquared=0.95, collapse=TRUE) {
-  # we might miss a hit in which would be in close LD -> get such possible
-  # ids via snipa
-  snipa_result <- snipa.get.ld.by.snp(snp, rsquare=ld.rsquared)
-  aliases <- setdiff(snipa_result$RSALIAS, NA)
-  if(length(aliases) > 0) {
-    ld_snps <- c(snipa_result$RSID,
-                 unlist(strsplit(aliases, ",")),
-                 snp)
+get_gwas_traits <- function(snp, gwas_table, 
+                            get.ld.snps = TRUE,
+                            ld.rsquared=0.95, 
+                            collapse=TRUE) {
+  if(get.ld.snps) {
+    # we might miss a hit in which would be in close LD -> get such possible
+    # ids via snipa
+    snipa_result <- snipa.get.ld.by.snp(snp, rsquare=ld.rsquared)
+    aliases <- setdiff(snipa_result$RSALIAS, NA)
+    if(length(aliases) > 0) {
+      ld_snps <- c(snipa_result$RSID,
+                   unlist(strsplit(aliases, ",")),
+                   snp)
+    } else {
+      ld_snps <- c(snp, snipa_result$RSID)
+    }
+    ld_snps <- unique(ld_snps)
   } else {
-    ld_snps <- c(snp, snipa_result$RSID)
+    ld_snps <- unique(snp)
   }
-  ld_snps <- unique(ld_snps)
 
   # gather gwas traits for SNPs within this LD block
   gwas_sub <- subset(gwas_table, SNPS %in% ld_snps)

@@ -33,6 +33,8 @@ sfb_graphs <- scale_fill_brewer(palette="Set2")
 scb_graphs <- scale_color_brewer(palette="Set2")
 sfb_binary <- scale_fill_brewer(palette = "Accent")
 scb_binary <- scale_color_brewer(palette = "Accent")
+scb_priors <- scale_color_brewer(palette = "Dark2")
+
 bgm <- background_grid(major = "xy")
 group_cols <- brewer.pal("Set2", n=3)
 COLORS <- list(MEQTL = group_cols[1],
@@ -271,6 +273,18 @@ eqtl_counts <- bind_rows(eqtl_counts)
 # gather in single df
 counts <- bind_rows(meqtl_counts, eqtl_counts)
 
+# get some numbers for the manuscript, too
+medians <- function(d, g) {
+  d %>%
+    filter(group %in% g) %>% 
+    select(-group) %>%
+    summarise_all(.funs = median)
+}
+print("Median number of entities for eQTLs:")
+medians(counts, "eQTL")
+print("Median number of entities for meQTLs:")
+medians(counts, "meQTL")
+
 # create the actual plot
 toplot <- melt(counts) %>% 
   arrange(value) %>% 
@@ -293,11 +307,11 @@ panel_c <- ggplot(toplot, aes(color=group, x=reorder(variable, -value, FUN=media
 # ------------------------------------------------------------------------------
 print("Figure 1 - Panel D")
 # ------------------------------------------------------------------------------
-# prior plot test
+# prior plot
 finput <- list.files(paste0(RESULT_PATH, "priors/"), "*.rds", full.names = T)
 tab <- lapply(finput, function(f) {
   priors <- readRDS(f)
-  
+
   total_priors <- unname(table(priors[upper.tri(priors)]>min(priors))["TRUE"])
   total_nodes <- ncol(priors)
   total_edges <- (total_nodes * (total_nodes-1)) / 2
@@ -335,6 +349,58 @@ panel_d <- tab %>%
   labs(x="number of edges with priors") + 
   theme(plot.margin = margin(1,1.5,1,1, unit="lines"), 
         legend.position = c(0.8,0.8))
+
+# ------------------------------------------------------------------------------
+print("Prior plot using distinct prior categories (potential supp figure)")
+# ------------------------------------------------------------------------------
+get_prior_values <- function(files, type = c("snp-gene", "gene-gene", 
+                                              "cpg-cpggene", "", "")) {
+  
+  unlist(sapply(files, function(prior_file) {
+    
+    # get priors and according ranges object
+    pr <- readRDS(prior_file)
+    ra <- readRDS(gsub("priors/", "ranges/", prior_file))
+    
+    # only meQTL have cpg-cpggene priors
+    if(!grepl("meqtl", prior_file) & type == "cpg-cpggene") {
+      return(NULL)
+    }
+    
+    # get individual entities
+    sentinel <- names(ra$sentinel)
+    cpgs <- names(ra$cpgs)
+    snp_genes <- ra$snp_genes$SYMBOL
+    cpg_genes <- ra$cpg_genes$SYMBOL
+    all_genes <- unique(c(ra$snp_genes$SYMBOL,
+                   ra$cpg_genes$SYMBOL,
+                   ra$trans_genes$SYMBOL))
+    
+    if(type == "snp-gene") {
+      sub <- unlist(pr[sentinel, snp_genes])
+    } else if(type == "gene-gene") {
+      sub <- unlist(pr[all_genes[1], all_genes[2:length(all_genes)]])
+    } else if(type == "cpg-cpggene") {
+      sub <- unlist(pr[cpgs, cpg_genes])
+    }
+    
+    # remove the pseudo priors
+    out <- sub[sub > min(pr)]
+    out
+  }))
+}
+
+snp_gene <- tibble(prior=get_prior_values(finput, "snp-gene"), type="SNP-Gene")
+gene_gene <- tibble(prior=get_prior_values(finput, "gene-gene"), type="Gene-Gene")
+cpg_gene <- tibble(prior=get_prior_values(finput, "cpg-cpggene"), type="CpG-Gene")
+
+data <- bind_rows(snp_gene, gene_gene, cpg_gene)
+
+# plot densities
+prior_densities <- data %>% ggplot(aes(x=prior, stat(density), col=type)) +
+  geom_freqpoly(bins = 40) + 
+  scb_priors + 
+  scale_x_continuous(limits = c(0,1))
 
 # ------------------------------------------------------------------------------
 print("Figure 1 - Combine panels and saving.")
@@ -422,10 +488,13 @@ eqtl <- bind_rows(eqtl_expr,eqtl_tfa) %>%
          qtl_type="eQTL")
 
 data <- bind_rows(meqtl, eqtl)
+
 data <- data %>% 
   mutate(graph_type = gsub("bdgraph$", "bdgraph (priors)", graph_type),
          graph_type = gsub("glasso$", "glasso (priors)", graph_type),
-         graph_type = gsub("_no_priors", "", graph_type))
+         graph_type = gsub("_no_priors", "", graph_type)) %>%
+  select(graph_type, type, graph_score, cross_cohort_mcc)
+
 tfa_expr_plot <- data %>%
   ggplot(aes(x=reorder(graph_type, -cross_cohort_mcc, FUN=median), 
              y=cross_cohort_mcc, color=type)) + 
@@ -447,12 +516,34 @@ tfa_expr_plot <- data %>%
         legend.text = element_text(size=12),
         legend.title = element_text(size=14))
 
+# This plot can be used as supplement
+tfa_expr_graph_score <- data %>%
+  ggplot(aes(x=reorder(graph_type, -graph_score, FUN=median), 
+             y=graph_score, color=type)) + 
+  #geom_violin(position = "dodge", draw_quantiles = 0.5, scale = "width") + 
+  geom_boxplot(position="dodge") +
+  geom_point(position=position_jitterdodge(jitter.width = 0.15,
+                                           dodge.width = 0.75),
+             alpha=0.2) +
+  scb_binary + 
+  geom_hline(yintercept = 0, linetype="dotted", color="black") +
+  labs(title="",
+       y="graph score",
+       x="method",
+       color = "measure:") + 
+  theme(plot.title = element_text(hjust = 0.5),
+        axis.title.x = element_blank(),
+        axis.text.x = element_text(hjust=0, vjust=0.5, angle=-45, size=12),
+        legend.position = "bottom",
+        legend.text = element_text(size=12),
+        legend.title = element_text(size=14))
+
 # ------------------------------------------------------------------------------
 print("Figure 2 - Compile full plot")
 # ------------------------------------------------------------------------------
 figure2 <- ggarrange(simulation_mcc,
-                     tfa_expr_plot,
-                     ncol = 2, labels = c("A", "B"),
+                     tfa_expr_plot, 
+                     ncol = 2, labels = c("A", "B", "C"),
                      align="h")
 figure2
 

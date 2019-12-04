@@ -1,6 +1,6 @@
 localrules: all_cohort, summarize_validation_eqtlgen, summarize_validation_meqtl,
-            generate_dot, render_validation, all_ggm, all_summarize_validation,
-            plot_graphs, plot_relevant_graphs, generate_dot_combined
+            render_validation, all_ggm, all_summarize_validation,
+            plot_relevant_graphs
 
 #-------------------------------------------------------------------------------
 # Target rule to run the complete cohort study.
@@ -173,8 +173,8 @@ rule summarize_validation_eqtlgen:
 #------------------------------------------------------------------------------
 rule all_summarize_validation:
 	input:
-		DCOHORT_VAL + "validation_all_eqtlgen_gwas.txt",
-		DCOHORT_VAL + "validation_all_meqtl_gwas.txt"
+		DCOHORT_VAL + "validation_all_eqtlgen.txt",
+		DCOHORT_VAL + "validation_all_meqtl.txt"
 
 #------------------------------------------------------------------------------
 # Add GWAS information to validation table
@@ -182,14 +182,15 @@ rule all_summarize_validation:
 rule add_gwas_information:
 	input:
 		validation=DCOHORT_VAL + "validation_all_{seed}.txt",
-		gwas="data/current/gwas/gwas_catalog_v1.0.2-associations_e96_r2019-07-12.tsv"
+		gwas="data/current/gwas/gwas_catalog_v1.0.2-associations_e96_r2019-07-12.tsv",
+		eqtlgen="data/current/eqtl_gen/cis-eQTL_significant_20181017.txt.gz"
 	output:
 		validation=DCOHORT_VAL + "validation_all_{seed}_gwas.txt"
 	params:
 		time = "05:00:00"
 	resources:
 		mem_mb=2000
-	threads: 10
+	threads: 6
 	log:
 		"logs/add_gwas_information_{seed}.log"
 	script:
@@ -219,17 +220,19 @@ rule render_validation:
 # Generate dot files for visualization with cytoscape
 #------------------------------------------------------------------------------
 rule generate_dot:
-        input:
-                new=DCOHORT_FITS + "{cohort}/{sentinel}_{seed}.rds",
-#                old="results/old/biogrid/fits/{cohort}/{sentinel}_{seed}.rds"
-        output:
-                DGRAPH_PLOTS + "{sentinel}_{seed}/{cohort}/{graph_type}.dot"
-#       conda:
-#                "../envs/bioR.yaml"
-        log:
-                "logs/generate_dot/{sentinel}_{seed}/{cohort}_{graph_type}.log"
-        script:
-                "../scripts/generate_dot.R"
+	input:
+		fits=DCOHORT_FITS + "{cohort}/{sentinel}_{seed}.rds",
+	output:
+		DGRAPH_PLOTS + "{sentinel}_{seed}/{cohort}/{graph_type}.dot"
+	params:
+		time = "00:30:00"
+	resources:
+		mem_mb=200
+	threads: 1
+ 	log:
+		"logs/generate_dot/{sentinel}_{seed}/{cohort}_{graph_type}.log"
+	script:
+		"../scripts/generate_dot.R"
 
 #------------------------------------------------------------------------------
 # Generate dot files for visualization with cytoscape, combine graphs from 
@@ -238,19 +241,19 @@ rule generate_dot:
 rule generate_dot_combined:
 	input:
 		new_kora=DCOHORT_FITS + "kora/{sentinel}_{seed}.rds",
-		#old_kora="results/old/biogrid/fits/kora/{sentinel}_{seed}.rds",
 		new_lolipop=DCOHORT_FITS + "lolipop/{sentinel}_{seed}.rds",
-		#old_lolipop="results/old/biogrid/fits/lolipop/{sentinel}_{seed}.rds",
 		ranges = DRANGES + "{sentinel}_{seed}.rds",
 		ppi_db = PPI_DB,
 		cpg_context="results/current/cpg_context.rds",
 		tss_context="results/current/tfbs_tss_annot.rds",
-
+	params:
+		time = "00:30:00"
+	resources:
+		mem_mb=200
+	threads: 1
 	output:
 		dot = DGRAPH_PLOTS + "{sentinel}_{seed}/{graph_type}_combined.dot",
 		graph = DGRAPH_PLOTS + "{sentinel}_{seed}/{graph_type}_combined.rds"
-#	conda:
-#		"../envs/bioR.yaml"
 	log:
 		"logs/generate_dot_combined/{sentinel}_{seed}/{graph_type}.log"
 	script:
@@ -268,9 +271,13 @@ rule plot_graphs:
 	output:
 		pdf=DGRAPH_PLOTS + "{sentinel}_{seed}/all.pdf"
 	params:
-		odir=DGRAPH_PLOTS + "{sentinel}_{seed}/"
-	conda:
-		"../envs/graphviz.yaml"
+		odir=DGRAPH_PLOTS + "{sentinel}_{seed}/",
+		time = "00:30:00"
+	resources:
+		mem_mb=200
+	threads: 1
+	log:
+		"logs/plot_graphs/{sentinel}_{seed}.log"
 	shell:
 		"""
 		cd {params.odir}
@@ -287,24 +294,27 @@ rule plot_graphs:
 #------------------------------------------------------------------------------
 rule plot_relevant_graphs:
 	input:
-		DGRAPH_PLOTS + "rs9859077_meqtl/all.pdf",
-		DGRAPH_PLOTS + "rs730775_eqtlgen/all.pdf",
-		DGRAPH_PLOTS + "rs730775_meqtl/all.pdf",
-		DGRAPH_PLOTS + "rs140522_eqtlgen/all.pdf",
-		DGRAPH_PLOTS + "rs6511961_meqtl/all.pdf",
-		DGRAPH_PLOTS + "rs7783715_meqtl/all.pdf",
-		DGRAPH_PLOTS + "rs2227901_eqtlgen/all.pdf",
-		DGRAPH_PLOTS + "rs17081933_meqtl/all.pdf",
-		DGRAPH_PLOTS + "rs79755767_eqtlgen/all.pdf",
-		DGRAPH_PLOTS + "rs4788084_eqtlgen/all.pdf",
-		DGRAPH_PLOTS + "rs10248490_meqtl/all.pdf",
-		DGRAPH_PLOTS + "rs8058619_meqtl/all.pdf",
-		DGRAPH_PLOTS + "rs436744_meqtl/all.pdf",
-		DGRAPH_PLOTS + "rs3171692_meqtl/all.pdf",
-#		DGRAPH_PLOTS + "rs114092478_meqtl/all.pdf",
-		DGRAPH_PLOTS + "rs1064395_eqtlgen/all.pdf",
-		DGRAPH_PLOTS + "rs3748136_eqtlgen/all.pdf",
+		DGRAPH_PLOTS + "rs8049417_meqtl/all.pdf",
+		DGRAPH_PLOTS + "rs13256023_meqtl/all.pdf",
 		DGRAPH_PLOTS + "rs1364109_meqtl/all.pdf",
-		DGRAPH_PLOTS + "rs3859321_meqtl/all.pdf",
-		DGRAPH_PLOTS + "rs10103269_meqtl/all.pdf",
-		DGRAPH_PLOTS + "rs7254687_meqtl/all.pdf",
+		DGRAPH_PLOTS + "rs3171692_meqtl/all.pdf"
+#		DGRAPH_PLOTS + "rs9859077_meqtl/all.pdf",
+#		DGRAPH_PLOTS + "rs730775_eqtlgen/all.pdf",
+#		DGRAPH_PLOTS + "rs730775_meqtl/all.pdf",
+#		DGRAPH_PLOTS + "rs140522_eqtlgen/all.pdf",
+#		DGRAPH_PLOTS + "rs6511961_meqtl/all.pdf",
+#		DGRAPH_PLOTS + "rs7783715_meqtl/all.pdf",
+#		DGRAPH_PLOTS + "rs2227901_eqtlgen/all.pdf",
+#		DGRAPH_PLOTS + "rs17081933_meqtl/all.pdf",
+#		DGRAPH_PLOTS + "rs79755767_eqtlgen/all.pdf",
+#		DGRAPH_PLOTS + "rs4788084_eqtlgen/all.pdf",
+#		DGRAPH_PLOTS + "rs10248490_meqtl/all.pdf",
+#		DGRAPH_PLOTS + "rs8058619_meqtl/all.pdf",
+#		DGRAPH_PLOTS + "rs436744_meqtl/all.pdf",
+#		DGRAPH_PLOTS + "rs3171692_meqtl/all.pdf",
+#		DGRAPH_PLOTS + "rs1064395_eqtlgen/all.pdf",
+#		DGRAPH_PLOTS + "rs3748136_eqtlgen/all.pdf",
+#		DGRAPH_PLOTS + "rs1364109_meqtl/all.pdf",
+#		DGRAPH_PLOTS + "rs3859321_meqtl/all.pdf",
+#		DGRAPH_PLOTS + "rs10103269_meqtl/all.pdf",
+#		DGRAPH_PLOTS + "rs7254687_meqtl/all.pdf"

@@ -250,6 +250,8 @@ rule all_ranges:
 		mem_mb=1000
 	params:
 		time="00:10:00"
+	log:
+		"logs/all_ranges.log"
 	script:
 		"scripts/create_locus_summary.R"
 
@@ -333,6 +335,13 @@ rule all_data:
                                sentinel=EQTLGEN.sentinel, cohort=COHORTS)
         output:
                 DCOHORT_DATA + "summary.pdf"
+        params:
+                time = "00:30:00"
+        threads: 1
+        resources:
+                mem_mb = 2000
+        log:
+                "logs/all_data.log"
         script:
                 "scripts/create_data_summary.R"
 

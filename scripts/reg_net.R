@@ -28,7 +28,7 @@ reg_net.models <- function() {
 }
 
 # ------------------------------------------------------------------------------
-#' Main method for inferring regulatory networks.
+#' Main method for inferring regulatory networks from different models
 #'
 #' @param data The data matrix (n x p) from which to infer the network
 #' @param priors The matrix of priors (p x p) which to use. Needs to be set to
@@ -185,8 +185,6 @@ reg_net <- function(data,
     if (threads > 1) {
       stopCluster(cl)
     }
-  } else if ("custom" %in% model) {
-    stop("Sorry, custom model is not yet implemented.")
   } else if ("glasso" %in% model) {
     require(glasso)
     if (!is.null(priors)) {
@@ -200,6 +198,8 @@ reg_net <- function(data,
     require(GENIE3)
     fit <- genie3(data_no_nas, threads = threads)
     class(fit) <- c(class(fit), "genie3")
+  } else if ("custom" %in% model) {
+    stop("Sorry, custom model is not yet implemented.")
   }
 
   # now get the graph object
@@ -722,10 +722,11 @@ infer_all_graphs <-
            ppi_db,
            threads = 1) {
 
+    # debug
     print("Num Threads:")
     print(RhpcBLASctl::omp_get_num_procs())
+    print("BLAS Num Threads:")
     print(RhpcBLASctl::blas_get_num_procs())
-    print("BLAS Num Threads")
     
     # we set the OMP/BLAS number of threads to 1
     # this avoids issues we had in the glasso CV with multi-threading on cluster

@@ -25,10 +25,7 @@ print("Getting snakemake params.")
 
 # get in and output
 ffit_kora <- snakemake@input$new_kora
-#ffit_kora_old <- snakemake@input$old_kora
-
 ffit_lolipop <- snakemake@input$new_lolipop
-#ffit_lolipop_old <- snakemake@input$old_lolipop
 
 franges <- snakemake@input$ranges
 fppi_db <- snakemake@input$ppi_db

@@ -17,7 +17,7 @@ library(cowplot)
 
 source("scripts/lib.R")
 
-cols <- set_defaultcolors()
+cols <- get_defaultcolors()
 sfm <- scale_fill_manual(values=cols)
 theme_set(theme_cowplot())
 

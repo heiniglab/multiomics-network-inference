@@ -18,6 +18,7 @@ library(RColorBrewer)
 library(ggpubr)
 library(scales)
 library(reshape2)
+
 # get the hg19 chromosome definitions
 library(BSgenome.Hsapiens.UCSC.hg19)
 hg19info <- seqinfo(BSgenome.Hsapiens.UCSC.hg19)
@@ -29,8 +30,18 @@ theme_update(legend.text = element_text(size=11),
              axis.text.x = element_text(size=10),
              axis.text.y = element_text(size=10))
 
-sfb_graphs <- scale_fill_brewer(palette="Set2")
-scb_graphs <- scale_color_brewer(palette="Set2")
+# manually define the colors for the different methods (to get paired ones for
+# prior/non prior versions)
+paired <- brewer.pal(4, "Paired")
+names(paired) <- c("glasso", "glasso (priors)", "bdgraph", "bdgraph (priors)")
+unpaired <- brewer.pal(7, "Dark2")[c(2,3,7)]
+names(unpaired) <- c("irafnet", "genie3", "genenet")
+graph_cols <- c(paired, unpaired)
+
+sfb_graphs <- scale_fill_manual(values=graph_cols)
+#sfb_graphs <- scale_fill_brewer(palette="Set2")
+#scb_graphs <- scale_color_brewer(palette="Set2")
+scb_graphs <- scale_color_manual(values=graph_cols)
 sfb_binary <- scale_fill_brewer(palette = "Accent")
 scb_binary <- scale_color_brewer(palette = "Accent")
 scb_priors <- scale_color_brewer(palette = "Dark2")
@@ -220,6 +231,12 @@ eqtl_ggplot <- ggarrange(ggarrange(ap, nullGrob(), widths = wr, ncol=2),
 panel_b1 <- meqtl_ggplot
 panel_b2 <- eqtl_ggplot
 
+
+
+# ------------------------------------------------------------------------------
+print("Figure 1 - Panel B alternative using circos plots")
+# ------------------------------------------------------------------------------
+
 # ------------------------------------------------------------------------------
 print("Figure 1 - Panel C")
 # ------------------------------------------------------------------------------
@@ -350,7 +367,29 @@ panel_d <- tab %>%
   theme(plot.margin = margin(1,1.5,1,1, unit="lines"), 
         legend.position = c(0.8,0.8))
 
+# some stats
+median(tab %>% as_tibble() %>% filter(group=="meQTL") %>% dplyr::pull(total_priors))
+median(tab %>% as_tibble() %>% filter(group=="eQTL") %>% dplyr::pull(total_priors))
+length(tab %>% as_tibble() %>% filter(group=="eQTL" & total_priors >= 100) %>% arrange(total_priors) %>% dplyr::pull(total_priors))
+length(tab %>% as_tibble() %>% filter(group=="meQTL" & total_priors >= 100) %>% arrange(total_priors) %>% dplyr::pull(total_priors))
+
+sec
 # ------------------------------------------------------------------------------
+print("Plot showing total priors vs total edges (potential supp figure")
+# ------------------------------------------------------------------------------
+priors_vs_total_edges <- ggplot(tab, aes(x=total_edges, y=total_priors, color=group)) + 
+  geom_hline(yintercept=0, color="grey") + 
+  geom_point(alpha=0.5) + 
+  facet_wrap(~group, ncol=1, scales = "free_y") + 
+  scale_color_manual(values=c(meQTL = COLORS$MEQTL, eQTL = COLORS$EQTL)) + 
+  scale_x_log10() + 
+  geom_smooth(method = "lm") + 
+  labs(title="Number of collected priors VS number of possible edges",
+       x="log10(Number of possible edges)",
+       y="Number of edges with prior information")
+priors_vs_total_edges
+
+#-----------------------------------------------------------------------------
 print("Prior plot using distinct prior categories (potential supp figure)")
 # ------------------------------------------------------------------------------
 get_prior_values <- function(files, type = c("snp-gene", "gene-gene", 
@@ -438,15 +477,17 @@ tab <- bind_rows(temp)
 tab <- tab %>% 
   mutate(comparison = gsub("bdgraph$", "bdgraph (priors)", comparison),
          comparison = gsub("glasso$", "glasso (priors)", comparison),
-         comparison = gsub("_no_priors", "", comparison))
-
+         comparison = gsub("_no_priors", "", comparison)) %>%
+  mutate(comparison = factor(comparison, ordered = T, 
+                             levels=c("bdgraph", "bdgraph (priors)", "glasso", "glasso (priors)", 
+                                      "irafnet", "genie3", "genenet")))
 # get the MCC plot
 simulation_mcc <- ggplot(tab,
                          aes(y=MCC, 
                              x=R, 
-                             color=reorder(comparison, -MCC, median))) +
+                             color=comparison)) +
   stat_boxplot(geom="errorbar", width=.75)+
-  geom_boxplot(outlier.size=0, alpha=0.5, coef=0, outlier.shape = NA) + 
+  geom_boxplot(outlier.size=0, alpha=0.5, coef=0, outlier.shape = NA, ) + 
   stat_summary(fun.y=median, geom="smooth", 
                position=position_dodge(0.75),
                aes(group=comparison),lwd=0.8) +
@@ -459,7 +500,8 @@ simulation_mcc <- ggplot(tab,
                      sec.axis = sec_axis(trans = ~ ., 
                                          name="true graph density",
                                          breaks=seq(0,0.7,by=0.1))) +
-  background_grid(major="xy") +
+  background_grid(major="x") +
+  geom_vline(xintercept = 11.5, size=1.5, color="black", linetype="dashed") + 
   labs(x="prior error",
        y="MCC",
        fill="", color="method") + 
@@ -493,13 +535,13 @@ data <- data %>%
   mutate(graph_type = gsub("bdgraph$", "bdgraph (priors)", graph_type),
          graph_type = gsub("glasso$", "glasso (priors)", graph_type),
          graph_type = gsub("_no_priors", "", graph_type)) %>%
-  select(graph_type, type, graph_score, cross_cohort_mcc)
+  dplyr::select(graph_type, type, graph_score, cross_cohort_mcc)
 
 tfa_expr_plot <- data %>%
   ggplot(aes(x=reorder(graph_type, -cross_cohort_mcc, FUN=median), 
              y=cross_cohort_mcc, color=type)) + 
   #geom_violin(position = "dodge", draw_quantiles = 0.5, scale = "width") + 
-  geom_boxplot(position="dodge") +
+  geom_boxplot(position="dodge", outlier.shape = NA) +
   geom_point(position=position_jitterdodge(jitter.width = 0.15,
                                            dodge.width = 0.75),
              alpha=0.2) +
@@ -513,15 +555,19 @@ tfa_expr_plot <- data %>%
         axis.title.x = element_blank(),
         axis.text.x = element_text(hjust=0, vjust=0.5, angle=-45, size=12),
         legend.position = "bottom",
-        legend.text = element_text(size=12),
-        legend.title = element_text(size=14))
+        legend.text = element_text(size=14),
+        legend.title = element_text(size=15)) + 
+  stat_compare_means(aes(group=type), size = 10, method="wilcox.test", 
+                     hide.ns=T, label = "p.signif", show.legend = F)
+
+tfa_expr_plot
 
 # This plot can be used as supplement
 tfa_expr_graph_score <- data %>%
   ggplot(aes(x=reorder(graph_type, -graph_score, FUN=median), 
              y=graph_score, color=type)) + 
   #geom_violin(position = "dodge", draw_quantiles = 0.5, scale = "width") + 
-  geom_boxplot(position="dodge") +
+  geom_boxplot(position="dodge", outlier.shape = NA) +
   geom_point(position=position_jitterdodge(jitter.width = 0.15,
                                            dodge.width = 0.75),
              alpha=0.2) +
@@ -536,7 +582,8 @@ tfa_expr_graph_score <- data %>%
         axis.text.x = element_text(hjust=0, vjust=0.5, angle=-45, size=12),
         legend.position = "bottom",
         legend.text = element_text(size=12),
-        legend.title = element_text(size=14))
+        legend.title = element_text(size=14)) + 
+  stat_compare_means(aes(group=type), size=2, method="wilcox.test", hide.ns=T, label = "p.signif")
 
 # ------------------------------------------------------------------------------
 print("Figure 2 - Compile full plot")
@@ -549,7 +596,13 @@ figure2
 
 save_plot("figure2.pdf",
           plot=figure2, nrow = 2, ncol = 2, 
-          base_aspect_ratio = 3)
+          base_aspect_ratio = 2.5)
+
+
+# ------------------------------------------------------------------------------
+print("SF1 - graph scores")
+# ------------------------------------------------------------------------------
+
 
 # ------------------------------------------------------------------------------
 print("Done.\nSessionInfo:")

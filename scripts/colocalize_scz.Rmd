@@ -1,0 +1,314 @@
+#' -----------------------------------------------------------------------------
+#' Prepare data for fastENLOC analysis
+#'
+#' @author Johann Hawe <johann.hawe@helmholtz-muenchen.de>
+#'
+#' @date Tue Mar 17 15:58:15 2020
+#' -----------------------------------------------------------------------------
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, fig.width=8, fig.height=7)
+knitr::opts_knit$set(root.dir=normalizePath(".."))
+knitr::opts_knit$set(tidy=TRUE)
+library(tidyverse)
+library(IRanges)
+library(cowplot)
+theme_set(theme_cowplot())
+threads <- 6
+```
+
+Load the eQTL and GWAS results.
+We get all trans genes for the 'rs9274623' SCZ locus.
+
+```{r}
+
+gwas <- read_tsv("data/current/gwas_atlas/schizophrenia/clozuk_pgc2.meta.sumstats.txt")
+gwas$beta <- log(gwas$OR)
+gwas$z <- (- sign(gwas$beta) * qnorm(gwas$P / 2))
+
+eqtl_trans <- read_tsv("data/current/eqtl_gen/trans-eQTLs_full_20180905.txt.gz") 
+eqtl_trans_sign <- read_tsv("data/current/eqtl_gen/trans-eQTL_significant_20181017.txt.gz") 
+eqtl_cis <- read_tsv("data/current/eqtl_gen/cis-eQTL_significant_20181017.txt.gz")
+
+locus <- "rs9274623"
+
+snp_chr <- filter(eqtl_cis, SNP == locus) %>% pull(SNPChr) %>% unique()
+snp_pos <- filter(eqtl_cis, SNP == locus) %>% pull(SNPPos) %>% unique()
+extension <- 5e5
+region_start <- snp_pos - extension
+region_end <- snp_pos + extension
+
+# list of genes we want to analyze
+genes <- eqtl_trans_sign %>%
+  filter(SNP == !!locus) %>% 
+  pull(GeneSymbol)
+
+# get subset of data to look at
+gwas_roi <- filter(gwas, 
+                   CHR == !!snp_chr & 
+                   BP>=!!region_start & 
+                   BP<=!!region_end)
+
+# filter trans-eQTL only for our region of interest
+eqtl_trans_roi <- filter(eqtl_trans, 
+                         GeneSymbol %in% genes &
+                         SNPChr == snp_chr & 
+                           SNPPos >= region_start & 
+                           SNPPos <= region_end)
+
+```
+
+Define the output directory and write for each gene individually the respective 
+GWAS and eQTL information including the list of SNPs to be analyzed
+
+```{r}
+dout <- "results/current/colocalization_scz/"
+dir.create(dout)
+
+tmp <- lapply(genes, function(gene) {
+  eqtl_subset <- filter(eqtl_trans_roi, GeneSymbol == !!gene)
+  if(nrow(eqtl_subset) > 1) {
+      dout_gene <- file.path(dout, gene)
+      dir.create(dout_gene)
+      
+      write_tsv(eqtl_subset, path = file.path(dout_gene, "eqtl.tsv"))
+      write_tsv(eqtl_subset %>% select(SNP), 
+                  path = file.path(dout_gene, "eqtl_snps.txt"), col_names = F)
+      write_tsv(gwas_roi, path = file.path(dout_gene, "scz.tsv"))
+    }
+  invisible(NULL)
+})
+
+```
+
+
+```{bash, eval=FALSE}
+for g in results/current/colocalization_scz/* ; do
+  /home/icb/johann.hawe/tools/plink/plink --bfile /storage/groups/epigenereg01/workspace/public_data/polygenic_risk_scores/1000genomes/riskSNPs_AF_CAD_EUR --extract $g/eqtl_snps.txt --freq --r square --out $g/eqtl_snps_1kg_EUR &> $g/plink.out
+done
+```
+
+Final preparations comming up: Load eQTL, GWAS and 1kG data again, match common
+snps, prepare LD block information.
+
+```{r}
+tmp <- mclapply(genes, function(gene) {
+ 
+  dgene <- paste0("results/current/colocalization_scz/", gene) 
+  feqtl <- file.path(dgene, "eqtl.tsv")
+  if(!file.exists(feqtl)) {
+    return(invisible(NULL))
+  }
+  
+  print(dgene)
+  
+  eqtl <- read_tsv(feqtl)
+  scz <- read_tsv(file.path(dgene, "scz.tsv"))
+  scz <- mutate(scz, rsid = sapply(strsplit(SNP, ":"), "[[", 1))
+  ld <- as.matrix(read.table(file.path(dgene, "eqtl_snps_1kg_EUR.ld")))
+  if(nrow(ld) < 2) return(NULL)
+  
+  freq <- read.table(file.path(dgene, "eqtl_snps_1kg_EUR.frq"), header=T,
+                     stringsAsFactors = F)
+  common_snps <- intersect(freq$SNP, eqtl$SNP)
+  common_snps <- intersect(common_snps, scz$rsid)
+  
+  freq_matched <- freq[freq$SNP %in% common_snps,]
+  ld_matched <- ld[freq$SNP %in% common_snps, freq$SNP %in% common_snps]
+  colnames(ld_matched) <- rownames(ld_matched) <- freq_matched$SNP
+  
+  write.table(ld_matched, file=file.path(dgene, "eqtl_snps_1kg_EUR_common.ld"), 
+              sep="\t", quote=F, row.names = FALSE, col.names = FALSE)
+  
+  eqtl_matched <- eqtl[match(freq_matched$SNP, eqtl$SNP),]
+  scz_matched <- scz[match(freq_matched$SNP, scz$rsid),]
+
+  ## flip the eQTL alleles to match the reference
+  flip <- eqtl_matched$AssessedAllele == freq_matched$A2
+  if(any(flip)) {
+    tmp <- eqtl_matched$AssessedAllele[flip]
+    eqtl_matched$AssessedAllele[flip] <- eqtl_matched$OtherAllele[flip]
+    eqtl_matched$OtherAllele[flip] <- tmp
+    eqtl_matched$Zscore[flip] <- -eqtl_matched$Zscore[flip]
+  }
+  write.table(eqtl_matched[,c("SNP", "Zscore")], file.path(dgene, "eqtl_z.tsv"), 
+              sep="\t", quote=F, row.names=F, col.names=F)
+  
+  ## correlations are signed so we need to make sure that effects have a direction
+  flip <- scz_matched$A1 == freq_matched$A2
+  if(any(flip)) {
+    tmp <- scz_matched$A1[flip]
+    scz_matched$A1[flip] <- scz_matched$A2[flip]
+    scz_matched$A2[flip] <- tmp
+    scz_matched$z[flip] <- scz_matched$z[flip]
+  }
+  # chromosome to be loaded for LD block information
+  chr <- unique(scz_matched$CHR)
+  blocks <- read.table(paste0("/storage/groups/epigenereg01/workspace/public_data/ldetect-data/EUR/fourier_ls-chr", chr, ".bed"), 
+                       header=TRUE, stringsAsFactors = FALSE)
+  blocks <- IRanges(blocks$start, blocks$stop)
+  snp_gr <- IRanges(scz_matched$BP, width=1)
+  snp2block <- subjectHits(findOverlaps(snp_gr, blocks))
+  
+  ## put togehter the GWAS
+  scz_LDblocks_z <- data.frame(SNP=scz_matched$rsid, LDblock=snp2block, z=scz_matched$z)
+  
+  fname <- file.path(dgene, "scz_gwas_zscores.txt")
+  write.table(scz_LDblocks_z, file=fname, sep="\t", 
+              row.names = FALSE, col.names = FALSE, quote=F)
+  system(paste("gzip -f", fname))
+  
+  
+  # Finally, we have to summarize the dap results so they can be used in fastenloc. 
+  # We need a vcf file to annotate the SNPs. Most info is in the eQTL table.
+  lookup <- c('#CHROM'="SNPChr",
+    POS="SNPPos",
+    ID="SNP",
+    REF="OtherAllele",
+    ALT="AssessedAllele",
+    QUAL=NA,
+    FILTER=NA,
+    INFO=NA)
+  vcf <- eqtl_matched[,setdiff(lookup, NA)]
+  vcf <- cbind(vcf, matrix(".", nrow=nrow(vcf), ncol=sum(is.na(lookup))))
+  colnames(vcf) <- names(lookup)
+  write.table(vcf, file=file.path(dgene, "eqtl_snps.vcf"), 
+              sep="\t", quote=F, row.names=F)
+
+  invisible(NULL)
+}, mc.cores=threads)
+```
+
+Now call DAP to get posterior probs and prepare the final input for fastENLOC
+
+```{bash, eval=FALSE}
+threads=12
+for g in results/current/colocalization_scz/* ; do
+
+  if [ -e "$g/fastenloc.enloc.enrich.out" ] ; then continue ; fi
+  
+  if [ ! -e "$g/eqtl_snps.vcf" ] ; then continue ; fi
+  
+  echo "Processing $(basename $g)."
+  
+  ./packages/dap/dap_src/dap-g.static -t $threads -d_z $g/eqtl_z.tsv -d_ld $g/eqtl_snps_1kg_EUR_common.ld \
+    --all -o $g/eqtl_dap &> $g/eqtl_dap_debug.out
+  echo "dap-g done."
+  # dap might fail due to unknown errors...
+  success=`wc -l $g/eqtl_dap | cut -d " " -f 1`
+  if [ $success -eq "0" ] ; then
+    continue
+  fi
+  
+  gzip -f $g/eqtl_snps.vcf
+  mkdir -p $g/dap_rst/
+  ln -s ../eqtl_dap $g/dap_rst/$(basename $g).dap
+  perl ./packages/fastenloc/src/summarize_dap2enloc.pl -dir $g/dap_rst/ \
+    -vcf $g/eqtl_snps.vcf.gz -tissue eQTLgen | \
+    gzip - > $g/fastenloc.eqtl.annotation.vcf.gz
+  ./packages/dap/torus_src/torus.static -d $g/scz_gwas_zscores.txt.gz --load_zval \
+    -dump_pip $g/scz_gwas_pip.txt &> $g/torus.debug.out
+  echo "torus done."
+  gzip -f $g/scz_gwas_pip.txt
+  
+  # call fastENLOC 
+  
+  total=`wc -l $g/scz.tsv | cut -d " " -f 1`
+  ./packages/fastenloc/src/fastenloc -eqtl $g/fastenloc.eqtl.annotation.vcf.gz \
+  -gwas $g/scz_gwas_pip.txt.gz \
+  -total_variants $total \
+  -t eQTLgen \
+  -thread $threads \
+  -prefix $g/fastenloc &> $g/fasentloc.debug.out
+  
+   echo "fastENLOC done."
+   
+done
+```
+
+Once the above bash script has been run, we can gather up the results and 
+visualize them. We first load some additional plotting packages
+
+```{r}
+library(cowplot)
+library(ggrepel)
+library(ggpubr)
+theme_set(theme_cowplot())
+```
+
+```{r}
+data <- lapply(genes, function(gene) {
+  dgene <- paste0("results/current/colocalization_scz/", gene) 
+  ffastenloc <- file.path(dgene, "fastenloc.enloc.snp.out")
+  if(!file.exists(ffastenloc)) {
+    return(invisible(NULL))
+  }
+  eqtl <- read_tsv(file.path(dgene, "eqtl.tsv"))
+  coloc_eqtl <- read.table(ffastenloc, stringsAsFactors = FALSE) %>% as_tibble()
+  colnames(coloc_eqtl) <- c("signal.id", "snp", "QTL.PIP", "GWAS.PIP", "GWAS.PIP.QTL", "SCP")
+  coloc_eqtl <- mutate(coloc_eqtl,
+                       pos = eqtl[match(coloc_eqtl$snp, eqtl$SNP), "SNPPos",drop=T],
+                       trait=sapply(strsplit(signal.id, ":"), "[[", 1))
+  
+  coloc_eqtl  
+
+}) %>% bind_rows()
+
+# the trans genes selected in our network
+selected_trans <- c("CD6", "B9D2", "PSEN1", "DEF8", 
+                    "DNAJB2", "ZNF672", "SH3BGRL3")
+
+data_filtered <- data %>% filter(trait %in% selected_trans)
+
+# plot the SCP plot for a specific data set
+plot_scp <- function(d) {
+  best <- d %>%
+    group_by(snp) %>% 
+    summarise(maxSCP=max(SCP), 
+              meanSCP = mean(SCP),
+              pos=pos[which.max(SCP)],) %>% 
+    top_n(3,meanSCP)
+  print(best)
+  gp <- d %>%
+    ggplot(aes(x=pos, y=SCP,group=snp)) + 
+    stat_summary(fun.y="mean", geom="point") +
+#    stat_summary(fun.data="mean_se", geom="errorbar") +
+    scale_y_continuous(limits=c(0,1)) + 
+    geom_label_repel(aes(x=pos, y=(meanSCP), label=snp), 
+                     data=best, segment.colour="black", box.padding = 1) + 
+    background_grid(major="xy")
+  gp + geom_hline(yintercept=0.5,linetype="dashed", color="grey")
+}
+
+# create the full and the filtered plot, combine
+gp <- plot_scp(data)
+gp_filtered <- plot_scp(data_filtered)
+
+ggarrange(gp, gp_filtered, ncol=2, labels="AUTO", align = "h")
+
+# for the manuscript
+final <- gp_filtered + labs(y = "mean SCP", 
+                   x = "genomic position (chr 6)",
+                   title = "Colocalization of SCZ GWAS and eQTL SNPs")
+
+save_plot("results/current/figures/scz_colocalization.pdf", final, ncol=1, nrow=1)
+
+# plot showing the gwas and eQTL results
+toplot <- bind_rows(select(gwas_roi, snp=SNP, pos=BP, P=P) %>% mutate(trait="SCZ"),
+                    select(eqtl_trans_roi, snp=SNP, pos=SNPPos, P=Pvalue) %>% mutate(trait="eQTL"))
+
+toplot %>%
+  ggplot(aes(x=pos, y=-log10(P), color=trait)) + 
+  geom_point(alpha=0.5) + 
+  scale_y_continuous(breaks=seq(0,160,by=10))
+  #facet_wrap(.~trait)
+
+```
+
+
+```{r}
+# ------------------------------------------------------------------------------
+print("SessionInfo:")
+# ------------------------------------------------------------------------------
+sessionInfo()
+```

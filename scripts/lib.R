@@ -16,6 +16,21 @@ get_defaultcolors <- function(n=5, name=c("rcb")) {
 }
 
 # ------------------------------------------------------------------------------
+#' Get nodes by type
+#'
+#' Convenience function to retrieve nodes of a certain type
+#' @param g graphNEL locus graph object
+#' @param type character indicating the node type
+#'
+#' @return character vector with the nodes of given type
+# ------------------------------------------------------------------------------
+get_nodes_by_type <- function(g, type) {
+  require(graph)
+  n = nodes(g)
+  return(n[unlist(nodeData(g, n, type))])
+}
+
+# ------------------------------------------------------------------------------
 #' Gets trans-associated CpGs for a sentinel SNP
 #'
 #' Get all trans cpgs for an individual sentinel SNP using a "cosmo"
@@ -1943,6 +1958,7 @@ get_gwas_traits <- function(snp, gwas_table,
 
   # gather gwas traits for SNPs within this LD block
   gwas_sub <- subset(gwas_table, SNPS %in% ld_snps)
+  print(ld_snps)
   if(nrow(gwas_sub) > 0) {
     if(collapse) {
       paste0(unique(gwas_sub$DISEASE.TRAIT), collapse="|")

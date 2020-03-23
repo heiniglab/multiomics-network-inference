@@ -187,9 +187,9 @@ rule add_gwas_information:
 	output:
 		validation=DCOHORT_VAL + "validation_all_{seed}_gwas.txt"
 	params:
-		time = "05:00:00"
+		time = "10:00:00"
 	resources:
-		mem_mb=2000
+		mem_mb=5000
 	threads: 6
 	log:
 		"logs/add_gwas_information_{seed}.log"
@@ -297,24 +297,29 @@ rule plot_relevant_graphs:
 		DGRAPH_PLOTS + "rs8049417_meqtl/all.pdf",
 		DGRAPH_PLOTS + "rs13256023_meqtl/all.pdf",
 		DGRAPH_PLOTS + "rs1364109_meqtl/all.pdf",
-		DGRAPH_PLOTS + "rs3171692_meqtl/all.pdf"
-#		DGRAPH_PLOTS + "rs9859077_meqtl/all.pdf",
-#		DGRAPH_PLOTS + "rs730775_eqtlgen/all.pdf",
-#		DGRAPH_PLOTS + "rs730775_meqtl/all.pdf",
-#		DGRAPH_PLOTS + "rs140522_eqtlgen/all.pdf",
-#		DGRAPH_PLOTS + "rs6511961_meqtl/all.pdf",
-#		DGRAPH_PLOTS + "rs7783715_meqtl/all.pdf",
-#		DGRAPH_PLOTS + "rs2227901_eqtlgen/all.pdf",
-#		DGRAPH_PLOTS + "rs17081933_meqtl/all.pdf",
-#		DGRAPH_PLOTS + "rs79755767_eqtlgen/all.pdf",
-#		DGRAPH_PLOTS + "rs4788084_eqtlgen/all.pdf",
-#		DGRAPH_PLOTS + "rs10248490_meqtl/all.pdf",
-#		DGRAPH_PLOTS + "rs8058619_meqtl/all.pdf",
-#		DGRAPH_PLOTS + "rs436744_meqtl/all.pdf",
-#		DGRAPH_PLOTS + "rs3171692_meqtl/all.pdf",
-#		DGRAPH_PLOTS + "rs1064395_eqtlgen/all.pdf",
-#		DGRAPH_PLOTS + "rs3748136_eqtlgen/all.pdf",
-#		DGRAPH_PLOTS + "rs1364109_meqtl/all.pdf",
-#		DGRAPH_PLOTS + "rs3859321_meqtl/all.pdf",
-#		DGRAPH_PLOTS + "rs10103269_meqtl/all.pdf",
-#		DGRAPH_PLOTS + "rs7254687_meqtl/all.pdf"
+		DGRAPH_PLOTS + "rs3171692_meqtl/all.pdf",
+		DGRAPH_PLOTS + "rs7500738_meqtl/all.pdf",
+		DGRAPH_PLOTS + "rs7246657_meqtl/all.pdf",
+		DGRAPH_PLOTS + "rs7146643_meqtl/all.pdf",
+		DGRAPH_PLOTS + "rs578868_meqtl/all.pdf",
+		DGRAPH_PLOTS + "rs11671654_meqtl/all.pdf",
+		DGRAPH_PLOTS + "rs10248490_meqtl/all.pdf",
+		DGRAPH_PLOTS + "rs6141779_meqtl/all.pdf",
+		DGRAPH_PLOTS + "rs378112_meqtl/all.pdf",
+		DGRAPH_PLOTS + "rs17081933_meqtl/all.pdf",
+		DGRAPH_PLOTS + "rs4235404_meqtl/all.pdf",
+		DGRAPH_PLOTS + "rs3809627_meqtl/all.pdf",
+		DGRAPH_PLOTS + "rs3091338_eqtlgen/all.pdf",
+		DGRAPH_PLOTS + "rs2143950_eqtlgen/all.pdf",
+		DGRAPH_PLOTS + "rs2038255_eqtlgen/all.pdf",
+		DGRAPH_PLOTS + "rs6890853_eqtlgen/all.pdf",
+		DGRAPH_PLOTS + "rs9274623_eqtlgen/all.pdf",
+		DGRAPH_PLOTS + "rs140522_eqtlgen/all.pdf",
+		DGRAPH_PLOTS + "rs9274623_eqtlgen/all.pdf",
+		DGRAPH_PLOTS + "rs28383314_eqtlgen/all.pdf",
+		DGRAPH_PLOTS + "rs372883_eqtlgen/all.pdf",
+		DGRAPH_PLOTS + "rs730775_eqtlgen/all.pdf",
+		DGRAPH_PLOTS + "rs730775_meqtl/all.pdf",
+		DGRAPH_PLOTS + "rs9859077_meqtl/all.pdf",
+		DGRAPH_PLOTS + "rs79755767_eqtlgen/all.pdf",
+		DGRAPH_PLOTS + "rs79755767_meqtl/all.pdf"

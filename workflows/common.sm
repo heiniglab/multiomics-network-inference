@@ -31,6 +31,8 @@ DCOHORT_FITS = "results/current/" + PPI_NAME + "/fits_" + suffix
 DCOHORT_VAL = "results/current/" + PPI_NAME + "/validation_" + suffix
 DMEDIATION = "results/current/" + PPI_NAME + "/mediation_" + suffix
 DGRAPH_PLOTS = "results/current/" + PPI_NAME + "/graph_plots_" + suffix
+DMAGMA_ENRICHMENT = "results/current/" + PPI_NAME + "/magma_enrichment_" + suffix
+DFASTENLOC = "results/current/" + PPI_NAME + "/fastENLOC_" + suffix
 
 # -----------------------------------------------------------------------------
 # simulation study specific output directories

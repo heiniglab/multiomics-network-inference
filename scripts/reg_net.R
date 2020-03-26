@@ -73,6 +73,10 @@ reg_net <- function(data,
   if (!(model %in% ms))
     stop(paste0("Model not supported: ", model))
 
+  if(any(is.na(data))) {
+    warning("Handling NAs present in data automatically!")
+  }
+  
   # for genenet and iRafNet, remove NAs
   data_no_nas <- data[, apply(data, 2, function(x)
     ! anyNA(x))]
@@ -101,7 +105,6 @@ reg_net <- function(data,
 
     # get partial correlation estimates
     pcors <- ggm.estimate.pcor(data.matrix(data_no_nas))
-    
 
     fit <- network.test.edges(pcors, plot = F)
     fit$node1 <- colnames(data_no_nas)[fit$node1]
@@ -247,7 +250,7 @@ graph_from_fit <- function(ggm.fit,
   } else if (inherits(ggm.fit, "genenet")) {
     n <- unique(c(ggm.fit$node1, ggm.fit$node2))
     net <- extract.network(ggm.fit,
-                           cutoff.ggm = 0.8)
+                           cutoff.ggm = 0.95)
     g <- graphNEL(n,
                   edgemode = "undirected")
     g <- addEdge(net$node1, net$node2, g)
@@ -756,6 +759,14 @@ infer_all_graphs <-
                                  use_gstart = F,
                                  threads = threads)
 
+    print("Fitting bdgraph without priors, full start graph.")
+    bdgraph_no_priors_full <- reg_net(data,
+                                 NULL,
+                                 "bdgraph",
+                                 use_gstart = T,
+                                 gstart = "full",
+                                 threads = threads)
+
     print("Fitting model using iRafNet.")
     irafnet <- reg_net(data, priors, "irafnet", threads = threads)
 
@@ -767,7 +778,10 @@ infer_all_graphs <-
     
     bdgraph_no_priors$graph <- annotate.graph(bdgraph_no_priors$graph,
                                               ranges, ppi_db, fcontext)
-
+    
+    bdgraph_no_priors_full$graph <- annotate.graph(bdgraph_no_priors_full$graph,
+                                                   ranges, ppi_db, fcontext)
+    
     irafnet$graph <- annotate.graph(irafnet$graph, 
                                     ranges, ppi_db, fcontext)
     
@@ -793,6 +807,9 @@ infer_all_graphs <-
       # bdgraph no priors
       bdgraph_no_priors_fit = bdgraph_no_priors$fit,
       bdgraph_no_priors = bdgraph_no_priors$graph,
+      # bdgraph no priors, full start
+      bdgraph_no_priors_full_fit = bdgraph_no_priors_full$fit,
+      bdgraph_no_priors_full = bdgraph_no_priors_full$graph,
       # irafnet
       irafnet_fit = irafnet$fit,
       irafnet = irafnet$graph,
@@ -814,7 +831,7 @@ infer_all_graphs <-
   }
 
 #' -----------------------------------------------------------------------------
-#' Combe two graph objects. 
+#' Combine two graph objects. 
 #'
 #' Keeps only nodes and edges present in both graphs
 #' 

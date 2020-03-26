@@ -56,7 +56,7 @@ rule apply_ggm_simulation:
         benchmark:
                 "benchmarks/simulation/apply_ggm/{sentinel}-iter{iteration}.bmk"
         script:
-                "../scripts/simulation/apply_ggm_simulation.R"
+                "../scripts/simulation/run_ggm.R"
 
 rule all_apply_ggm_simulation:
 	input:
@@ -90,7 +90,7 @@ rule validate_ggm_simulation:
         log:
                 "logs/simulation/validate_ggm/{sentinel}-iter{iteration}.log"
         script:
-                "../scripts/simulation/validate_ggm_simulation.R"
+                "../scripts/simulation/validate.R"
 
 #------------------------------------------------------------------------------
 # Target rule to validate all simulation runs

@@ -1,7 +1,6 @@
 # ------------------------------------------------------------------------------
 #'
-#' Script to validate the GGMs calculated on simulated
-#' data
+#' Script to validate the GGMs calculated on simulated data
 #'
 #' @author Johann Hawe
 #'
@@ -10,7 +9,7 @@ sink(file=snakemake@log[[1]])
 
 # ------------------------------------------------------------------------------
 # load needed libraries and source scripts
-# ------------------------------------------------------------------------------
+
 library(BDgraph)
 library(graph)
 library(igraph)
@@ -19,9 +18,11 @@ source("scripts/lib.R")
 
 # ------------------------------------------------------------------------------
 # get snakemake params
-# ------------------------------------------------------------------------------
+
+# inputs
 ffits <- snakemake@input$fits
 
+# outputs
 foutput <- snakemake@output[[1]]
 
 # iteration/run to be annotated in result table
@@ -31,7 +32,7 @@ print(paste0("Processing file: ", ffits, "."))
 
 # ------------------------------------------------------------------------------
 # Perform validation
-# ------------------------------------------------------------------------------
+
 # load data
 load(ffits)
 
@@ -43,7 +44,7 @@ temp <- lapply(names(result), function(n) {
 
   # ----------------------------------------------------------------------------
   # Get all fits
-  # ----------------------------------------------------------------------------
+
   bdgraph <- r$fits$bdgraph
   bdgraph_no_priors <- r$fits$bdgraph_no_priors
   glasso <- r$fits$glasso
@@ -63,7 +64,7 @@ temp <- lapply(names(result), function(n) {
   # ----------------------------------------------------------------------------
   # use the bdgraph internal method to get spec/sens, f1 and MCC. Use the
   # original simulation object containing the ground truth graph
-  # ----------------------------------------------------------------------------
+
   perf <- lapply(names(gs), function(g) {
     # we need the adjacency matrix for comparison
     perf <- t(BDgraph::compare(d, as(gs[[g]], "matrix")))

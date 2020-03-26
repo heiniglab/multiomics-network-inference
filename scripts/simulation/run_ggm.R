@@ -12,7 +12,7 @@ sink(log, type="message")
 
 # ------------------------------------------------------------------------------
 print("Load libraries and source scripts")
-# ------------------------------------------------------------------------------
+
 library(GenomicRanges)
 library(pheatmap)
 library(doParallel)
@@ -24,7 +24,7 @@ source("scripts/reg_net.R")
 
 # ------------------------------------------------------------------------------
 print("Get snakemake input and load data.")
-# ------------------------------------------------------------------------------
+
 # inputs
 fdata <- snakemake@input$data
 fppi_db <- snakemake@input$ppi_db
@@ -43,7 +43,6 @@ ppi_db <- readRDS(fppi_db)
 
 # ------------------------------------------------------------------------------
 # we generated several graphs, for which we all calculate models now
-# ------------------------------------------------------------------------------
 
 # apply over the different runs/iterations
 simulated_data <- simulations[[sim_iter]]
@@ -53,8 +52,8 @@ simulated_data <- simulations[[sim_iter]]
 result <- lapply(names(simulated_data), function(n) {
   # ----------------------------------------------------------------------------
   # Get data
-  # ----------------------------------------------------------------------------
-  sim <- simulated_data[[n]]
+
+    sim <- simulated_data[[n]]
   # sentinel name and simulated data
   s <- sim$snp
   d <- sim$data.sim$data
@@ -66,7 +65,7 @@ result <- lapply(names(simulated_data), function(n) {
 
   # ----------------------------------------------------------------------------
   print("Infer regulatory networks.")
-  # ----------------------------------------------------------------------------
+
   result <- infer_all_graphs(d, priors, ranges, fcpg_context, ppi_db, threads)
   sim$fits <- result
 

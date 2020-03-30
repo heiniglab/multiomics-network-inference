@@ -51,15 +51,22 @@ priors <- priors[rownames(priors) %in% nodes, colnames(priors) %in% nodes]
 # ------------------------------------------------------------------------------
 print(paste0("Running ", length(runs), " simulations."))
 
+# we use bdgraph.sim internally, we need to set the number of threads which it
+# uses to avoid threading issues:
+RhpcBLASctl::omp_set_num_threads(1)
+RhpcBLASctl::blas_set_num_threads(1)
+
 simulations <- mclapply(runs, function(x) {
   
   set.seed(x)
-
+  
   # create the hidden and observed graphs
-  graphs <- create_prior_graphs(priors, sentinel)
-
+  graphs <- create_prior_graphs(priors, sentinel, threads=1)
+  
+  print(paste0("Run ", x, " done."))
+  
   # simulate data for ggm
-  simulate_data(graphs, sentinel, data, nodes)
+  return(simulate_data(graphs, sentinel, data, nodes, threads=1))
   
 }, mc.cores = threads)
 

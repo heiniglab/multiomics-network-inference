@@ -104,13 +104,15 @@ rewire_graph <- function(g, p, ei) {
     div <- get_prior_divergence(gnew, ei, p)
     if(add_rewiring & div > 2) {
       cnt <- 0
-      while(div > 2 & cnt < 1000) {
+      ignew <- igraph.from.graphNEL(gnew, weight=F)
+      
+      while(div > 2 & cnt < 500) {
         cnt <- cnt + 1
-        ignew <- igraph.from.graphNEL(gnew, weight=F)
         ignew <- rewire(ignew, igraph::keeping_degseq(niter=1))
-        gnew <- igraph.to.graphNEL(ignew)
-        div <- get_prior_divergence(gnew, ei, p)
+        div <- get_prior_divergence(ignew, ei, p)
       }
+      
+      gnew <- igraph.to.graphNEL(ignew)
     }
     
   } else {
@@ -260,13 +262,14 @@ degreesum_in_range <- function(df, idxs, lo, up, g) {
 #' Helper method calculating the percentage of edges in the given graph object
 #' which have a prior according to the given prior matrix
 #'
-#' @param g The graph for which to check the edges
+#' @param g The graph for which to check the edges, igraph or graphNEL object
 #' @param ei An edge_info object containing all prior information
 #'
 #' @return Percentage of edges in the graph which have a prior
 #'
 #' -----------------------------------------------------------------------------
 get_percent_prioredges <- function(g, ei) {
+  
   library(graph)
   
   # get prior edges
@@ -276,8 +279,11 @@ get_percent_prioredges <- function(g, ei) {
   
   # ----------------------------------------------------------------------------
   # get the edgematrix with nodes
-  n <- graph::nodes(g)
-  
+  if(class(g) == "igraph") {
+    n <- names(igraph::V(g))
+  } else {
+    n <- graph::nodes(g)
+  }
   # sanity check
   if(!all(n %in% ei_nodes)) {
     warning("Not all nodes present in edge_info.")
@@ -285,13 +291,18 @@ get_percent_prioredges <- function(g, ei) {
   }
   
   # get the edge information from the graph
-  em <- t(edgeMatrix(g))
-  
+  if(class(g) == "igraph") {
+    em <- igraph::as_edgelist(g)
+  } else {
+    em <- t(edgeMatrix(g))
+  }
   if(nrow(em) > 0) {
     count <- 0
-    em <- cbind.data.frame(n[em[,1]],
-                           n[em[,2]],
-                           stringsAsFactors=F)
+    if(class(g) == "graphNEL") {
+      em <- cbind.data.frame(n[em[, 1]],
+                             n[em[, 2]],
+                             stringsAsFactors = F)
+    }
     
     # --------------------------------------------------------------------------
     # check for the number of edges of g being in the prior edges
@@ -426,16 +437,17 @@ sample_prior_graph <- function(priors, sentinel) {
 #'
 #' -----------------------------------------------------------------------------
 create_prior_graphs <- function(priors, sentinel,
-                                rand_steps=seq(0, 1, by=0.1)) {
+                                rand_steps=seq(0, 1, by=0.1),
+                                threads = 1) {
+  require(parallel)
   
   # ----------------------------------------------------------------------------
   # Create distinct randomized graphs
   if(!is.null(rand_steps)) {
-    graphs <-list()
-    n <- length(rand_steps)
-    for(i in 1:n) {
-      
-      # sample prior graph
+    n <- 1:length(rand_steps)
+    
+    graphs <- mclapply(n, function(i) {
+     # sample prior graph
       samp <- sample_prior_graph(priors, sentinel)
       gsamp <- samp$sample_graph
       gfull <- samp$full_graph
@@ -446,22 +458,23 @@ create_prior_graphs <- function(priors, sentinel,
       
       grand <- rewire_graph(gsamp, rd, ei)
       pe <- get_percent_prioredges(grand$gnew, ei) * 100
-      div <- abs((100-pe)-rd*100)
-      
-      # report for debug
-      #print(paste0("Desired/observed randomization: ", rd*100, "/", 100-pe))
-      
+      div <- abs((100 - pe) - rd * 100)
+     
       # check for more than 2 percent divergence in randomization
-      if(div >= 2) warning(paste0("Large divergence in randomization: ", div))
+      if (div >= 2)
+        warning(paste0("Large divergence in randomization: ", div))
       
       # save graph
-      id <- paste0(sentinel, "_rd", rd)
-      graphs[[id]] <- list(graph.full=gfull,
-                           graph.sampled=gsamp,
-                           graph.observed=grand$gnew,
-                           rdegree=rd,
-                           snp=sentinel)
-    }
+      g <- list(
+        graph.full = gfull,
+        graph.sampled = gsamp,
+        graph.observed = grand$gnew,
+        rdegree = rd,
+        snp = sentinel
+      )
+      g
+    }, mc.cores = threads) # ---------------------------------------------------
+    names(graphs) <- paste0(sentinel, "_rd", rand_steps)
     
     # --------------------------------------------------------------------------
     # Now we create a random binomial prior matrix based on graph size
@@ -477,22 +490,26 @@ create_prior_graphs <- function(priors, sentinel,
     }))
     
     n <- ncol(priors)
-    E <- (n*(n-1))/2
+    E <- (n * (n - 1)) / 2
     
     # use MLE estimator
-    prob <- max(sum(all_sizes) / (length(all_sizes) * E), min(priors))
+    prob <-
+      max(sum(all_sizes) / (length(all_sizes) * E), min(priors))
     
-    prbinom <- matrix(prob, ncol=ncol(priors), nrow=nrow(priors))
+    prbinom <- matrix(prob, ncol = ncol(priors), nrow = nrow(priors))
     colnames(prbinom) <- colnames(priors)
     rownames(prbinom) <- rownames(priors)
     
     # save graph with prior matrix
     id <- paste0(sentinel, "_rbinom")
-    graphs[[id]] <- list(graph.full=gfull,
-                         graph.observed=gfull,
-                         rdegree=rd,
-                         snp=sentinel, 
-                         priors=prbinom)
+    graphs[[id]] <- list(
+      graph.full = gfull,
+      graph.observed = gfull,
+      rdegree = rd,
+      snp = sentinel,
+      priors = prbinom
+    )
+    
     return(graphs)
     
   } else {
@@ -519,14 +536,16 @@ create_prior_graphs <- function(priors, sentinel,
 #' @author Johann Hawe
 #'
 #' -----------------------------------------------------------------------------
-simulate_data <- function(graphs, sentinel, data, nodes) {
+simulate_data <- function(graphs, sentinel, data, nodes, threads = 1) {
+  require(parallel)
   
-  d <- lapply(graphs, function(g) {
+  d <- mclapply(graphs, function(g) {
     gr <- g$graph.observed
     s <- sentinel
     
     # create adjacency matrix from our graph
-    g_adj <- igraph::as_adj(igraph::igraph.from.graphNEL(gr), sparse = F)
+    g_adj <- as(gr, "matrix")
+    
     snp_available <- T
     if(!s %in% colnames(g_adj)) {
       warning("Sentinel not in graph.")
@@ -565,7 +584,110 @@ simulate_data <- function(graphs, sentinel, data, nodes) {
     }
     g$data.sim <- data.sim
     g
-  })
+  }, mc.cores = threads) # -----------------------------------------------------
   names(d) <- names(graphs)
   return(d)
+}
+
+# ------------------------------------------------------------------------------
+#' Generate the validation table for all simul results contained in the provided
+#' data object.
+#' 
+#' @author Johann Hawe <johann.hawe@helmholtz-muenchen.de>
+#' 
+# ------------------------------------------------------------------------------
+get_validation_table <- function(result, iteration) {
+  
+  require(dplyr)
+  
+  # check each individual simulated result
+  tab <- lapply(names(result), function(n) {
+    # get validation data
+    r <- result[[n]]
+    d <- r$data.sim
+    
+    # --------------------------------------------------------------------------
+    # Get all fitted graphs, remove the corresponding 'fit' objects
+    gs <- r$fits[!grepl("_fit", names(r$fits))]
+   
+    # --------------------------------------------------------------------------
+    # use the bdgraph internal method to get spec/sens, f1 and MCC. Use the
+    # original simulation object containing the ground truth graph
+    
+    perf <- lapply(names(gs), function(g) {
+      # we need the adjacency matrix for comparison
+      perf <- t(BDgraph::compare(d, as(gs[[g]], "matrix")))
+      comparisons <- c("True", g)
+      perf <- as.data.frame(perf)
+      rownames(perf) <- paste(n, comparisons, sep = "_")
+      perf <- perf[!grepl("True", rownames(perf)), ]
+      
+      # annotate density for comparison
+      ig <- igraph::igraph.from.graphNEL(gs[[g]])
+      dens <- edge_density(ig)
+      perf$density_model <- dens
+      perf
+    }) %>% bind_rows() # lapply over different graph models --------------------
+    
+    # remember for easy plotting
+    perf <- mutate(
+      perf,
+      rdegree = as.character(r$rdegree),
+      snp = r$snp,
+      iteration = iteration,
+      comparison = names(gs),
+      density_true =
+        edge_density(igraph.from.graphNEL(r$graph.observed))
+    )
+    perf
+  }) %>% bind_rows() # lapply over simulations ---------------------------------
+}
+
+# ------------------------------------------------------------------------------
+#' Run the GGM inference for all models on all simulated data (i.e. for
+#' different noise degrees)
+#' 
+#' @param simulated_data The main simulation object containing all simulated
+#' data and graphs for differing prior noise degrees
+#' @param priors The prior matrix. Will not be used for the rbinom prior which
+#' is provided in the respected simulation object
+#' @param ranges The original ranges collection for the related locus
+#' @param fcpg_context The TF-cpg annotation context (for graph annotation)
+#' @param ppi_db The underlying PPI network (for graph annotation)
+#' @param threads The number of threads which can be used, Default: 1
+#' 
+#' @author Johann Hawe <johann.hawe@helmholtz-muenchen.de>
+#' 
+# ------------------------------------------------------------------------------
+run_ggm <- function(simulated_data, priors, ranges, 
+                    fcpg_context, ppi_db, threads = 1) {
+  # iterate over all simulations (different noise levels...)
+  result <- lapply(names(simulated_data), function(n) {
+    # --------------------------------------------------------------------------
+    # Get data
+    
+    sim <- simulated_data[[n]]
+    # sentinel name and simulated data
+    s <- sim$snp
+    d <- sim$data.sim$data
+    
+    # in case of rbinom simulation, we get adjusted priors
+    if (grepl("_rbinom", n)) {
+      priors <- sim$priors
+    }
+    
+    # --------------------------------------------------------------------------
+    print("Infer regulatory networks.")
+    
+    result <-
+      infer_all_graphs(d, priors, ranges, fcpg_context, ppi_db, threads)
+      #infer_all_graphs_subset(d, priors, ranges, fcpg_context, ppi_db, threads)
+    sim$fits <- result
+    
+    sim
+  })
+  
+  names(result) <- names(simulated_data)
+  
+  return(result)
 }

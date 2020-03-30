@@ -21,6 +21,7 @@ library(graph)
 
 source("scripts/lib.R")
 source("scripts/reg_net.R")
+source("scripts/simulation/lib.R")
 
 # ------------------------------------------------------------------------------
 print("Get snakemake input and load data.")
@@ -49,30 +50,8 @@ simulated_data <- simulations[[sim_iter]]
 
 # for this run, apply over all simulated graphs (different randomization
 # degrees)
-result <- lapply(names(simulated_data), function(n) {
-  # ----------------------------------------------------------------------------
-  # Get data
-
-    sim <- simulated_data[[n]]
-  # sentinel name and simulated data
-  s <- sim$snp
-  d <- sim$data.sim$data
-
-  # in case of rbinom simulation, we get adjusted priors
-  if(grepl("_rbinom", n)) {
-    priors <- sim$priors
-  }
-
-  # ----------------------------------------------------------------------------
-  print("Infer regulatory networks.")
-
-  result <- infer_all_graphs(d, priors, ranges, fcpg_context, ppi_db, threads)
-  sim$fits <- result
-
-  sim
-})
-
-names(result) <- names(simulated_data)
+result <- run_ggm(simulated_data, priors, ranges, 
+                  fcpg_context, ppi_db, threads)
 
 print("Saving results.")
 save(file=fout, result, priors, runs)

@@ -19,7 +19,7 @@ rule simulate_data:
         params:
                 sentinel="{sentinel}",
                 runs=RUNS,
-                time="2-00:00:00"
+                time="1-00:00:00"
         conda:
                 "../envs/bioR.yaml"
         log:

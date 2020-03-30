@@ -154,7 +154,7 @@ reg_net <- function(data,
     })
 
     # plot convergence info for any case
-    ggm_summary <- summary(fit)
+    ggm_summary <- summary(fit, vis=F)
 
   } else if ("irafnet" %in% model) {
     require(iRafNet)
@@ -827,6 +827,86 @@ infer_all_graphs <-
       genie3 = genie3$graph
     )
 
+    return(result)
+  }
+
+#' -----------------------------------------------------------------------------
+#' Infers graphs for all available models and annotates them.
+#' This method is used for testing subsets of models, i.e. we manually select
+#' some models which should be run. At the moment these are genenet, glasso and
+#' bdgraph without priors but using full start graph.
+#'
+#' @param data data matrix (n x p) to be used for fitting the models
+#' @param priors the p x p prior matrix
+#' @param ranges the ranges collection underlying the data
+#' @param fcontext the tfbs context file
+#' @param ppi_db the ppi db (graph) underlying the data
+#' @param threads number of threads to be used. Default: 1
+#'
+#' -----------------------------------------------------------------------------
+infer_all_graphs_subset <-
+  function(data,
+           priors,
+           ranges,
+           fcontext,
+           ppi_db,
+           threads = 1) {
+    
+    # debug
+    print("Num Threads:")
+    print(RhpcBLASctl::omp_get_num_procs())
+    print("BLAS Num Threads:")
+    print(RhpcBLASctl::blas_get_num_procs())
+    
+    # we set the OMP/BLAS number of threads to 1
+    # this avoids issues we had in the glasso CV with multi-threading on cluster
+    # also necessary for BDgraph 
+    RhpcBLASctl::omp_set_num_threads(1)
+    RhpcBLASctl::blas_set_num_threads(1)
+    
+    print("Fitting model using GeneNet.")
+    genenet <- reg_net(data, NULL, "genenet", threads = threads)
+    
+    print("Fitting model using glasso.")
+    glasso <- reg_net(data, priors, "glasso", threads = threads)
+    
+    print("Fitting bdgraph without priors, full start graph.")
+    bdgraph_no_priors_full <- reg_net(data,
+                                      NULL,
+                                      "bdgraph",
+                                      use_gstart = T,
+                                      gstart = "full",
+                                      threads = threads)
+    
+    # --------------------------------------------------------------------------
+    print("Add custom annotations for the graphs.")
+    # --------------------------------------------------------------------------
+    bdgraph_no_priors_full$graph <- annotate.graph(bdgraph_no_priors_full$graph,
+                                                   ranges, ppi_db, fcontext)
+    
+   
+    genenet$graph <- annotate.graph(genenet$graph, 
+                                    ranges, ppi_db, fcontext)
+    
+    
+    glasso$graph <- annotate.graph(glasso$graph, 
+                                   ranges, ppi_db, fcontext)
+    
+    # --------------------------------------------------------------------------
+    print("Create result list.")
+    # --------------------------------------------------------------------------
+    result <- list(
+     # bdgraph no priors, full start
+      bdgraph_no_priors_full_fit = bdgraph_no_priors_full$fit,
+      bdgraph_no_priors_full = bdgraph_no_priors_full$graph,
+      # genenet
+      genenet_fit = genenet$fit,
+      genenet = genenet$graph,
+      # glasso
+      glasso_fit = glasso$fit,
+      glasso = glasso$graph
+    )
+    
     return(result)
   }
 

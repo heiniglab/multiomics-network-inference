@@ -661,6 +661,7 @@ get_validation_table <- function(result, iteration) {
 # ------------------------------------------------------------------------------
 run_ggm <- function(simulated_data, priors, ranges, 
                     fcpg_context, ppi_db, threads = 1) {
+  
   # iterate over all simulations (different noise levels...)
   result <- lapply(names(simulated_data), function(n) {
     # --------------------------------------------------------------------------
@@ -670,7 +671,7 @@ run_ggm <- function(simulated_data, priors, ranges,
     # sentinel name and simulated data
     s <- sim$snp
     d <- sim$data.sim$data
-    
+
     # in case of rbinom simulation, we get adjusted priors
     if (grepl("_rbinom", n)) {
       priors <- sim$priors
@@ -681,7 +682,6 @@ run_ggm <- function(simulated_data, priors, ranges,
     
     result <-
       infer_all_graphs(d, priors, ranges, fcpg_context, ppi_db, threads)
-      #infer_all_graphs_subset(d, priors, ranges, fcpg_context, ppi_db, threads)
     sim$fits <- result
     
     sim

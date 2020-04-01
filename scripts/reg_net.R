@@ -30,10 +30,11 @@ reg_net.models <- function() {
 # ------------------------------------------------------------------------------
 #' Main method for inferring regulatory networks from different models
 #'
-#' @param data The data matrix (n x p) from which to infer the network
+#' @param data The data matrix (n x p) from which to infer the network. Must
+#' have column names (i.e. node names)
 #' @param priors The matrix of priors (p x p) which to use. Needs to be set to
-#' NULL explicitely. In case of bdgraph model, these are used to define a start
-#' graph for the algorithm.
+#' NULL explicitely to disregard priros. In case of bdgraph model, these are 
+#' used to define a start graph for the algorithm.
 #' @param model The model to be used. One of `reg_net.models()`
 #' @param threads optional. Number of threads to be used (if applicable)
 #' @param use_gstart optional. Flag whether to use prior based start
@@ -68,6 +69,9 @@ reg_net <- function(data,
                     irafnet.fdr = 0.05) {
   require(doParallel)
 
+  # vector of all nodes
+  nodes <- colnames(data)
+  
   # get available models
   ms <- reg_net.models()
   if (!(model %in% ms))
@@ -152,10 +156,7 @@ reg_net <- function(data,
         cores = threads
       )
     })
-
-    # plot convergence info for any case
-    ggm_summary <- summary(fit, vis=F)
-
+    
   } else if ("irafnet" %in% model) {
     require(iRafNet)
 
@@ -191,9 +192,9 @@ reg_net <- function(data,
   } else if ("glasso" %in% model) {
     require(glasso)
     if (!is.null(priors)) {
-      gl_out <- glasso_cv(data, priors, threads = threads)
+      gl_out <- glasso_cv(data, priors, nodes, threads = threads)
     } else {
-      gl_out <- glasso_cv(data, threads = threads)
+      gl_out <- glasso_cv(data, NULL, nodes, threads = threads)
     }
     class(gl_out) <- c(class(gl_out), "glasso")
     fit <- gl_out
@@ -204,9 +205,9 @@ reg_net <- function(data,
   } else if ("custom" %in% model) {
     stop("Sorry, custom model is not yet implemented.")
   }
-
+  
   # now get the graph object
-  g <- graph_from_fit(fit, annotate = F)
+  g <- graph_from_fit(fit, nodes, annotate = F)
 
   return(list(graph = g, fit = fit))
 }
@@ -215,6 +216,8 @@ reg_net <- function(data,
 #' Creates a graphNEL object from a given bdgraph result for a defined cutoff
 #'
 #' @param ggm.fit The bdgraph ggm fit
+#' @param nodes All nodes of the graph. Will be used to create the
+#' graph object
 #' @param ranges The ranges of the entities used for the graph fit
 #' @param string_db
 #' @param annotate Flag whether to annotate the graph entities with nodeData.
@@ -225,7 +228,8 @@ reg_net <- function(data,
 #' @author Johann Hawe
 #'
 # ------------------------------------------------------------------------------
-graph_from_fit <- function(ggm.fit,
+graph_from_fit <- function(ggm.fit, 
+                           nodes,
                            ranges = NULL,
                            ppi_db = NULL,
                            annotate = T) {
@@ -240,39 +244,57 @@ graph_from_fit <- function(ggm.fit,
 
   # get the graph instance from the ggm fits
   if (inherits(ggm.fit, "bdgraph")) {
-    g.adj <- BDgraph::select(ggm.fit, cut = 0.9)
-    g <-
-      as_graphnel(graph.adjacency(g.adj, mode = "undirected", diag = F))
+    # only gives upper.tri -> invert
+    g.adj <- t(BDgraph::select(ggm.fit, cut = 0.9))
+    cn <- colnames(g.adj)
+    g <- graphNEL(nodes,
+                  edgemode = "undirected")
+    
+    # create edge matrix
+    v <- sm2vec(g.adj)
+    vidx <- sm.index(g.adj)
+    em <- cbind.data.frame(is_edge=v, 
+                           node1=cn[vidx[,1]], 
+                           node2=cn[vidx[,2]], 
+                           stringsAsFactors=F)
+    # get edges
+    em <- subset(em, is_edge == 1)
+    if (nrow(em) > 0) {
+      g <- addEdge(em$node1, em$node2, g)
+    }
+    
   } else if (inherits(ggm.fit, "irafnet")) {
-    g <- graphNEL(ggm.fit$nodes, edgemode = "undirected")
+    g <- graphNEL(nodes, edgemode = "undirected")
     fit <- ggm.fit$fit
     g <- addEdge(fit$gene1, fit$gene2, g)
   } else if (inherits(ggm.fit, "genenet")) {
-    n <- unique(c(ggm.fit$node1, ggm.fit$node2))
     net <- extract.network(ggm.fit,
-                           cutoff.ggm = 0.95)
-    g <- graphNEL(n,
-                  edgemode = "undirected")
-    g <- addEdge(net$node1, net$node2, g)
+                           cutoff.ggm = 0.8)
+    g <- graphNEL(nodes, edgemode = "undirected")
+    
+    if(nrow(net) > 0) {
+      g <- addEdge(net$node1, net$node2, g)
+    }
   } else if (inherits(ggm.fit, "glasso")) {
     pm <- ggm.fit$wi
-    g <- graphNEL(colnames(pm),
-                  edgemode = "undirected")
+    cn <- colnames(pm)
+    g <- graphNEL(nodes, edgemode = "undirected")
+    
     # create edge matrix
-    temp <- melt(pm)
-
-    # convert back to characters for graphNEL
-    temp$Var1 <- as.character(temp$Var1)
-    temp$Var2 <- as.character(temp$Var2)
-
-    # define edges and remove self-edges
-    temp <- subset(temp, Var1 != Var2 & value != 0)
-
-    if (nrow(temp) > 0) {
-      g <- addEdge(temp$Var1, temp$Var2, g)
+    v <- sm2vec(pm)
+    vidx <- sm.index(pm)
+    em <- cbind.data.frame(pcor=v, 
+                           node1=cn[vidx[,1]], 
+                           node2=cn[vidx[,2]], 
+                           stringsAsFactors=F)
+    
+    # define edges with pcor != 0
+    em <- subset(em, pcor != 0)
+    if (nrow(em) > 0) {
+      g <- addEdge(em$node1, em$node2, g)
     }
   } else if (inherits(ggm.fit, "genie3")) {
-    g <- get_genie3_graph(ggm.fit$nodes,
+    g <- get_genie3_graph(nodes,
                           ggm.fit$linklist,
                           ggm.fit$best_weight)
   }
@@ -461,6 +483,7 @@ bic <- function(ll, n, k) {
 #' -----------------------------------------------------------------------------
 glasso_cv <- function(data,
                       priors = NULL,
+                      nodes, 
                       k = 5,
                       rholist = seq(0.01, 1, by = 0.005),
                       threads = 1) {
@@ -506,7 +529,7 @@ glasso_cv <- function(data,
       # get log likelihood, number of edges and BIC
       ll <- loglik(gl$wi, S_test, n, p)
 
-      g <- graph_from_fit(gl, annotate = F)
+      g <- graph_from_fit(gl, nodes, annotate = F)
       ne <- numEdges(g)
 
       # eBIC?
@@ -852,6 +875,8 @@ infer_all_graphs_subset <-
            ppi_db,
            threads = 1) {
     
+    require(tidyverse)
+    
     # debug
     print("Num Threads:")
     print(RhpcBLASctl::omp_get_num_procs())
@@ -866,49 +891,136 @@ infer_all_graphs_subset <-
     
     print("Fitting model using GeneNet.")
     genenet <- reg_net(data, NULL, "genenet", threads = threads)
+ 
+    # naive network, i.e. simply check corr > 0.5
+    naive <- cor(data)
+    naive[naive>0.5] <- 1
+    naive[naive != 1] <- 0
+    naive_graph <- graphNEL(colnames(data))
+    naive_graph <- with(melt(naive) %>% filter(value==1), 
+                        addEdge(as.character(Var1), 
+                                as.character(Var2), naive_graph))
     
-    print("Fitting model using glasso.")
-    glasso <- reg_net(data, priors, "glasso", threads = threads)
-    
-    print("Fitting bdgraph without priors, full start graph.")
-    bdgraph_no_priors_full <- reg_net(data,
-                                      NULL,
-                                      "bdgraph",
-                                      use_gstart = T,
-                                      gstart = "full",
-                                      threads = threads)
+    nlist <- list(naive=naive, graph = naive_graph)
     
     # --------------------------------------------------------------------------
     print("Add custom annotations for the graphs.")
     # --------------------------------------------------------------------------
-    bdgraph_no_priors_full$graph <- annotate.graph(bdgraph_no_priors_full$graph,
-                                                   ranges, ppi_db, fcontext)
-    
-   
     genenet$graph <- annotate.graph(genenet$graph, 
                                     ranges, ppi_db, fcontext)
     
-    
-    glasso$graph <- annotate.graph(glasso$graph, 
-                                   ranges, ppi_db, fcontext)
-    
+    nlist$graph <- annotate.graph(nlist$graph, 
+                                  ranges, ppi_db, fcontext)
+   
     # --------------------------------------------------------------------------
     print("Create result list.")
     # --------------------------------------------------------------------------
     result <- list(
-     # bdgraph no priors, full start
-      bdgraph_no_priors_full_fit = bdgraph_no_priors_full$fit,
-      bdgraph_no_priors_full = bdgraph_no_priors_full$graph,
-      # genenet
+     # genenet
       genenet_fit = genenet$fit,
       genenet = genenet$graph,
-      # glasso
-      glasso_fit = glasso$fit,
-      glasso = glasso$graph
+      naive_fit = nlist$naive,
+      naive = nlist$graph
     )
     
     return(result)
   }
+
+
+#' -----------------------------------------------------------------------------
+#' Test inference methods on a small, arbitrary ground truth graph and its data
+#'
+#' @param true_graph The ground truth graph
+#' @param data data simulated according to the ground truth
+#' @param iteration Iteration number (for annotating result frame)
+#' @param threads number of threads to be used. Default: 1
+#'
+#' -----------------------------------------------------------------------------
+test_inference <- function(true_graph, data, iteration, threads = 1) {
+    
+    require(tidyverse)
+    
+    # we set the OMP/BLAS number of threads to 1
+    # this avoids issues we had in the glasso CV with multi-threading on cluster
+    # also necessary for BDgraph 
+    RhpcBLASctl::omp_set_num_threads(1)
+    RhpcBLASctl::blas_set_num_threads(1)
+    
+    print("Fitting model using GeneNet.")
+    genenet <- reg_net(data, NULL, "genenet", threads = threads)
+    
+    print("Fitting model using glasso, no priors.")
+    glasso_no_priors <- reg_net(data, NULL, "glasso", threads = threads)
+    
+    print("Fitting bdgraph without priors.")
+    bdgraph_no_priors <- reg_net(data,
+                                 NULL,
+                                 "bdgraph",
+                                 use_gstart = F,
+                                 threads = threads)
+
+    # naive network, i.e. simply check corr > 0.5
+    naive <- cor(data)
+    naive[naive>0.5] <- 1
+    naive[naive != 1] <- 0
+    naive_graph <- graphNEL(colnames(data))
+    naive_graph <- with(melt(naive) %>% filter(value==1), 
+                        addEdge(as.character(Var1), 
+                                as.character(Var2), naive_graph))
+    
+    nlist <- list(naive=naive, graph = naive_graph)
+    
+    # --------------------------------------------------------------------------
+    print("Create result list.")
+    result <- list(
+      # naive
+      naive_fit = nlist$naive,
+      naive = nlist$graph,
+      # bdgraph no priors
+      bdgraph_no_priors_fit = bdgraph_no_priors$fit,
+      bdgraph_no_priors = bdgraph_no_priors$graph,
+      # genenet
+      genenet_fit = genenet$fit,
+      genenet = genenet$graph,
+      # glasso no priors
+      glasso_no_priors_fit = glasso_no_priors$fit,
+      glasso_no_priors = glasso_no_priors$graph
+    )
+    
+    gs <- result[!grepl("_fit", names(result))]
+    
+    # --------------------------------------------------------------------------
+    # use the bdgraph internal method to get spec/sens, f1 and MCC. Use the
+    # original simulation object containing the ground truth graph
+    print("Validating...")
+    
+    perf <- lapply(names(gs), function(g) {
+      # we need the adjacency matrix for comparison
+      perf <- t(BDgraph::compare(as(true_graph, "matrix"), as(gs[[g]], "matrix")))
+      comparisons <- c("True", g)
+      perf <- as.data.frame(perf)
+      rownames(perf) <- comparisons
+      perf <- perf[!grepl("True", rownames(perf)), ]
+      
+      # annotate density for comparison
+      ig <- igraph::igraph.from.graphNEL(gs[[g]])
+      dens <- edge_density(ig)
+      perf$density_model <- dens
+      perf$comparison = g
+      perf
+    }) %>% bind_rows() # lapply over different graph models --------------------
+    
+    # remember for easy plotting
+    perf <- mutate(
+      perf,
+      snp = "random",
+      iteration = iteration,
+      density_true =
+        edge_density(igraph.from.graphNEL(true_graph))
+    )
+    perf
+  }
+
 
 #' -----------------------------------------------------------------------------
 #' Combine two graph objects. 

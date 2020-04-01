@@ -13,7 +13,7 @@ rule simulate_data:
                 priors=DPRIORS + "{sentinel}_meqtl.rds"
         output:
                 DSIM_DATA + "{sentinel}.RData"
-        threads: 8
+        threads: 10
         resources:
                 mem_mb=1500
         params:

@@ -27,17 +27,17 @@ ffits <- snakemake@input$fits
 # outputs
 foutput <- snakemake@output[[1]]
 
-# iteration/run to be annotated in result table
-iteration <- snakemake@params$iteration
-
 print(paste0("Processing file: ", ffits, "."))
 
 # ------------------------------------------------------------------------------
 # Perform validation
 
 # load data and get the validation results
-load(ffits)
-tab <- get_validation_table(result, iteration)
+tab <- lapply(ffits, function(f) {
+  load(f)
+  iteration <- as.numeric(gsub(".txt","", gsub(".*iter", "", f)))
+  get_validation_table(result, iteration)
+}) %>% bind_rows()
 
 # ------------------------------------------------------------------------------
 # save results

@@ -660,10 +660,26 @@ get_validation_table <- function(result, iteration) {
 #' 
 # ------------------------------------------------------------------------------
 run_ggm <- function(simulated_data, priors, ranges, 
-                    fcpg_context, ppi_db, threads = 1) {
+                    fcpg_context, ppi_db, 
+                    subset = c("all", seq(10,200,by=10)),
+                    threads = 1) {
   
-  # iterate over all simulations (different noise levels...)
-  result <- lapply(names(simulated_data), function(n) {
+  # check subset. by default we use all data. in case a subset is
+  # specifified, we only run the inference for the non-noisy prior model.
+  subset <- match.arg(subset)
+  
+  print("Subset is:")
+  print(subset)
+  
+  # iterate over all simulations (different noise levels)
+  # in case subset != all, we only process the non-noisy prior
+  sims <- names(simulated_data)
+  if(subset != "all") {
+    sims <- sims[grepl("rd0$", sims)]
+    subset <- as.numeric(subset)
+  }
+  
+  result <- lapply(sims, function(n) {
     # --------------------------------------------------------------------------
     # Get data
     
@@ -677,6 +693,12 @@ run_ggm <- function(simulated_data, priors, ranges,
       priors <- sim$priors
     }
     
+    # check whether we need a subset
+    if(is.numeric(subset)) {
+        d <- d[sample(1:nrow(d), size=subset, replace = F),]
+    }
+    
+    # 
     # --------------------------------------------------------------------------
     print("Infer regulatory networks.")
     
@@ -686,8 +708,7 @@ run_ggm <- function(simulated_data, priors, ranges,
     
     sim
   })
-  
-  names(result) <- names(simulated_data)
+  names(result) <- sims
   
   return(result)
 }

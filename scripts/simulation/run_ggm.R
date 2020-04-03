@@ -37,8 +37,9 @@ fout <- snakemake@output[[1]]
 # params
 threads <- snakemake@threads
 sim_iter <- as.numeric(snakemake@params$iteration)
+subset <- snakemake@wildcards$subset
 
-# contains: simulations, ranges, priors, nodes, data, run
+# contains: simulations, ranges, priors, nodes, data, runs
 load(fdata)
 ppi_db <- readRDS(fppi_db)
 
@@ -46,15 +47,15 @@ ppi_db <- readRDS(fppi_db)
 # we generated several graphs, for which we all calculate models now
 
 # apply over the different runs/iterations
-simulated_data <- simulations[[sim_iter]]
+run <- simulations[[sim_iter]]
 
 # for this run, apply over all simulated graphs (different randomization
 # degrees)
-result <- run_ggm(simulated_data, priors, ranges, 
-                  fcpg_context, ppi_db, threads)
+result <- run_ggm(run, priors, ranges, 
+                  fcpg_context, ppi_db, subset, threads)
 
 print("Saving results.")
-save(file=fout, result, priors, runs)
+save(file=fout, result, subset)
 
 # ------------------------------------------------------------------------------
 print("SessionInfo:")

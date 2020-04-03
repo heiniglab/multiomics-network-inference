@@ -36,9 +36,9 @@ DFASTENLOC = "results/current/" + PPI_NAME + "/fastENLOC_" + suffix
 
 # -----------------------------------------------------------------------------
 # simulation study specific output directories
-DSIM_DATA = "results/current/" + PPI_NAME + "/simulation/data/"
-DSIM_VALIDATION = "results/current/" + PPI_NAME + "/simulation/validation/"
-DSIM_FITS = "results/current/" + PPI_NAME + "/simulation/fits/"
+DSIM_DATA = "results/current/" + PPI_NAME + "/simulation_rerun/data/"
+DSIM_VALIDATION = "results/current/" + PPI_NAME + "/simulation_rerun/validation/"
+DSIM_FITS = "results/current/" + PPI_NAME + "/simulation_rerun/fits/"
 
 # -----------------------------------------------------------------------------
 # Unspecific configuration rules

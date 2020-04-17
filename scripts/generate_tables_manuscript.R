@@ -13,6 +13,7 @@ library(igraph)
 library(graph)
 library(Rgraphviz)
 library(BDgraph)
+source("scripts/lib.R")
 
 # ------------------------------------------------------------------------------
 print("Table comparing our graphs to the ones reported in the meQTL study")
@@ -87,6 +88,139 @@ tab <- lapply(loci, function(l) {
 tab <- do.call(rbind, tab) %>% 
   as_tibble()
 
+# ------------------------------------------------------------------------------
+# Generate the supplementary tables
+# ------------------------------------------------------------------------------
+RESULT_PATH <- "results/current/biogrid_stringent/"
+
+# generate the supplementary performance tables
+finput <- paste0(RESULT_PATH, "simulation_rerun/validation-subsetall.txt")
+
+# create data-matrix
+print("Reading simulation validation results...")
+tab <- read_tsv(f) %>%
+  mutate(R = paste0("R=", rdegree)) %>%
+  mutate(comparison = gsub("bdgraph$", "bdgraph (priors)", comparison),
+         comparison = gsub("glasso$", "glasso (priors)", comparison),
+         comparison = gsub("bdgraph_no_priors$", "bdgraph (empty)", comparison),
+         comparison = gsub("bdgraph_no_priors_full$", "bdgraph (full)", comparison),
+         comparison = gsub("glasso_no_priors","glasso", comparison)) %>%
+  dplyr::rename(method=comparison)
+
+# MCC table
+tab %>% 
+  #filter(subset == "all") %>% 
+  group_by(method, R) %>% 
+  summarise(n=mean(MCC)) %>% 
+  spread(R, n) %>% 
+  arrange(desc(`R=0`)) %>%
+  xtable(caption="Table showing an overview over the performance (mean MCC) in the simulation study for each method for all prior noise scenarios, sorted by first column. Highest mean MCC for each scenario is indicated in bold.", 
+         label="stab:method_performance_simulation_mcc")
+
+# F1 score table
+tab %>% 
+  #filter(subset == "all") %>% 
+  group_by(method, R) %>% 
+  summarise(n=mean(`F1-score`)) %>% 
+  spread(R, n) %>% 
+  arrange(desc(`R=0`)) %>%
+  xtable(caption="Same as ST~\\ref{stab:method_performance_simulation_mcc}, but showing mean F1 scores instead of MCC. Highest mean F1 for each scenario is indicated in bold.",
+         label="stab:method_performance_simulation_f1")
+
+# ------------------------------------------------------------------------------
+# Overview table on cohort results
+# TODO adjust to use "rerun" results
+# ------------------------------------------------------------------------------
+# read the validation results for meqtls and eqtls and combine them
+meqtl_expr <- read_tsv(paste0(RESULT_PATH, "validation_expr/validation_all_meqtl.txt"))
+meqtl_tfa <- read_tsv(paste0(RESULT_PATH, "validation_tfa/validation_all_meqtl.txt"))
+meqtl <- bind_rows(meqtl_expr,meqtl_tfa) %>%
+  mutate(type=c(rep("Expression", nrow(meqtl_expr)), rep("TF activities", nrow(meqtl_tfa))),
+         qtl_type="meQTL")
+
+eqtl_expr <- read_tsv(paste0(RESULT_PATH, "validation_expr/validation_all_eqtlgen.txt"))
+eqtl_tfa <- read_tsv(paste0(RESULT_PATH, "validation_tfa_bck/validation_all_eqtlgen.txt"))
+eqtl <- bind_rows(eqtl_expr,eqtl_tfa) %>%
+  mutate(type=c(rep("Expression", nrow(eqtl_expr)), rep("TF activities", nrow(eqtl_tfa))),
+         qtl_type="eQTL")
+
+data <- bind_rows(meqtl, eqtl)
+
+data <- data %>% 
+  mutate(graph_type = gsub("bdgraph$", "bdgraph (priors)", graph_type),
+         graph_type = gsub("glasso$", "glasso (priors)", graph_type),
+         graph_type = gsub("bdgraph_no_priors$", "bdgraph (empty)", graph_type),
+         graph_type = gsub("bdgraph_no_priors_full$", "bdgraph (full)", graph_type),
+         graph_type = gsub("glasso_no_priors","glasso", graph_type)) %>%
+  dplyr::select(graph_type, type, graph_score, cross_cohort_mcc)
+
+data %>% 
+  #filter(subset == "all") %>% 
+  dplyr::rename(method=graph_type) %>%
+  group_by(method, type) %>% 
+  summarise(n=mean(cross_cohort_mcc)) %>% 
+  spread(type, n) %>% 
+  arrange(desc(`TF activities`)) %>%
+  xtable(caption="Table shows the mean cross cohort replication MCC for expression and TF activity based analyses for each method. Highest MCC per method is indicated in bold.",
+         label="stab:method_performance_cross_cohort_mcc")
+
+
+# ------------------------------------------------------------------------------
+# Generate the ST with info on all graphs
+# ------------------------------------------------------------------------------
+meqtl_hotspots <- read_tsv("results/current/hotspots/meqtl_thres5/hotspots.tsv")
+eqtl_hotspots <- read_tsv("results/current/hotspots/eqtlgen_thres5/hotspots.tsv")
+
+meqtl_sentinels <- pull(meqtl_hotspots, sentinel.snp) %>% unique
+eqtl_sentinels <- pull(eqtl_hotspots, sentinel) %>% unique
+
+# generate table for bdgraph and glasso results
+gtypes <- c("glasso", "bdgraph")
+
+tab <- lapply(meqtl_sentinels, function(s) {
+  print(s)
+  
+  if(!file.exists(paste0("results/current/biogrid_stringent/fits_tfa/_rerun/kora/",
+                         s, "_meqtl.rds"))) {
+    warning(paste0("Results for sentinel ", s, " do not exist."))
+    return(NULL)
+  }
+  fits_kora <- readRDS(paste0("results/current/biogrid_stringent/fits_tfa/_rerun/kora/",
+                              s, "_meqtl.rds"))
+                       
+  fits_lolipop <- readRDS(paste0("results/current/biogrid_stringent/fits_tfa/_rerun/lolipop/",
+                                 s, "_meqtl.rds"))
+  
+  lapply(gtypes, function(gt) {
+    gk <- fits_kora[[gt]]
+    gl <- fits_lolipop[[gt]]
+    
+    gc <- combine_graphs(gk,gl)
+    
+    graph2table(gc) %>% mutate(graph_type = gt)
+    
+  }) %>% bind_rows() %>% mutate(sentinel = s)
+}) %>% bind_rows() %>% mutate(seed = "meQTL")
+
+tab2 <- lapply(eqtl_sentinels, function(s) {
+  fits_kora <- readRDS(paste0("results/current/biogrid_stringent/fits_tfa/_rerun/kora/",
+                              s, "_eqtlgen.rds"))
+  
+  fits_lolipop <- readRDS(paste0("results/current/biogrid_stringent/fits_tfa/_rerun/lolipop/",
+                                 s, "_eqtlgen.rds"))
+  
+  lapply(gtypes, function(gt) {
+    gk <- fits_kora[[gt]]
+    gl <- fits_lolipop[[gt]]
+    
+    gc <- combine_graphs(gk,gl)
+    
+    graph2table(gc) %>% mutate(graph_type = gt)
+    
+  }) %>% bind_rows() %>% mutate(sentinel = s)
+}) %>% bind_rows() %>% mutate(seed = "eQTL")
+
+data <- bind_rows(tab,tab2) %>% select(sentinel, seed, graph_type, everything())
 # ----------------------------------------------------------------------------
 print("SessionInfo:")
 # ------------------------------------------------------------------------------

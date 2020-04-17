@@ -1607,3 +1607,14 @@ annotate_snps_with_traits <- function(snps, fgwas, drop.nas=TRUE) {
   # all done
   annotations
 }
+
+# ------------------------------------------------------------------------------
+# Convert a graphNEL object to a table
+# ------------------------------------------------------------------------------
+graph2table <- function(g) {
+  require(dplyr)
+  n <- nodes(g)
+  em <- t(edgeMatrix(g))
+  em <- tibble(n1 = n[em[,1]], n2 = n[em[,2]])
+  em
+}

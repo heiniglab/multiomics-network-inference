@@ -661,7 +661,7 @@ get_validation_table <- function(result, iteration) {
 # ------------------------------------------------------------------------------
 run_ggm <- function(simulated_data, priors, ranges, 
                     fcpg_context, ppi_db, 
-                    subset = c("all", seq(10,200,by=10)),
+                    subset = c("all", seq(50,700,by=50)),
                     threads = 1) {
   
   # check subset. by default we use all data. in case a subset is

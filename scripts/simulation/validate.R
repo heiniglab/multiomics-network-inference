@@ -34,8 +34,9 @@ print(paste0("Processing file: ", ffits, "."))
 
 # load data and get the validation results
 tab <- lapply(ffits, function(f) {
+  print(paste0("Processing ", basename(f), "."))
   load(f)
-  iteration <- as.numeric(gsub(".txt","", gsub(".*iter", "", f)))
+  iteration <- gsub(".txt","", gsub(".*iter", "", f))
   get_validation_table(result, iteration)
 }) %>% bind_rows()
 

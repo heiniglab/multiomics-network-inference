@@ -5,9 +5,9 @@ localrules: all_simulate_data, all_apply_ggm_simulation, all_simulation, all_sim
 #------------------------------------------------------------------------------
 RUNS = 100
 ITERATIONS = range(1,RUNS+1)
-SUBSETS = [str(n) for n in range(50,700,50)]
+SUBSETS = [str(n) for n in range(50,650,50)]
 #SUBSETS = [str(n) for n in range(10,210,10)]
-SUBSETS.append("all")
+#SUBSETS.append("all")
 
 rule simulate_data:
         input:
@@ -70,46 +70,66 @@ rule all_apply_ggm_simulation:
 
 rule apply_ggm_simulation_subsets:
 	input:
-		expand(DSIM_FITS + "{sentinel}-iter{iter}-subset{subset}.RData", sentinel=MEQTL.sentinel, iter=range(41,71), subset=SUBSETS)
+		expand(DSIM_FITS + "{sentinel}-iter{iter}-subset{subset}.RData", sentinel=MEQTL.sentinel, iter=ITERATIONS, subset=SUBSETS)
 
 rule apply_ggm_simulation_sentinels:
 	input:
 		expand(DSIM_FITS + "{sentinel}-iter1.RData", sentinel=MEQTL.sentinel)
 
-rule apply_ggm_simulation_sentinels2:
+rule apply_ggm_simulation_iterations:
 	input:
-		expand(DSIM_FITS + "{sentinel}-iter2.RData", sentinel=MEQTL.sentinel)
+		expand(DSIM_FITS + "{sentinel}-iter{iter}-subsetall.RData", iter=ITERATIONS, sentinel=MEQTL.sentinel)
 
 #------------------------------------------------------------------------------
-# Validate a simulation run
+# Validate a simulation run for the 'all' subset
 #------------------------------------------------------------------------------
 rule validate_ggm_simulation:
         input:
-                fits=expand(DSIM_FITS + "{{sentinel}}-iter{iteration}.RData", iteration=ITERATIONS)
+                fits=expand(DSIM_FITS + "{{sentinel}}-iter{iteration}-subset{{subset}}.RData", iteration=ITERATIONS)
         output:
-                DSIM_VALIDATION + "{sentinel}.txt"
+                DSIM_VALIDATION + "{sentinel}-subset{subset}.txt"
         threads: 1
+        wildcard_constraints:
+                subset = "all|[0-9]+0*"
         resources:
                 mem_mb=400
         params:
-                iteration="{iteration}",
                 time="00:10:00"
         conda:
                 "../envs/bioR.yaml"
         log:
-                "logs/simulation/validate_ggm/{sentinel}.log"
+                "logs/simulation/validate_ggm/{sentinel}_subset{subset}.log"
         script:
                 "../scripts/simulation/validate.R"
 
 #------------------------------------------------------------------------------
 # Target rule to validate all simulation runs
 #------------------------------------------------------------------------------
-rule validate_sentinel:
-	input: DSIM_VALIDATION + "rs730775.txt"
-
 rule validate_all:
-       input: expand(DSIM_VALIDATION + "{sentinel}-iter{iter}.txt", sentinel=MEQTL.sentinel, iter=ITERATIONS)
+	input: expand(DSIM_VALIDATION + "{sentinel}-subsetall.txt", sentinel=MEQTL.sentinel)
+	output:
+		DSIM + "validation-subsetall.txt"		
+	resources:
+		mem_mb = 1000
+	threads: 1
+	log: ""
+	shell:
+		"""
+		sort -r {input} | uniq > {output}
+		"""
 
+rule validate_all_subsets:
+	input: expand(DSIM_VALIDATION + "{sentinel}-subset{subset}.txt", sentinel=MEQTL.sentinel, subset=SUBSETS)
+	output:
+		DSIM + "validation-subsets.txt"		
+	resources:
+		mem_mb = 1000
+	threads: 1
+	log: ""
+	shell:
+		"""
+		sort -r {input} | uniq > {output}
+		"""
 
 #------------------------------------------------------------------------------
 # Get a summary file for all iterations and sentinels in the simulation study

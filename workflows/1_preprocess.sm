@@ -150,8 +150,9 @@ rule prepare_kora_data:
 rule prepare_lolipop_data:
         input:
                 lolipop="data/current/meQTLs/ggmdata_201017.RData",
-                lolipop_update="data/current/meQTLs/ggmdata_130319.RData"
-
+                lolipop_update="data/current/meQTLs/ggmdata_130319.RData",
+                full_expr="data/current/lolipop/expr_normalized.txt",
+                map="data/current/lolipop/EpiMigrant_Inventory_epirep_full_ids.tsv.txt"
         output: "results/current/ggmdata_lolipop.RData"
         threads: 1
         resources:

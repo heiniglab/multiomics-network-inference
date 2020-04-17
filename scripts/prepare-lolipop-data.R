@@ -1,21 +1,28 @@
-# -------------------------------------------------------------------------------
+# ------------------------------------------------------------------------------
 #' Script to collect and preprocess needed lolipop data  for all subsequent
 #' analysis
 #'
 #' @author Johann Hawe
 #'
-# -------------------------------------------------------------------------------
+# ------------------------------------------------------------------------------
+log <- file(snakemake@log[[1]], open="wt")
+sink(log)
+sink(log, type="message")
 
-# -------------------------------------------------------------------------------
+library(tidyverse)
+
+# ------------------------------------------------------------------------------
 print("Get snakemake params.")
-# -------------------------------------------------------------------------------
-fdata <- snakemake@input[["lolipop"]]
-fdata_update <- snakemake@input[["lolipop_update"]]
+
+fdata <- snakemake@input$lolipop
+fdata_update <- snakemake@input$lolipop_update
+ffull_expr <- snakemake@input$full_expr
+fmap <- snakemake@input$map
+
 fout <- snakemake@output[[1]]
 
-# -------------------------------------------------------------------------------
+# ------------------------------------------------------------------------------
 print("Load and prepare data.")
-# -------------------------------------------------------------------------------
 
 prepare_data <- function(data_file) {
   load(data_file)
@@ -62,12 +69,36 @@ if(!all(rownames(old$geno) == rownames(new$geno))) {
 expr <- cbind(old$expr, new$expr[,!colnames(new$expr) %in% colnames(old$expr)])
 geno <- cbind(old$geno, new$geno[,!colnames(new$geno) %in% colnames(old$geno)])
 
+# additional expression data...
+add_expr <- read_delim("data/current/lolipop/expr_normalized.txt", 
+                       delim= " ")
+pids <- add_expr$probe_id
+# we only need the subset of IDs not already available
+missing <- setdiff(pids, colnames(expr))
+add_expr <- filter(add_expr, probe_id %in% missing)
+pids <- add_expr$probe_id
+
+# to enable transposing of the matrix
+add_expr$probe_id <- NULL
+
+# load id mapping for matching
+inv <- read_tsv("data/current/lolipop/EpiMigrant_Inventory_epirep_full_ids.tsv.txt")
+expr_map <- filter(inv, HT12_BeadchipID %in% colnames(add_expr))
+expr_ids <- expr_map[match(rownames(expr), expr_map$SampleID),]$HT12_BeadchipID
+
+# transpose and set probe ids
+add_expr_subset <- t(add_expr[,expr_ids])
+colnames(add_expr_subset) <- pids
+
+# now merge with original expression data
+expr <- cbind(expr, add_expr_subset)
+
 # covars and meth are the same between updates
 meth <- old$meth
 covars <- old$covars
 
 # just report some stats
-print("Old data: -----------")
+print("Old data: -------------------------------------------------------------")
 d <- old
 print("Expr dimension:")
 print(dim(d$expr))
@@ -78,7 +109,7 @@ print(dim(d$meth))
 print("Covars dimension:")
 print(dim(d$covars))
 
-print("New data: -----------")
+print("New data: -------------------------------------------------------------")
 d <- new
 print("Expr dimension:")
 print(dim(d$expr))
@@ -101,5 +132,10 @@ print(dim(covars))
 
 # ------------------------------------------------------------------------------
 print("Saving data.")
-# ------------------------------------------------------------------------------
+
 save(file=fout, expr, meth, geno, covars)
+
+# ------------------------------------------------------------------------------
+print("SessionInfo:")
+# ------------------------------------------------------------------------------
+sessionInfo()

@@ -18,6 +18,9 @@ library(RColorBrewer)
 library(ggpubr)
 library(scales)
 library(reshape2)
+library(circlize)
+library(ggbio)
+library(xtable)
 
 # get the hg19 chromosome definitions
 library(BSgenome.Hsapiens.UCSC.hg19)
@@ -34,6 +37,9 @@ theme_update(legend.text = element_text(size=11),
 # prior/non prior versions)
 paired <- brewer.pal(4, "Paired")
 names(paired) <- c("glasso", "glasso (priors)", "bdgraph", "bdgraph (priors)")
+#paired <- c(paired, "#66D35F")
+#names(paired) <- c("glasso", "glasso (priors)", 
+#                   "bdgraph (empty)", "bdgraph (priors)", "bdgraph (full)")
 unpaired <- brewer.pal(7, "Dark2")[c(2,3,7)]
 names(unpaired) <- c("irafnet", "genie3", "genenet")
 graph_cols <- c(paired, unpaired)
@@ -136,7 +142,7 @@ plot_pairs <- function(genome, ranges_x, ranges_y, log=FALSE,
   pairs_binned[pairs_binned$Freq > 50, "Freq"] <- 50
   
   xmp <- ggplot(x_margin) + 
-    geom_point(aes(x=x_bin, y=count), color=color, shape=23) + 
+    geom_density(aes(x=x_bin, y=count), stat="identity", color=color, shape=23) + 
     scale_x_continuous(expand = c(0.01, 0.01), breaks = as.vector(breaks), labels = NULL) + 
     xlab("") + 
     background_grid(major = "xy") + 
@@ -144,7 +150,7 @@ plot_pairs <- function(genome, ranges_x, ranges_y, log=FALSE,
           axis.title.y = element_text(size=10))
   
   ymp <- ggplot(y_margin) + 
-    geom_point(aes(x=y_bin, y=count), color=color, shape=23) + 
+    geom_density(aes(x=y_bin, y=count), stat="identity", color=color, shape=23) + 
     coord_flip() + scale_x_continuous(
       expand = c(0.01, 0.01),
       breaks = as.vector(breaks),
@@ -236,6 +242,54 @@ panel_b2 <- eqtl_ggplot
 # ------------------------------------------------------------------------------
 print("Figure 1 - Panel B alternative using circos plots")
 # ------------------------------------------------------------------------------
+hg19info2 <- dropSeqlevels(keepStandardChromosomes(hg19info), c("chrX", "chrY", "chrM"))
+
+eqtl_hotspots <- read_tsv("results/current/hotspots/eqtlgen_thres5/hotspots.tsv")
+
+eqtl_regions <- unique(with(eqtl_hotspots, 
+                     GRanges(paste0("chr", SNPChr),
+                             IRanges(SNPPos, width=1),
+                             name=SNP,
+                             trans_associations=ntrans,
+                             seqinfo = hg19info2)))
+
+meqtl_hotspots <- read_tsv("results/current/hotspots/meqtl_thres5/hotspots.tsv") %>%
+  arrange(chr.snp) %>%
+  filter(sentinel.snp == snp)
+
+meqtl_regions <- unique(with(meqtl_hotspots, 
+                      GRanges(paste0("chr", chr.snp),
+                              IRanges(pos.snp, 
+                                      width=1),
+                              name=sentinel.snp,
+                              trans_associations=ntrans,
+                              seqinfo = hg19info2)))
+
+eqtl_regions$category <- "eQTL"
+meqtl_regions$category <- "meQTL"
+regions <- c(eqtl_regions, meqtl_regions)
+
+plotGrandLinear(regions, aes(y=trans_associations, color=category), size=2, 
+                shape=2, alpha = 0.5, coord="genome", spaceline = T, legend=T) + 
+  scale_color_manual(values=c(meQTL = COLORS$MEQTL, eQTL = COLORS$EQTL)) +
+  theme(axis.text.x = element_text(angle=-90, vjust=0.5, hjust=0),
+        legend.text = element_text(size=14),
+        legend.title = element_text(size=14)) + 
+  labs(y = "Number of trans-associations")
+
+
+gl_eqtl <- plotGrandLinear(eqtl_regions, aes(y=trans_associations), shape=2, size=3,
+                color=COLORS$EQTL, coord="genome", spaceline = T) + 
+  theme(axis.text.x = element_text(angle=-90, vjust=0.5, hjust=0, size=9)) + 
+  labs(y = "Number of trans-eGenes")
+
+gl_meqtl <- plotGrandLinear(meqtl_regions, aes(y=trans_associations), shape=2, size=3,
+                color=COLORS$MEQTL, coord="genome", spaceline = T) + 
+  theme(axis.text.x = element_text(angle=-90, vjust=0.5, hjust=0, size=9)) + 
+  labs(y = "Number of trans-CpGs")
+
+panel_b1 <- gl_eqtl@ggplot 
+panel_b2 <- gl_meqtl@ggplot
 
 # ------------------------------------------------------------------------------
 print("Figure 1 - Panel C")
@@ -321,6 +375,7 @@ panel_c <- ggplot(toplot, aes(color=group, x=reorder(variable, -value, FUN=media
         plot.margin = margin(1,0.5, 0, 0.2, unit="lines"),
         axis.text.x = element_text(size=11,angle=-45, hjust=0,vjust=1))
 
+
 # ------------------------------------------------------------------------------
 print("Figure 1 - Panel D")
 # ------------------------------------------------------------------------------
@@ -365,7 +420,9 @@ panel_d <- tab %>%
            col="#777777") + 
   labs(x="number of edges with priors") + 
   theme(plot.margin = margin(1,1.5,1,1, unit="lines"), 
-        legend.position = c(0.8,0.8))
+        legend.position = c(0.7,0.9),
+        legend.text = element_text(size=15),
+        legend.title = element_text(size=15))
 
 # some stats
 median(tab %>% as_tibble() %>% filter(group=="meQTL") %>% dplyr::pull(total_priors))
@@ -373,21 +430,51 @@ median(tab %>% as_tibble() %>% filter(group=="eQTL") %>% dplyr::pull(total_prior
 length(tab %>% as_tibble() %>% filter(group=="eQTL" & total_priors >= 100) %>% arrange(total_priors) %>% dplyr::pull(total_priors))
 length(tab %>% as_tibble() %>% filter(group=="meQTL" & total_priors >= 100) %>% arrange(total_priors) %>% dplyr::pull(total_priors))
 
-sec
 # ------------------------------------------------------------------------------
-print("Plot showing total priors vs total edges (potential supp figure")
+# Supplementary Figure 2
 # ------------------------------------------------------------------------------
 priors_vs_total_edges <- ggplot(tab, aes(x=total_edges, y=total_priors, color=group)) + 
   geom_hline(yintercept=0, color="grey") + 
   geom_point(alpha=0.5) + 
-  facet_wrap(~group, ncol=1, scales = "free_y") + 
+#  facet_wrap(~group, ncol=2, scales = "free_y") + 
   scale_color_manual(values=c(meQTL = COLORS$MEQTL, eQTL = COLORS$EQTL)) + 
   scale_x_log10() + 
+  background_grid(major="xy") +
   geom_smooth(method = "lm") + 
-  labs(title="Number of collected priors VS number of possible edges",
-       x="log10(Number of possible edges)",
-       y="Number of edges with prior information")
+  labs(x="log10(Number of possible edges)",
+       y="Total with prior information") +
+   theme(legend.position = "none")
 priors_vs_total_edges
+
+priors_vs_total_edges_frac <- ggplot(tab, aes(x=total_edges, y=fraction_priors, color=group)) + 
+  geom_hline(yintercept=0, color="grey") + 
+  geom_point(alpha=0.5) + 
+  #  facet_wrap(~group, ncol=2, scales = "free_y") + 
+  scale_color_manual(values=c(meQTL = COLORS$MEQTL, eQTL = COLORS$EQTL)) + 
+  scale_x_log10() + 
+  background_grid(major="xy") +
+  geom_smooth(method = "lm") + 
+  labs(x="log10(Number of possible edges)",
+       y="Fraction with prior information") +
+   theme(legend.position = "none")
+priors_vs_total_edges_frac
+
+prior_fraction <- ggplot(tab, aes(x=fraction_priors, fill=group)) +
+  geom_histogram() + 
+  scale_fill_manual(values=c(meQTL = COLORS$MEQTL, eQTL = COLORS$EQTL)) + 
+  facet_wrap(. ~ group, ncol=1) + 
+  background_grid(major="xy") + 
+  labs(x="Fraction of edges with priors")
+prior_fraction
+
+ga <- ggarrange(prior_fraction, 
+                ggarrange(priors_vs_total_edges, priors_vs_total_edges_frac, 
+                          ncol=1, labels=c("B", "C")),
+                common.legend = T, legend="right",
+                nrow=1, labels=c("A"))
+
+save_plot("results/current/figures/prior_fractions.pdf", ga, 
+          ncol=2, nrow=2)
 
 #-----------------------------------------------------------------------------
 print("Prior plot using distinct prior categories (potential supp figure)")
@@ -458,53 +545,63 @@ print("Figure 2 - Panel A")
 # ------------------------------------------------------------------------------
 # input directory containing individual simulation validation
 # for the meQTL analysis
-dinput <- paste0(RESULT_PATH, "simulation/validation/")
-finput <- list.files(dinput, "*.txt", full.names = T)
+finput <- paste0(RESULT_PATH, "simulation_rerun/validation-subsetall.txt")
 
 # create data-matrix
 print("Reading simulation validation results...")
-temp <- lapply(finput, function(f) {
-  res <- read_tsv(f)
-  if(nrow(res) > 0) {
-    res <- res %>%
-      mutate(R = paste0("R=", rdegree)) %>%
-      dplyr::rename(name = X1)
-  }
-})
-tab <- bind_rows(temp)
+res <- read_tsv(f) %>%
+  mutate(R = paste0("R=", rdegree))
+
 
 # create nicer method names
-tab <- tab %>% 
+tab <- res %>% 
   mutate(comparison = gsub("bdgraph$", "bdgraph (priors)", comparison),
          comparison = gsub("glasso$", "glasso (priors)", comparison),
-         comparison = gsub("_no_priors", "", comparison)) %>%
-  mutate(comparison = factor(comparison, ordered = T, 
-                             levels=c("bdgraph", "bdgraph (priors)", "glasso", "glasso (priors)", 
-                                      "irafnet", "genie3", "genenet")))
+         comparison = gsub("bdgraph_no_priors$", "bdgraph (empty)", comparison),
+         comparison = gsub("bdgraph_no_priors_full$", "bdgraph (full)", comparison),
+         comparison = gsub("glasso_no_priors","glasso", comparison)) %>%
+  dplyr::rename(method=comparison)
+toplot <- tab %>%
+  filter(method != "bdgraph (full)") %>%
+  mutate(method = gsub("bdgraph \\(empty\\)", "bdgraph", method)) %>%
+  mutate(method = factor(
+    method,
+    ordered = T,
+    levels = c(
+      "bdgraph",
+      "bdgraph (priors)",
+      "glasso",
+      "glasso (priors)",
+      "irafnet",
+      "genie3",
+      "genenet"
+    )
+  ))
 # get the MCC plot
-simulation_mcc <- ggplot(tab,
+simulation_mcc <- ggplot(toplot,
                          aes(y=MCC, 
                              x=R, 
-                             color=comparison)) +
+                             color=method)) +
   stat_boxplot(geom="errorbar", width=.75)+
   geom_boxplot(outlier.size=0, alpha=0.5, coef=0, outlier.shape = NA, ) + 
   stat_summary(fun.y=median, geom="smooth", 
                position=position_dodge(0.75),
-               aes(group=comparison),lwd=0.8) +
+               aes(group=method),lwd=0.8) +
   scb_graphs +
-  geom_boxplot(data = tab, alpha=0.5, aes(y=density_true, x=R), 
-               fill="#666666", color="#666666",
-               inherit.aes = FALSE,
-               width=.3) +
-  scale_y_continuous(limits=c(min(tab$MCC),1), 
-                     sec.axis = sec_axis(trans = ~ ., 
-                                         name="true graph density",
-                                         breaks=seq(0,0.7,by=0.1))) +
+  #geom_boxplot(data = tab, alpha=0.5, aes(y=density_true, x=R), 
+  #             fill="#666666", color="#666666",
+  #             inherit.aes = FALSE,
+  #             width=.3) +
+  #scale_y_continuous(limits=c(min(tab$MCC),1), 
+  #                   breaks=c(0,0.25,0.5,0.75,1),
+  #                   sec.axis = sec_axis(trans = ~ ., 
+  #                                       name="true graph density",
+  #                                       breaks=seq(0,0.7,by=0.1))) +
   background_grid(major="x") +
   geom_vline(xintercept = 11.5, size=1.5, color="black", linetype="dashed") + 
   labs(x="prior error",
        y="MCC",
-       fill="", color="method") + 
+       fill="") + 
   theme(legend.position = "bottom",
         legend.text = element_text(size=12),
         legend.title = element_text(size=14), 
@@ -518,15 +615,15 @@ print("Figure 2 - Panel B")
 # ------------------------------------------------------------------------------
 # read the validation results for meqtls and eqtls and combine them
 meqtl_expr <- read_tsv(paste0(RESULT_PATH, "validation_expr/validation_all_meqtl.txt"))
-meqtl_tfa <- read_tsv(paste0(RESULT_PATH, "validation_tfa/validation_all_meqtl.txt"))
+meqtl_tfa <- read_tsv(paste0(RESULT_PATH, "validation_tfa/_rerun/validation_all_meqtl.txt"))
 meqtl <- bind_rows(meqtl_expr,meqtl_tfa) %>%
-  mutate(type=c(rep("expr", nrow(meqtl_expr)), rep("tfa", nrow(meqtl_tfa))),
+  mutate(type=c(rep("Expression", nrow(meqtl_expr)), rep("TF activities", nrow(meqtl_tfa))),
          qtl_type="meQTL")
 
 eqtl_expr <- read_tsv(paste0(RESULT_PATH, "validation_expr/validation_all_eqtlgen.txt"))
-eqtl_tfa <- read_tsv(paste0(RESULT_PATH, "validation_tfa/validation_all_eqtlgen.txt"))
+eqtl_tfa <- read_tsv(paste0(RESULT_PATH, "validation_tfa/_rerun/validation_all_eqtlgen.txt"))
 eqtl <- bind_rows(eqtl_expr,eqtl_tfa) %>%
-  mutate(type=c(rep("expr", nrow(eqtl_expr)), rep("tfa", nrow(eqtl_tfa))),
+  mutate(type=c(rep("Expression", nrow(eqtl_expr)), rep("TF activities", nrow(eqtl_tfa))),
          qtl_type="eQTL")
 
 data <- bind_rows(meqtl, eqtl)
@@ -546,6 +643,7 @@ tfa_expr_plot <- data %>%
                                            dodge.width = 0.75),
              alpha=0.2) +
   scb_binary + 
+  stat_summary(fun.y="median", geom = "line", aes(group=type), size=1)+
   geom_hline(yintercept = 0, linetype="dotted", color="black") +
   labs(title="",
        y="MCC",
@@ -559,6 +657,16 @@ tfa_expr_plot <- data %>%
         legend.title = element_text(size=15)) + 
   stat_compare_means(aes(group=type), size = 10, method="wilcox.test", 
                      hide.ns=T, label = "p.signif", show.legend = F)
+
+# possible alternatives?
+data %>% ggplot(aes(x=cross_cohort_mcc)) + 
+  geom_freqpoly(aes(color=type), stat = "density") +
+  scb_binary +
+  labs(color="measure:", x= "MCC") + background_grid(major="xy")
+data %>% ggplot(aes(x=reorder(graph_type, -cross_cohort_mcc, median), 
+                    y=cross_cohort_mcc, color=type)) + 
+  geom_boxplot(position="dodge") + 
+  stat_summary(fun.y="mean", geom = "line", aes(group=type))
 
 tfa_expr_plot
 
@@ -598,11 +706,28 @@ save_plot("figure2.pdf",
           plot=figure2, nrow = 2, ncol = 2, 
           base_aspect_ratio = 2.5)
 
-
 # ------------------------------------------------------------------------------
 print("SF1 - graph scores")
 # ------------------------------------------------------------------------------
 
+# ------------------------------------------------------------------------------
+print("SFX - number of inferred edges")
+# ------------------------------------------------------------------------------
+meqtl <- read_tsv("results/current/biogrid_stringent/validation_tfa/validation_all_meqtl.txt") %>% mutate(type = "meqtl")
+eqtl <- read_tsv("results/current/biogrid_stringent/validation_tfa/validation_all_eqtlgen.txt") %>% mutate(type = "eqtl")
+result <- bind_rows(eqtl, meqtl)
+result %>% ggplot(aes(x=number_edges, color=graph_type)) + 
+  geom_freqpoly() + 
+  facet_wrap(.~cohort) + 
+  scale_x_log10() + 
+  background_grid(major="xy")
+result %>% 
+  filter(graph_type %in% c("irafnet", "genie3")) %>% 
+  ggplot(aes(x=number_edges, color=graph_type)) + 
+  geom_freqpoly() + 
+  facet_wrap(.~cohort) + 
+  background_grid(major="xy") + 
+  scale_x_log10()
 
 # ------------------------------------------------------------------------------
 print("Done.\nSessionInfo:")

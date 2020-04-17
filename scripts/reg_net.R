@@ -122,6 +122,7 @@ reg_net <- function(data,
     if (is.null(priors)) {
       print("Setting uniform prior.")
       # set default uniform prior
+      # 0.5 reflects uniform according to email from the package author from 4.8.17
       bdpriors <- 0.5
 
       # build without priors, nevertheless, we could have a custom start graph

@@ -12,8 +12,8 @@ include: "workflows/common.sm"
 
 # set global wildcard constraints
 wildcard_constraints:
-    sentinel="rs\d+",
-    seed="eqtlgen|meqtl"
+    sentinel="rs\d+|gtex",
+    seed="eqtlgen|meqtl|eqtl"
 
 rule test_tfa:
 	conda:
@@ -382,3 +382,237 @@ rule all_priors:
 	input: 
 		expand(DPRIORS + "{sentinel}_meqtl.pdf", sentinel=MEQTL.sentinel),
 		expand(DPRIORS + "{sentinel}_eqtlgen.pdf", sentinel=EQTLGEN.sentinel)
+
+
+# ------------------------------------------------------------------------------
+# extract gene and cpg locations
+# ------------------------------------------------------------------------------
+rule prepare_magma_inputs:
+        input:
+                gtex_expr="data/current/gtex/GTEx_Analysis_v6_RNA-seq_RNA-SeQCv1.1.8_gene_median_rpkm.gct",
+                fit_kora = DCOHORT_FITS + "kora/{sentinel}_{seed}.rds",
+                fit_lolipop = DCOHORT_FITS + "lolipop/{sentinel}_{seed}.rds",
+                ranges = DRANGES + "{sentinel}_{seed}.rds",
+                ppi_db = PPI_DB,
+                tss_context = "results/current/tfbs_tss_annot.rds",
+                cpg_context = "data/current/cpgs_with_chipseq_context_100.rds",
+                gene_annot = GENE_ANNOT
+        output:
+                genes=DMAGMA_ENRICHMENT + "{sentinel}_{seed}/gene_locs.tsv",
+                gene_annot=DMAGMA_ENRICHMENT+ "{sentinel}_{seed}/gene_annot_locs.tsv",
+        resources:
+                mem_mb=1000
+        params:
+                time = "00:30:00"
+        log:
+                "logs/magma/prepare_input_{sentinel}_{seed}.log"
+        benchmark:
+                "benchmarks/magma/prepare_input_{sentinel}_{seed}.bmk"
+        script:
+                "scripts/prepare_magma_inputs.R"
+
+# Get gene sets for the GTEx locus speicfically
+rule prepare_magma_inputs_gtex:
+        input:
+                gtex_expr="data/current/gtex/GTEx_Analysis_v6_RNA-seq_RNA-SeQCv1.1.8_gene_median_rpkm.gct",
+                gene_annot = "data/current/gencode_annotations/gencode.v31.annotation.gene.gtf"
+        output:
+                genes=DMAGMA_ENRICHMENT + "gtex_eqtl/gene_locs.tsv",
+                gene_annot=DMAGMA_ENRICHMENT+ "gtex_eqtl/gene_annot_locs.tsv",
+        resources:
+                mem_mb=1000
+        params:
+                time = "00:30:00"
+        log:
+                "logs/magma/prepare_input_gtex_eqtl.log"
+        benchmark:
+                "benchmarks/magma/prepare_input_gtex_eqtl.bmk"
+        script:
+                "scripts/prepare_magma_inputs_gtex.R"
+
+# only works for schizophrenia for now
+rule prepare_magma_gwas_summary_stats_scz:
+        input:
+                gwas="data/current/gwas_atlas/schizophrenia/clozuk_pgc2.meta.sumstats_processed.txt",
+        output:
+                snp_locs=DMAGMA_ENRICHMENT + "snp_locs.bim",
+                snp_pvalues=DMAGMA_ENRICHMENT + "snp_pvalues.txt",
+        params:
+                time="01:00:00"
+        resources:
+                mem_mb=2000
+        threads: 1
+        log:
+                "logs/magma/gwas_summary_stats.log"
+        benchmark:
+                "benchmarks/magma/gwas_summary_stats.bmk"
+        script:
+                """
+                touch {log}
+                echo "Extracting locations" >> {log}
+                # extract snp positions to be used for magma annotation (bim format)
+                grep -v SNP {input.gwas} | awk '{{OFS="\t"}} {{print $2,$1,0,$3,$4,$5}}' \
+                  > {output.snp_locs}
+
+                echo "Extracting p-values" >> {log}
+                # extract SNP/pvalue file for gene level summaries
+                echo -e "SNP\tP" > {output.snp_pvalues}
+                grep -v SNP {input.gwas} | cut -f 1,6 >> \
+                  {output.snp_pvalues}
+
+                echo "Done" >> {log}
+                """
+
+rule prepare_magma_gwas_summary_stats_lbm:
+        input:
+                gwas="data/current/gwas_atlas/lean_body_mass/wholebodyleanmass.results.metal_.txt",
+        output:
+                snp_locs=DMAGMA_ENRICHMENT + "snp_locs_lbm.bim",
+                snp_pvalues=DMAGMA_ENRICHMENT + "snp_pvalues_lbm.txt",
+        params:
+                time="03:00:00"
+        resources:
+                mem_mb=2000
+        threads: 1
+        log:
+                "logs/magma/gwas_summary_stats_lbm.log"
+        benchmark:
+                "benchmarks/magma/gwas_summary_stats_lbm.bmk"
+        shell:
+                "scripts/convert_lbm_gwas_to_bim.R"
+
+# ------------------------------------------------------------------------------
+# Perform MAGMA enrichment on genes extracted from a loci. Currently works
+# only with schizophrenia GWAS summary stats
+# ------------------------------------------------------------------------------
+rule magma_on_genes_snpwise_mean:
+        input:
+                snp_locs=DMAGMA_ENRICHMENT + "snp_locs_{trait}.bim",
+                snp_pvalues=DMAGMA_ENRICHMENT + "snp_pvalues_{trait}.txt",
+                gene_locs=DMAGMA_ENRICHMENT + "{sentinel}_{seed}/gene_locs.tsv",
+                gene_annot_locs=DMAGMA_ENRICHMENT + "{sentinel}_{seed}/gene_annot_locs.tsv",
+                g1000_reference_snps="data/current/magma_reference_files/g1000_eur.bim"
+        output:
+                gene_set=DMAGMA_ENRICHMENT + "{sentinel}_{seed}/{trait}_mean/gene_set.txt",
+                magma_gene_results=DMAGMA_ENRICHMENT + "{sentinel}_{seed}/{trait}_mean/all_gene_locs_annotated.genes.out"
+        params:
+                outdir = DMAGMA_ENRICHMENT + "{sentinel}_{seed}/{trait}_mean/",
+                gene_prefix = DMAGMA_ENRICHMENT + "{sentinel}_{seed}/{trait}_mean/gene_locs_annotated",
+                all_gene_prefix=DMAGMA_ENRICHMENT + "{sentinel}_{seed}/{trait}_mean/all_gene_locs_annotated",
+                time="20:00:00",
+                study_size=38292,
+                snp_summary="mean"
+        resources:
+                mem_mb=30000
+        threads: 3
+        log:
+                "logs/magma/{sentinel}_{seed}_{trait}_genes.log"
+        benchmark:
+                "benchmarks/magma/{sentinel}_{seed}_{trait}_genes.bmk"
+        shell:
+                """
+		touch {log}
+
+                # prepare geneset file for enrichment
+                echo -n "{wildcards.sentinel} " > {output.gene_set}
+                cut -f 1 {input.gene_locs} | sed -z "s/\\n/ /g;s/ $/\\n/" \
+                  >> {output.gene_set}
+
+                # full gene_annot locs
+                magma --annotate \
+                  --snp-loc {input.snp_locs} \
+                  --gene-loc {input.gene_annot_locs} \
+                  --out {params.all_gene_prefix} &>> {log}
+
+                # get entity level summaries for all genes
+                magma --bfile data/current/magma_reference_files/g1000_eur \
+                  --pval {input.snp_pvalues} N={params.study_size} \
+                  --gene-model snp-wise={params.snp_summary} \
+                  --gene-annot {params.all_gene_prefix}.genes.annot \
+                  --out {params.all_gene_prefix}.P{params.snp_summary} &>> {log}
+
+                # perform enrichment (one-sided and two-sided)
+		echo "Two-sided enrichment -----------------------" >> {log}
+                magma --gene-results {params.all_gene_prefix}.P{params.snp_summary}.genes.raw \
+                  --set-annot {output.gene_set} \
+                  --model direction-sets=both \
+                  --out {params.all_gene_prefix}.P{params.snp_summary}_twosided &>> {log}
+
+		echo "One-sided enrichment -----------------------" >> {log}
+                magma --gene-results {params.all_gene_prefix}.P{params.snp_summary}.genes.raw \
+                  --set-annot {output.gene_set} \
+                  --out {params.all_gene_prefix}.P{params.snp_summary} &>> {log}
+                """
+
+rule magma_on_genes_rs9274623_mean:
+	input:
+		DMAGMA_ENRICHMENT + "rs9274623_eqtlgen_mean/gene_set.txt"
+
+# ------------------------------------------------------------------------------
+# Perform MAGMA enrichment on genes extracted from a loci. Currently works
+# only with schizophrenia GWAS summary stats
+# ------------------------------------------------------------------------------
+rule magma_on_genes_snpwise_top:
+        input:
+                snp_locs=DMAGMA_ENRICHMENT + "snp_locs_{trait}.bim",
+                snp_pvalues=DMAGMA_ENRICHMENT + "snp_pvalues_{trait}.txt",
+                gene_locs=DMAGMA_ENRICHMENT + "{sentinel}_{seed}/gene_locs.tsv",
+                gene_annot_locs=DMAGMA_ENRICHMENT + "{sentinel}_{seed}/gene_annot_locs.tsv",
+                g1000_reference_snps="data/current/magma_reference_files/g1000_eur.bim"
+        output:
+                gene_set=DMAGMA_ENRICHMENT + "{sentinel}_{seed}/{trait}_top/gene_set.txt",
+                magma_gene_results=DMAGMA_ENRICHMENT + "{sentinel}_{seed}/{trait}_top/all_gene_locs_annotated.genes.out"
+        params:
+                outdir = DMAGMA_ENRICHMENT + "{sentinel}_{seed}/{trait}_top/",
+                gene_prefix = DMAGMA_ENRICHMENT + "{sentinel}_{seed}/{trait}_top/gene_locs_annotated",
+                all_gene_prefix=DMAGMA_ENRICHMENT + "{sentinel}_{seed}/{trait}_top/all_gene_locs_annotated",
+                time="20:00:00",
+                study_size=38292,
+# for the scz study:    study_size=105318,
+                snp_summary="top"
+        resources:
+                mem_mb=30000
+        threads: 3
+        log:
+                "logs/magma/{sentinel}_{seed}_{trait}_top_genes.log"
+        benchmark:
+                "benchmarks/magma/{sentinel}_{seed}_{trait}_top_genes.bmk"
+        shell:
+                """
+		touch {log}
+
+                # prepare geneset file for enrichment
+                echo -n "{wildcards.sentinel} " > {output.gene_set}
+                cut -f 1 {input.gene_locs} | sed -z "s/\\n/ /g;s/ $/\\n/" \
+                  >> {output.gene_set}
+
+                # full gene_annot locs
+                magma --annotate \
+                  --snp-loc {input.snp_locs} \
+                  --gene-loc {input.gene_annot_locs} \
+                  --out {params.all_gene_prefix} &>> {log}
+
+                # get entity level summaries for all genes
+                magma --bfile data/current/magma_reference_files/g1000_eur \
+                  --pval {input.snp_pvalues} N={params.study_size} \
+                  --gene-model snp-wise={params.snp_summary} \
+                  --gene-annot {params.all_gene_prefix}.genes.annot \
+                  --out {params.all_gene_prefix}.P{params.snp_summary} &>> {log}
+
+                # perform enrichment (one-sided and two-sided)
+		echo "Two-sided enrichment -----------------------" >> {log}
+                magma --gene-results {params.all_gene_prefix}.P{params.snp_summary}.genes.raw \
+                  --set-annot {output.gene_set} \
+                  --model direction-sets=both \
+                  --out {params.all_gene_prefix}.P{params.snp_summary}_twosided &>> {log}
+
+		echo "One-sided enrichment -----------------------" >> {log}
+                magma --gene-results {params.all_gene_prefix}.P{params.snp_summary}.genes.raw \
+                  --set-annot {output.gene_set} \
+                  --out {params.all_gene_prefix}.P{params.snp_summary} &>> {log}
+                """
+
+rule magma_on_genes_rs9274623_top:
+	input:
+		DMAGMA_ENRICHMENT + "rs9274623_eqtlgen_top/gene_set.txt"
+

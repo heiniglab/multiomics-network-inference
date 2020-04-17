@@ -62,7 +62,7 @@ rule apply_ggm:
 #                gstart_file=DCOHORT_FITS + "{cohort}/{sentinel}_{seed}_gstart.pdf"
         threads: 12
         params:
-                time="24:00:00"
+                time="2-00:00:00"
         resources:
                 mem_mb=4500
         conda:

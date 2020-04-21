@@ -98,7 +98,7 @@ finput <- paste0(RESULT_PATH, "simulation_rerun/validation-subsetall.txt")
 
 # create data-matrix
 print("Reading simulation validation results...")
-tab <- read_tsv(f) %>%
+tab <- read_tsv(finput) %>%
   mutate(R = paste0("R=", rdegree)) %>%
   mutate(comparison = gsub("bdgraph$", "bdgraph (priors)", comparison),
          comparison = gsub("glasso$", "glasso (priors)", comparison),

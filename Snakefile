@@ -93,6 +93,23 @@ rule convert_cpg_context:
 	script:
 		"scripts/convert_cpg_context.R"
 
+rule missing:
+	input:
+		"results/current/biogrid_stringent/fits_tfa/_rerun/kora/rs61609068_meqtl.rds",
+		"results/current/biogrid_stringent/fits_tfa/_rerun/lolipop/rs61609068_meqtl.rds",
+		"results/current/biogrid_stringent/fits_tfa/_rerun/kora/rs17677199_meqtl.rds",
+		"results/current/biogrid_stringent/fits_tfa/_rerun/lolipop/rs17677199_meqtl.rds",
+		"results/current/biogrid_stringent/fits_tfa/_rerun/kora/rs60626639_meqtl.rds",
+		"results/current/biogrid_stringent/fits_tfa/_rerun/lolipop/rs60626639_meqtl.rds",
+		"results/current/biogrid_stringent/fits_tfa/_rerun/kora/rs2062991_meqtl.rds",
+		"results/current/biogrid_stringent/fits_tfa/_rerun/lolipop/rs2062991_meqtl.rds",
+		"results/current/biogrid_stringent/fits_tfa/_rerun/kora/rs2969049_meqtl.rds",
+		"results/current/biogrid_stringent/fits_tfa/_rerun/lolipop/rs2969049_meqtl.rds",
+		"results/current/biogrid_stringent/fits_tfa/_rerun/kora/rs3902996_meqtl.rds",
+		"results/current/biogrid_stringent/fits_tfa/_rerun/lolipop/rs3902996_meqtl.rds",
+		"results/current/biogrid_stringent/fits_tfa/_rerun/kora/rs11666156_meqtl.rds",
+		"results/current/biogrid_stringent/fits_tfa/_rerun/lolipop/rs11666156_meqtl.rds"
+
 #-------------------------------------------------------------------------------
 # Create the GTeX based prior information
 # The 45gb mem requirement is not a joke, unfortunately.

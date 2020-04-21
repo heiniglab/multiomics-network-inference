@@ -12,6 +12,7 @@ print("Load libraries and source scripts")
 library(graph)
 library(tidyverse)
 library(Rgraphviz)
+source("scripts/lib.R")
 
 # ------------------------------------------------------------------------------
 print("Load the graphs.")
@@ -20,7 +21,8 @@ print("Load the graphs.")
 # ------------------------------------------------------------------------------
 print("Table comparing our graphs to the ones reported in the meQTL study")
 # ------------------------------------------------------------------------------
-loci <- c("rs9859077", "rs7783715", "rs730775")
+#loci <- c("rs9859077", "rs7783715", "rs730775")
+loci <- c("rs730775", "rs9859077")
 
 # get a graphNEL object from a dot file
 parse_dot <- function(dot_file) {
@@ -39,7 +41,7 @@ parse_dot <- function(dot_file) {
 
 # load our graphs
 ggm <- sapply(loci, function(l) {
-  parse_dot(paste0("results/current/biogrid_stringent/bck/graph_plots_tfa/",
+  parse_dot(paste0("results/current/biogrid_stringent/graph_plots_expr/",
                    l,
                    "_meqtl/glasso_combined.dot"))
 })
@@ -49,6 +51,13 @@ rw <- sapply(loci, function(l) {
   parse_dot(paste0("../meQTLs/results/current/rw_ggm_integration/",
                    l,
                    "/graph-final.dot"))
+})
+
+# load ranges information so that we can annotate the gene types
+ranges <- sapply(loci, function(l) {
+  readRDS(paste0("results/current/biogrid_stringent/ranges/",
+                 l,
+                 "_meqtl.rds"))
 })
 
 # helper to quickly get a matrix containing edge information for a graph
@@ -89,20 +98,29 @@ merged <- lapply(loci, function(l) {
  edgeData(g, replicated$n1, replicated$n2, "replicated") <- T
  edgeData(g, novel$n1, novel$n2, "novel") <- T
  
+ # set node types
  g
 })
 
 # plotting function to specifically plot the merged graphs (recognizing 'replicated'
 # edges); overall simpler than the other graph plots we had so far, since
 # we do not annotate other edge types
-plot_graph <- function(g, pdf_file, dot_file) {
+plot_graph <- function(g, pdf_file, dot_file, ranges) {
   
   # get some default colors to be used here
   # we select custom colors for nice looks (and to fit to previous plots for the nodes)
-  cols <- sort(get_defaultcolors(n=8))[c(1,5,3,7)]
+  cols <- sort(get_defaultcolors(n=8))[c(1,5,3,7,2,6)]
   
   # set of node sin the graph
   n <- graph::nodes(g)
+  
+  #get genes for coloring, only keep the ones in our graph
+  snp_genes <- ranges$snp_genes$SYMBOL
+  tfs <- ranges$tfs$SYMBOL
+  trans_genes <- ranges$cpg_genes$SYMBOL
+  snp_genes <- snp_genes[snp_genes %in% n]
+  tfs <- tfs[tfs %in% n]
+  trans_genes <- trans_genes[trans_genes %in% n]
   
   # prepare plot-layout
   attrs <- list(node=list(fixedsize=TRUE, fontsize=14,
@@ -134,6 +152,16 @@ plot_graph <- function(g, pdf_file, dot_file) {
   names(col) = n
   col[grep("^rs", n)] = cols[1]
   col[grep("^cg", n)] = cols[2]
+
+  if(length(snp_genes) > 0) {
+    col[snp_genes] = cols[6]
+  }
+  if(length(tfs) > 0) {
+    col[tfs] = cols[5]
+  }
+  if(length(trans_genes) > 0) {
+    col[trans_genes] = cols[3]
+  }
   
   penwidth = rep(1, numNodes(g))
   names(penwidth) = n
@@ -187,6 +215,10 @@ plot_graph <- function(g, pdf_file, dot_file) {
   # and as dot for manual layouting
   toDot(g, dot_file, nodeAttrs=nAttrs, edgeAttrs=eAttrs, attrs=attrs)
 }
+
+plot_graph(merged[[1]], "rs730775_expr_based.pdf", "rs730775_expr_based.dot", ranges[[1]])
+#plot_graph(merged[[2]], "test2.pdf", "test2.dot", ranges[[2]])
+#plot_graph(merged[[3]], "test3.pdf", "test3.dot", ranges[[3]])
 
 # ------------------------------------------------------------------------------
 print("SessionInfo:")

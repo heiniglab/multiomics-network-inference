@@ -132,14 +132,14 @@ tab %>%
 # TODO adjust to use "rerun" results
 # ------------------------------------------------------------------------------
 # read the validation results for meqtls and eqtls and combine them
-meqtl_expr <- read_tsv(paste0(RESULT_PATH, "validation_expr/validation_all_meqtl.txt"))
-meqtl_tfa <- read_tsv(paste0(RESULT_PATH, "validation_tfa/validation_all_meqtl.txt"))
+meqtl_expr <- read_tsv(paste0(RESULT_PATH, "validation_expr/_rerun/validation_all_meqtl.txt"))
+meqtl_tfa <- read_tsv(paste0(RESULT_PATH, "validation_tfa/_rerun/validation_all_meqtl.txt"))
 meqtl <- bind_rows(meqtl_expr,meqtl_tfa) %>%
   mutate(type=c(rep("Expression", nrow(meqtl_expr)), rep("TF activities", nrow(meqtl_tfa))),
          qtl_type="meQTL")
 
-eqtl_expr <- read_tsv(paste0(RESULT_PATH, "validation_expr/validation_all_eqtlgen.txt"))
-eqtl_tfa <- read_tsv(paste0(RESULT_PATH, "validation_tfa_bck/validation_all_eqtlgen.txt"))
+eqtl_expr <- read_tsv(paste0(RESULT_PATH, "validation_expr/_rerun/validation_all_eqtlgen.txt"))
+eqtl_tfa <- read_tsv(paste0(RESULT_PATH, "validation_tfa/_rerun/validation_all_eqtlgen.txt"))
 eqtl <- bind_rows(eqtl_expr,eqtl_tfa) %>%
   mutate(type=c(rep("Expression", nrow(eqtl_expr)), rep("TF activities", nrow(eqtl_tfa))),
          qtl_type="eQTL")
@@ -203,6 +203,13 @@ tab <- lapply(meqtl_sentinels, function(s) {
 }) %>% bind_rows() %>% mutate(seed = "meQTL")
 
 tab2 <- lapply(eqtl_sentinels, function(s) {
+  
+  if(!file.exists(paste0("results/current/biogrid_stringent/fits_tfa/_rerun/kora/",
+                         s, "_eqtlgen.rds"))) {
+    warning(paste0("Results for sentinel ", s, " do not exist."))
+    return(NULL)
+  }
+  
   fits_kora <- readRDS(paste0("results/current/biogrid_stringent/fits_tfa/_rerun/kora/",
                               s, "_eqtlgen.rds"))
   
@@ -220,7 +227,11 @@ tab2 <- lapply(eqtl_sentinels, function(s) {
   }) %>% bind_rows() %>% mutate(sentinel = s)
 }) %>% bind_rows() %>% mutate(seed = "eQTL")
 
-data <- bind_rows(tab,tab2) %>% select(sentinel, seed, graph_type, everything())
+data <- bind_rows(tab,tab2) %>% 
+  dplyr::select(sentinel, seed, graph_type, everything())
+
+write_tsv(path="results/current/supplement/all_graphs.tsv", data)
+
 # ----------------------------------------------------------------------------
 print("SessionInfo:")
 # ------------------------------------------------------------------------------

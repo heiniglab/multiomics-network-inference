@@ -27,7 +27,7 @@ library(BSgenome.Hsapiens.UCSC.hg19)
 hg19info <- seqinfo(BSgenome.Hsapiens.UCSC.hg19)
 
 # set up theme and colors
-theme_set(theme_cowplot())
+theme_set(theme_cowplot() + background_grid(major="xy"))
 theme_update(legend.text = element_text(size=11), 
              legend.title=element_text(size=12),
              axis.text.x = element_text(size=10),
@@ -549,7 +549,7 @@ finput <- paste0(RESULT_PATH, "simulation_rerun/validation-subsetall.txt")
 
 # create data-matrix
 print("Reading simulation validation results...")
-res <- read_tsv(f) %>%
+res <- read_tsv(finput) %>%
   mutate(R = paste0("R=", rdegree))
 
 
@@ -602,7 +602,7 @@ simulation_mcc <- ggplot(toplot,
   labs(x="prior error",
        y="MCC",
        fill="") + 
-  theme(legend.position = "bottom",
+  theme(legend.position = "right",
         legend.text = element_text(size=12),
         legend.title = element_text(size=14), 
         axis.text.x = element_text(hjust=0, vjust=0.5, angle=-45, size=12),
@@ -611,16 +611,79 @@ simulation_mcc <- ggplot(toplot,
 simulation_mcc
 
 # ------------------------------------------------------------------------------
+print("Sample size simulation plot")
+
+finput <- file.path(RESULT_PATH, "simulation_rerun/validation-subsets.tsv")
+
+tab <- read_tsv(finput) %>% 
+  mutate(comparison = gsub("bdgraph$", "bdgraph (priors)", comparison),
+         comparison = gsub("glasso$", "glasso (priors)", comparison),
+         comparison = gsub("bdgraph_no_priors$", "bdgraph (empty)", comparison),
+         comparison = gsub("bdgraph_no_priors_full$", "bdgraph (full)", comparison),
+         comparison = gsub("glasso_no_priors","glasso", comparison)) %>%
+  dplyr::rename(method=comparison) %>%
+  mutate(subset = factor(subset, level=c(seq(50,600,by=50)), ordered = T))
+
+toplot <- tab %>%
+  filter(method != "bdgraph (full)") %>%
+  mutate(method = gsub("bdgraph \\(empty\\)", "bdgraph", method)) %>%
+  mutate(method = factor(
+    method,
+    ordered = T,
+    levels = c(
+      "bdgraph",
+      "bdgraph (priors)",
+      "glasso",
+      "glasso (priors)",
+      "irafnet",
+      "genie3",
+      "genenet"
+    )
+  ))
+
+simulation_sample_size_mcc <- ggplot(toplot %>% filter(rdegree==0),
+                      aes(y = MCC,
+                          x = subset,
+                          color = method)) +
+  scb_graphs +
+  stat_boxplot(geom = "errorbar", width = .75) +
+  geom_boxplot(
+    outlier.size = 0,
+    alpha = 0.5,
+    coef = 0,
+    outlier.shape = NA
+  ) +
+  stat_summary(
+    fun.y = median,
+    geom = "smooth",
+    position = position_dodge(0.75),
+    aes(group = method),
+    lwd = 0.8
+  ) +
+  scale_y_continuous(
+    limits = c(min(tab$MCC), 1),
+    breaks = c(0, 0.25, 0.5, 0.75, 1)
+    
+  ) +
+  labs(color = "method",
+       x = "subset size") + 
+  theme(axis.text.x = element_text(hjust=0, vjust=0.5, angle=-45, size=12))
+
+simulation_sample_size_mcc
+
+
+# ------------------------------------------------------------------------------
 print("Figure 2 - Panel B")
 # ------------------------------------------------------------------------------
 # read the validation results for meqtls and eqtls and combine them
-meqtl_expr <- read_tsv(paste0(RESULT_PATH, "validation_expr/validation_all_meqtl.txt"))
+# TODO: change to rerun
+meqtl_expr <- read_tsv(paste0(RESULT_PATH, "validation_expr/_rerun/validation_all_meqtl.txt"))
 meqtl_tfa <- read_tsv(paste0(RESULT_PATH, "validation_tfa/_rerun/validation_all_meqtl.txt"))
 meqtl <- bind_rows(meqtl_expr,meqtl_tfa) %>%
   mutate(type=c(rep("Expression", nrow(meqtl_expr)), rep("TF activities", nrow(meqtl_tfa))),
          qtl_type="meQTL")
 
-eqtl_expr <- read_tsv(paste0(RESULT_PATH, "validation_expr/validation_all_eqtlgen.txt"))
+eqtl_expr <- read_tsv(paste0(RESULT_PATH, "validation_expr/_rerun/validation_all_eqtlgen.txt"))
 eqtl_tfa <- read_tsv(paste0(RESULT_PATH, "validation_tfa/_rerun/validation_all_eqtlgen.txt"))
 eqtl <- bind_rows(eqtl_expr,eqtl_tfa) %>%
   mutate(type=c(rep("Expression", nrow(eqtl_expr)), rep("TF activities", nrow(eqtl_tfa))),
@@ -634,25 +697,46 @@ data <- data %>%
          graph_type = gsub("_no_priors", "", graph_type)) %>%
   dplyr::select(graph_type, type, graph_score, cross_cohort_mcc)
 
+expr_plot <- data %>%
+  filter(type %in% "Expression") %>%
+  ggplot(aes(x=reorder(graph_type, -cross_cohort_mcc, FUN=median),
+             y=cross_cohort_mcc)) +
+  geom_boxplot() + 
+  geom_point(position=position_jitter(width = 0.15),
+             alpha=0.1) +
+  background_grid(major="xy") +
+  labs(title="",
+       y="MCC",
+       x="method") + 
+  theme(plot.title = element_text(hjust = 0.5),
+        axis.title.x = element_blank(),
+        axis.text.x = element_text(hjust=0, vjust=0.5, angle=-45, size=12),
+        legend.position = "bottom",
+        legend.text = element_text(size=14),
+        legend.title = element_text(size=15))
+
+#aes(ymin=cross_cohort_mcc-sd, ymax=cross_cohor_mcc+sd))
+
 tfa_expr_plot <- data %>%
   ggplot(aes(x=reorder(graph_type, -cross_cohort_mcc, FUN=median), 
              y=cross_cohort_mcc, color=type)) + 
   #geom_violin(position = "dodge", draw_quantiles = 0.5, scale = "width") + 
-  geom_boxplot(position="dodge", outlier.shape = NA) +
-  geom_point(position=position_jitterdodge(jitter.width = 0.15,
-                                           dodge.width = 0.75),
-             alpha=0.2) +
+  geom_boxplot(position="dodge") +
+  #geom_point(position=position_jitterdodge(jitter.width = 0.15,
+  #                                         dodge.width = 0.75),
+  #           alpha=0.2) +
   scb_binary + 
-  stat_summary(fun.y="median", geom = "line", aes(group=type), size=1)+
+  #stat_summary(fun.y="median", geom = "line", aes(group=type), size=1)+
   geom_hline(yintercept = 0, linetype="dotted", color="black") +
   labs(title="",
        y="MCC",
        x="method",
        color = "measure:") + 
+  background_grid(major="xy") +
   theme(plot.title = element_text(hjust = 0.5),
         axis.title.x = element_blank(),
         axis.text.x = element_text(hjust=0, vjust=0.5, angle=-45, size=12),
-        legend.position = "bottom",
+        legend.position = "right",
         legend.text = element_text(size=14),
         legend.title = element_text(size=15)) + 
   stat_compare_means(aes(group=type), size = 10, method="wilcox.test", 
@@ -700,11 +784,22 @@ figure2 <- ggarrange(simulation_mcc,
                      tfa_expr_plot, 
                      ncol = 2, labels = c("A", "B", "C"),
                      align="h")
+figure2_alt <- ggarrange(ggarrange(simulation_sample_size_mcc, 
+                                   simulation_mcc,  ncol=2, common.legend = T,
+                                   legend="right", labels=c("A", "B"), align = "h"),
+                         ggarrange(expr_plot, 
+                                   tfa_expr_plot, ncol=2, common.legend = T, 
+                                   legend="right", labels=c("C","D")), 
+                         nrow=2)
 figure2
-
-save_plot("figure2.pdf",
+figure2_alt
+save_plot("results/current/figures/figure2.pdf",
           plot=figure2, nrow = 2, ncol = 2, 
           base_aspect_ratio = 2.5)
+
+save_plot("results/current/figures/figure2_alternative.pdf",
+          plot=figure2_alt, nrow = 2, ncol = 2, 
+          base_aspect_ratio = 2)
 
 # ------------------------------------------------------------------------------
 print("SF1 - graph scores")

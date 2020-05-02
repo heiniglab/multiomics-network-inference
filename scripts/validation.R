@@ -164,12 +164,7 @@ valid <- mclapply(graph_types, function(graph_type) {
   # ----------------------------------------------------------------------------
   print("Preparing fit.")
   # ----------------------------------------------------------------------------
-  # those were adjusted and newly fitted
- # if(graph_type %in% c("glasso", "glasso_no_priors", "genie3")) {
-    graph <- fits[[cohort]][[graph_type]]
- # } else {
- #   graph <- fits[[paste0(cohort, "_old")]][[graph_type]]
- # }
+  graph <- fits[[cohort]][[graph_type]]
 
   # dnodes -> full set of possible nodes
   dnodes <- colnames(data_val)
@@ -342,12 +337,7 @@ valid <- mclapply(graph_types, function(graph_type) {
   print("Using MCC to check how well graph replicated across cohorts.")
   # ------------------------------------------------------------------------------
   # get graph fit on other cohort
-  # those were adjusted and newly fitted
-  #if(graph_type %in% c("glasso", "glasso_no_priors", "genie3")) {
-    graph_val <- fits[[cohort_val]][[graph_type]]
-  #} else {
-  #  graph_val <- fits[[paste0(cohort_val, "_old")]][[graph_type]]
-  #}
+  graph_val <- fits[[cohort_val]][[graph_type]]
 
   # compare with largest connected component only
   #g2 <- get_largest_cc(g2)

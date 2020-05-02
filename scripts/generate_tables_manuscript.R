@@ -164,7 +164,29 @@ data %>%
   xtable(caption="Table shows the mean cross cohort replication MCC for expression and TF activity based analyses for each method. Highest MCC per method is indicated in bold.",
          label="stab:method_performance_cross_cohort_mcc")
 
+# the supplementary table containing the validation results; add GWAS info
+gwas <- read_tsv("data/current/gwas/gwas_catalog_v1.0.2-associations_e96_r2019-07-12.tsv", 
+                 col_types = cols(.default="c")) %>%
+  as_tibble(.name_repair="universal") %>%
+  separate_rows(SNPS)
+snps <- unique(data$sentinel)
 
+# get gwas traits for all SNPs
+traits_per_snp <- mclapply(snps, function(s) {
+  return(get_gwas_traits(s, gwas))
+}, mc.cores=6)
+names(traits_per_snp) <- snps
+
+data$gwas_disease_trait <- NA
+data$gwas_disease_trait <- unlist(traits_per_snp[match(data$sentinel,
+                                                      names(traits_per_snp))])
+
+tab <- data %>%
+  mutate(has_gwas_hit = !is.na(gwas_disease_trait)) %>%
+  dplyr::select(sentinel, cohort, seed=qtl_type, graph_type, number_nodes, 
+                number_edges, has_gwas_hit, 
+                graph_score, cross_cohort_mcc, data_type = type)
+  
 # ------------------------------------------------------------------------------
 # Generate the ST with info on all graphs
 # ------------------------------------------------------------------------------

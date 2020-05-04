@@ -127,6 +127,36 @@ tab %>%
   xtable(caption="Same as ST~\\ref{stab:method_performance_simulation_mcc}, but showing mean F1 scores instead of MCC. Highest mean F1 for each scenario is indicated in bold.",
          label="stab:method_performance_simulation_f1")
 
+# also create tables for the sample size simulation
+finput <- file.path(RESULT_PATH, "simulation_rerun/validation-subsets.tsv")
+
+tab <- read_tsv(finput) %>% 
+  mutate(comparison = gsub("bdgraph$", "bdgraph (priors)", comparison),
+         comparison = gsub("glasso$", "glasso (priors)", comparison),
+         comparison = gsub("bdgraph_no_priors$", "bdgraph (empty)", comparison),
+         comparison = gsub("bdgraph_no_priors_full$", "bdgraph (full)", comparison),
+         comparison = gsub("glasso_no_priors","glasso", comparison)) %>%
+  dplyr::rename(method=comparison) %>%
+  mutate(subset = factor(subset, level=c(seq(50,600,by=50)), ordered = T))
+
+# MCC
+tab %>% 
+  group_by(method, subset) %>% 
+  summarise(n=mean(MCC)) %>% 
+  spread(subset, n, sep=" ") %>% 
+  arrange(desc(`subset 50`)) %>%
+  xtable(caption="Table showing an overview over the performance (mean MCC) in the simulation study for each method for different sub samplings of simulated data (increasing from left to right), sorted by first column. Highest mean MCC for each scenario is indicated in bold.", 
+         label="stab:method_performance_simulation_subsample_mcc")
+
+# F1
+tab %>% 
+  group_by(method, subset) %>% 
+  summarise(n=mean(`F1-score`)) %>% 
+  spread(subset, n, sep=" ") %>% 
+  arrange(desc(`subset 50`)) %>%
+  xtable(caption="Table showing an overview over the performance (mean F1) in the simulation study for each method for different sub samplings of simulated data (increasing from left to right), sorted by first column. Highest mean F1 for each scenario is indicated in bold.", 
+         label="stab:method_performance_simulation_subsample_f1")
+
 # ------------------------------------------------------------------------------
 # Overview table on cohort results
 # TODO adjust to use "rerun" results

@@ -373,6 +373,7 @@ rule collect_priors:
 		ranges=DRANGES + "{sentinel}_{seed}.rds",
 		ppi=PPI_DB,
 		cpg_context="data/current/cpgs_with_chipseq_context_100.rds",
+		tss_context="results/current/tfbs_tss_annot.rds",
 		cpg_annot="data/current/epigenetic_state_annotation_weighted_all_sentinels.txt"
 	output: 
 		DPRIORS + "{sentinel}_{seed}.rds",

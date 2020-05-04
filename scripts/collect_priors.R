@@ -28,6 +28,7 @@ fgene_priors <- snakemake@input[["gg_priors"]]
 feqtlgen_eqtl_priors <- snakemake@input[["eqtlgen_eqtl_priors"]]
 fgtex_eqtl_priors <- snakemake@input[["gtex_eqtl_priors"]]
 fcpgcontext <- snakemake@input[["cpg_context"]]
+ftsscontext <- snakemake@input[["tss_context"]]
 fppi <- snakemake@input[["ppi"]]
 franges <- snakemake@input[["ranges"]]
 fcpg_annot <- snakemake@input[["cpg_annot"]]
@@ -71,8 +72,18 @@ feqtl <- ifelse("eqtlgen" %in% eqtl_prior_type,
 load_eqtl_priors(sentinel, feqtl, eqtl_prior_type)
 load_genegene_priors(fgene_priors)
 
+# set appropriate context
+if(ranges$seed == "meqtl") {
+  fcontext <- fcpgcontext
+} else {
+  fcontext <- ftsscontext
+}
+
+print("Annotation context is:")
+print(fcontext)
+
 print("Retrieving link priors.")
-pr <- get_link_priors(ranges, nodes, ppi_db, fcpgcontext, 
+pr <- get_link_priors(ranges, nodes, ppi_db, fcontext, 
                       fcpg_annot)
 
 # create a heatmap to be able to look at the priors

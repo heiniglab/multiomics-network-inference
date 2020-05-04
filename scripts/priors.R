@@ -11,12 +11,12 @@
 #' cpgs etc.) for which to extract the link priors
 #' @param nodes All the nodes/entities being analyzed.
 #' @param ppi_db The loaded PPI db graph to be used (graphNEL)
-#' @param fcpgcontext The CpG TF annotation
+#' @param fcontext The CpG or gene-promoter TF annotation
 #' @param fcpg_annot The epigenetic state annotation file for the CpGs
 #'
 #' @return A square matrix of link-priors
 #'------------------------------------------------------------------------------
-get_link_priors <- function(ranges, nodes, ppi_db, fcpgcontext, fcpg_annot) {
+get_link_priors <- function(ranges, nodes, ppi_db, fcontext, fcpg_annot) {
 
   # ----------------------------------------------------------------------------
   # prepare some needed data
@@ -36,7 +36,7 @@ get_link_priors <- function(ranges, nodes, ppi_db, fcpgcontext, fcpg_annot) {
   colnames(priors) <- rownames(priors) <- nodes
 
   # ----------------------------------------------------------------------------
-  # check whether we need CpG related priors
+  # check whether we need CpG specific related priors
   # ----------------------------------------------------------------------------
   if(ranges$seed == "meqtl") {
     print("Setting CpG-gene priors")
@@ -76,35 +76,8 @@ get_link_priors <- function(ranges, nodes, ppi_db, fcpgcontext, fcpg_annot) {
         }
       }
     }
-
-    # --------------------------------------------------------------------------
-    ## SET TF-CPG PRIOR
-    # --------------------------------------------------------------------------
-    print("Setting TF-CpG priors.")
-    
-    # get all TFs
-    tfs <- ranges$tfs$SYMBOL
-    # also get the chipseq context for our cpgs
-    context <- get_tfbs_context(names(ranges$cpgs), fcpgcontext)
-
-    # for all cpgs
-    for(c in rownames(context)){
-      for(tf in tfs) {
-        # might be that the TF was measured in more than one cell line
-        if(any(context[c,grepl(tf, colnames(context))])) {
-          if(c %in% colnames(priors) &
-             tf %in% colnames(priors)){
-            # set arbitrary large prior (chip-evidence for this connection..)
-            priors[c,tf] <- priors[tf,c] <- 0.99
-          } else {
-            warning(paste0("WARNING: TF-CpG link not available:",
-                           c, "-", tf))
-          }
-        }
-      }
-    }
   }
-
+  
   # ----------------------------------------------------------------------------
   ## SET SNP PRIOR (if available)
   # ----------------------------------------------------------------------------
@@ -193,6 +166,38 @@ get_link_priors <- function(ranges, nodes, ppi_db, fcpgcontext, fcpg_annot) {
     }
   }
 
+  # ----------------------------------------------------------------------------
+  ## SET TF-CPG/Gene PRIOR
+  # ----------------------------------------------------------------------------
+  print("Setting TF-target priors.")
+  
+  # get all TFs
+  tfs <- ranges$tfs$SYMBOL
+  # also get the chipseq context for our cpgs
+  if(ranges$seed == "meqtl") {
+    context <- get_tfbs_context(names(ranges$cpgs), fcontext)
+  } else {
+    context <- get_tfbs_context(ranges$trans_genes$SYMBOL, fcontext)
+  }
+  
+  # for all cpgs/trans_genes
+  for(c in rownames(context)){
+    for(tf in tfs) {
+      # might be that the TF was measured in more than one cell line
+      if(any(context[c,grepl(tf, colnames(context))])) {
+        if(c %in% colnames(priors) &
+           tf %in% colnames(priors)){
+          # set arbitrary large prior (chip-evidence for this connection..)
+          print("Setting tf-target prior.")
+          priors[c,tf] <- priors[tf,c] <- 0.99
+        } else {
+          warning(paste0("WARNING: TF-target link not available:",
+                         c, "-", tf))
+        }
+      }
+    }
+  }
+  
   # sanity check, matrix should not contain 0s or 1s or values smaller than our
   # peudo prior
   if(any(priors==0) | any(priors==1) | any(priors<pseudo_prior)) {

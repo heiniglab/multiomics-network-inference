@@ -825,6 +825,35 @@ result %>%
   scale_x_log10()
 
 # ------------------------------------------------------------------------------
+print("SFXX - SNp-gene simulation evaluation")
+# ------------------------------------------------------------------------------
+# read in summary tables
+finput <- list.files("../../results/current/biogrid_stringent/simulation_rerun/validation/snp_gene_recovery", 
+                     "*.tsv",
+                     full.names = T)
+res <- lapply(finput, function(f) { read_tsv(f)}) %>% bind_rows()
+
+gp1 <- res %>% 
+  ggplot(aes(y = ACC, x= reorder(graph_type, -ACC, median))) + 
+  geom_boxplot() + 
+  labs(x = "") + 
+  theme(axis.text.x = element_text(angle = -45, hjust=0))
+
+# get summary for each graph_type (total number of snp genes in true graphs and
+# identified)
+gp2 <- res %>%
+  group_by(graph_type) %>%
+  summarise(total_snp_genes = sum(number_snp_genes),
+            total_recovered = sum(recovered_snp_genes)) %>%
+  mutate(total_fraction = total_recovered / total_snp_genes) %>%
+  ggplot(aes(x=reorder(graph_type, -total_fraction, max), y = total_fraction)) + 
+  geom_bar(stat="identity") +
+  labs(x = "", y = "overall fraction recovered") + 
+  theme(axis.text.x = element_text(angle = -45, hjust=0))
+
+ggpubr::ggarrange(gp1,gp2, ncol = 2)
+
+# ------------------------------------------------------------------------------
 print("Done.\nSessionInfo:")
 # ------------------------------------------------------------------------------
 sessionInfo()

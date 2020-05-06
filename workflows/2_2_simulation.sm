@@ -76,9 +76,15 @@ rule apply_ggm_simulation_sentinels:
 	input:
 		expand(DSIM_FITS + "{sentinel}-iter1.RData", sentinel=MEQTL.sentinel)
 
+# for the rs60626639 sentinel, simulation seems to take too long at the moment, so we should recalculate
+# on a specialiced run (e.g. more runtime or threads)
+# This is only an issue for the "all" subset, as we do 11 inference cycles (for each noisey matrix).
+MEQTL_SIM = MEQTL.sentinel
+MEQTL_SIM.remove("rs60626639")
+
 rule apply_ggm_simulation_iterations:
 	input:
-		expand(DSIM_FITS + "{sentinel}-iter{iter}-subsetall.RData", iter=ITERATIONS, sentinel=MEQTL.sentinel)
+		expand(DSIM_FITS + "{sentinel}-iter{iter}-subsetall.RData", iter=ITERATIONS, sentinel=MEQTL_SIM)
 
 #------------------------------------------------------------------------------
 # Validate a simulation run for the 'all' subset
@@ -138,7 +144,33 @@ rule all_simulation:
 	input:
 		expand(DSIM_VALIDATION + "{sentinel}-iter{iter}.txt", sentinel=MEQTL.sentinel, iter=ITERATIONS)
 	output:
-		"results/current/biogrid/simulation/validation/validation.tsv"
+		DSIM_VALIDATION + "validation.tsv"
+	shell:
+		"""
+		cat {input} | sort -r | uniq > {output}
+		"""
+
+rule summarize_snp_gene_recovery:
+	output:
+		summary = DSIM_VALIDATION + "snp_gene_recovery/{sentinel}.tsv"
+	params:
+		dresults = DSIM_FITS,
+		time = "01:00:00"
+	log:
+		"logs/simulation/snp_gene_recovery/{sentinel}.log"
+	benchmark:
+		"benchmarks/simulation/snp_gene_recovery/{sentinel}.bmk"
+	threads: 6
+	resources:
+		mem_mb = 1000
+	script:
+		"../scripts/simulation/summarize_snp_gene_recovery.R"
+
+rule all_summarize_snp_gene_recovery:
+	input:
+		expand(DSIM_VALIDATION + "snp_gene_recovery/{sentinel}.tsv", sentinel = MEQTL.sentinel)
+	output:
+		DSIM_VALIDATION + "snp_gene_recovery/all.tsv"
 	shell:
 		"""
 		cat {input} | sort -r | uniq > {output}

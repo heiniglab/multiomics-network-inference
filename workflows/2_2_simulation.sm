@@ -48,12 +48,12 @@ rule apply_ggm_simulation:
                 DSIM_FITS + "{sentinel}-iter{iteration}-subset{subset}.RData"
         params:
                 iteration="{iteration}",
-                time="1-12:00:00"
-        threads: 12
+                time="2-00:00:00"
+        threads: 16
         wildcard_constraints:
                 subset = "all|[0-9]+0*"
         resources:
-                mem_mb=2500
+                mem_mb=2000
         conda:
                 "../envs/bioR.yaml"
         log:

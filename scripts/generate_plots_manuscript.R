@@ -237,10 +237,12 @@ eqtl_ggplot <- ggarrange(ggarrange(ap, nullGrob(), widths = wr, ncol=2),
 panel_b1 <- meqtl_ggplot
 panel_b2 <- eqtl_ggplot
 
-
+# used in the thesis
+ga <- ggarrange(panel_b1, panel_b2, ncol=2, labels = "AUTO")
+save_plot("results/current/figures/hotspots_pairplot.pdf", ga, ncol=3, nrow=2)
 
 # ------------------------------------------------------------------------------
-print("Figure 1 - Panel B alternative using circos plots")
+print("Figure 1 - Panel B alternative using grandLinear plots, currently used")
 # ------------------------------------------------------------------------------
 hg19info2 <- dropSeqlevels(keepStandardChromosomes(hg19info), c("chrX", "chrY", "chrM"))
 
@@ -268,15 +270,6 @@ meqtl_regions <- unique(with(meqtl_hotspots,
 eqtl_regions$category <- "eQTL"
 meqtl_regions$category <- "meQTL"
 regions <- c(eqtl_regions, meqtl_regions)
-
-plotGrandLinear(regions, aes(y=trans_associations, color=category), size=2, 
-                shape=2, alpha = 0.5, coord="genome", spaceline = T, legend=T) + 
-  scale_color_manual(values=c(meQTL = COLORS$MEQTL, eQTL = COLORS$EQTL)) +
-  theme(axis.text.x = element_text(angle=-90, vjust=0.5, hjust=0),
-        legend.text = element_text(size=14),
-        legend.title = element_text(size=14)) + 
-  labs(y = "Number of trans-associations")
-
 
 gl_eqtl <- plotGrandLinear(eqtl_regions, aes(y=trans_associations), shape=2, size=3,
                 color=COLORS$EQTL, coord="genome", spaceline = T) + 
@@ -376,6 +369,41 @@ panel_c <- ggplot(toplot, aes(color=group, x=reorder(variable, -value, FUN=media
         axis.text.x = element_text(size=11,angle=-45, hjust=0,vjust=1))
 
 
+# generate the plot for the thesis
+panel_c1_thesis <- toplot %>%
+  filter(group == "meQTL") %>%
+  ggplot(aes(color=group, x=reorder(variable, -value, FUN=median), y=value)) +
+  geom_boxplot(outlier.shape = NA) + 
+  geom_jitter(shape=23, position = position_jitterdodge(jitter.width = 0.15)) + 
+  scale_color_manual(values=c(COLORS$MEQTL)) + 
+  scale_y_log10() +
+  labs(x="",
+       y="count") + 
+  theme(legend.position = "none", 
+        plot.margin = margin(1,0.5, 0, 0.2, unit="lines"),
+        axis.text.x = element_text(size=11,angle=-45, hjust=0,vjust=1))
+
+panel_c2_thesis <- toplot %>%
+  filter(group == "eQTL") %>%
+  drop_na(value) %>%
+  ggplot(aes(color=group, x=reorder(variable, -value, FUN=median), y=value)) +
+  geom_boxplot(outlier.shape = NA) + 
+  geom_jitter(shape=23, position = position_jitterdodge(jitter.width = 0.15)) + 
+  scale_color_manual(values=c(COLORS$EQTL)) + 
+  scale_y_log10() +
+  labs(x="",
+       y="count") + 
+  theme(legend.position = "none", 
+        plot.margin = margin(1,0.5, 0, 0.2, unit="lines"),
+        axis.text.x = element_text(size=11,angle=-45, hjust=0,vjust=1))
+
+panel_c_thesis <- ggarrange(panel_c1_thesis,
+                            panel_c2_thesis,
+                            ncol=2, labels="AUTO")
+
+save_plot("results/current/figures/collected_entities_thesis.pdf", panel_c_thesis,
+          ncol=2, base_asp = 1.2)
+
 # ------------------------------------------------------------------------------
 print("Figure 1 - Panel D")
 # ------------------------------------------------------------------------------
@@ -418,6 +446,7 @@ panel_d <- tab %>%
            hjust=-0.1, 
            vjust=1.2, 
            col="#777777") + 
+  coord_cartesian(xlim=c(0,1000)) +
   labs(x="number of edges with priors") + 
   theme(plot.margin = margin(1,1.5,1,1, unit="lines"), 
         legend.position = c(0.7,0.9),
@@ -537,7 +566,7 @@ final_figure1 <- ggarrange(ggarrange(nullGrob(), panel_b1, panel_b2, ncol=3, ali
                                   labels = c("C", "D")),
                         nrow=2, labels = c("B"))
 
-save_plot("figure1.pdf",
+save_plot("results/current/figures/figure1.pdf",
           plot=final_figure1, nrow = 2, ncol = 2, base_aspect_ratio = 1)
 
 # ------------------------------------------------------------------------------
@@ -607,7 +636,8 @@ simulation_mcc <- ggplot(toplot,
         legend.title = element_text(size=14), 
         axis.text.x = element_text(hjust=0, vjust=0.5, angle=-45, size=12),
         axis.title.x = element_text(size=14, 
-                                    margin = margin(-1, 0, 0, 0, unit = "lines")))
+                                    margin = margin(-1, 0, 0, 0, unit = "lines")),
+        plot.margin = margin(0.2,1,0.2,0.2,"cm"))
 simulation_mcc
 
 # ------------------------------------------------------------------------------
@@ -738,7 +768,8 @@ tfa_expr_plot <- data %>%
         axis.text.x = element_text(hjust=0, vjust=0.5, angle=-45, size=12),
         legend.position = "right",
         legend.text = element_text(size=14),
-        legend.title = element_text(size=15)) + 
+        legend.title = element_text(size=15), 
+        plot.margin = margin(0.2,1,0.2,0.2,"cm")) + 
   stat_compare_means(aes(group=type), size = 10, method="wilcox.test", 
                      hide.ns=T, label = "p.signif", show.legend = F)
 
@@ -828,10 +859,16 @@ result %>%
 print("SFXX - SNp-gene simulation evaluation")
 # ------------------------------------------------------------------------------
 # read in summary tables
-finput <- list.files("../../results/current/biogrid_stringent/simulation_rerun/validation/snp_gene_recovery", 
+finput <- list.files("results/current/biogrid_stringent/simulation_rerun/validation/snp_gene_recovery", 
                      "*.tsv",
                      full.names = T)
-res <- lapply(finput, function(f) { read_tsv(f)}) %>% bind_rows()
+res <- lapply(finput, function(f) { read_tsv(f)}) %>% 
+  bind_rows() %>%
+  mutate(graph_type = gsub("bdgraph$", "bdgraph (priors)", graph_type),
+         graph_type = gsub("glasso$", "glasso (priors)", graph_type),
+         graph_type = gsub("bdgraph_no_priors$", "bdgraph (empty)", graph_type),
+         graph_type = gsub("bdgraph_no_priors_full$", "bdgraph (full)", graph_type),
+         graph_type = gsub("glasso_no_priors","glasso", graph_type))
 
 gp1 <- res %>% 
   ggplot(aes(y = ACC, x= reorder(graph_type, -ACC, median))) + 
@@ -849,10 +886,13 @@ gp2 <- res %>%
   ggplot(aes(x=reorder(graph_type, -total_fraction, max), y = total_fraction)) + 
   geom_bar(stat="identity") +
   labs(x = "", y = "overall fraction recovered") + 
-  theme(axis.text.x = element_text(angle = -45, hjust=0))
+  theme(axis.text.x = element_text(angle = -45, hjust=0), 
+        plot.margin = margin(0.5,1,0.5,0.5,"cm"))
 
-ggpubr::ggarrange(gp1,gp2, ncol = 2)
-
+final <- ggpubr::ggarrange(gp1,gp2, align = "h", ncol = 2, labels = "AUTO")
+save_plot("results/current/supplement/snp_gene_recovery.pdf", final, 
+          ncol=2, 
+          base_asp = 1.2)
 # ------------------------------------------------------------------------------
 print("Done.\nSessionInfo:")
 # ------------------------------------------------------------------------------

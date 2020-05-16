@@ -188,10 +188,13 @@ data %>%
   #filter(subset == "all") %>% 
   dplyr::rename(method=graph_type) %>%
   group_by(method, type) %>% 
-  summarise(n=mean(cross_cohort_mcc)) %>% 
-  spread(type, n) %>% 
-  arrange(desc(`TF activities`)) %>%
-  xtable(caption="Table shows the mean cross cohort replication MCC for expression and TF activity based analyses for each method. Highest MCC per method is indicated in bold.",
+  summarise(n=mean(cross_cohort_mcc), sd=sd(cross_cohort_mcc)) %>% 
+  pivot_wider(names_from = type, values_from = c(n,sd)) %>% 
+  arrange(desc(`n_TF activities`)) %>%
+  mutate(n_Expression = paste0(round(n_Expression, digits=2), " (", round(sd_Expression, digits=2), ")")) %>%
+  mutate(`n_TF activities` = paste0(round(`n_TF activities`, digits=2), " (", round(`sd_TF activities`, digits=2), ")")) %>%
+  dplyr::select(method, Expression = n_Expression, `TF activities` = `n_TF activities`) %>%
+  xtable(caption="Table shows the mean cross cohort replication MCC for expression and TF activity based analyses for each method and standard deviations in parentheses. Highest mean MCC per method is indicated in bold.",
          label="stab:method_performance_cross_cohort_mcc")
 
 # the supplementary table containing the validation results; add GWAS info
@@ -223,6 +226,27 @@ tab <- data %>%
 meqtl_hotspots <- read_tsv("results/current/hotspots/meqtl_thres5/hotspots.tsv")
 eqtl_hotspots <- read_tsv("results/current/hotspots/eqtlgen_thres5/hotspots.tsv")
 
+# save a version for the Supp Table
+write_tsv(meqtl_hotspots %>% dplyr::select(snp = sentinel.snp,
+                                           snp.chr = chr.snp,
+                                           snp.pos = pos.snp,
+                                           A1, A2,
+                                           cpg,
+                                           cpg.chr = chr.cpg,
+                                           cpg.pos = pos.cpg,
+                                           ntrans), 
+          "results/current/supplement/meqtl_hotspots.tsv")
+write_tsv(eqtl_hotspots %>% dplyr::select(snp = sentinel,
+                                          snp.chr = SNPChr,
+                                          snp.pos = SNPPos,
+                                          A1 = AssessedAllele, 
+                                          A2 = OtherAllele,
+                                          gene = Gene,
+                                          gene.symbol = GeneSymbol,
+                                          gene.chr = GeneChr,
+                                          gene.pos = GenePos,
+                                          ntrans), 
+          "results/current/supplement/eqtl_hotspots.tsv")
 meqtl_sentinels <- pull(meqtl_hotspots, sentinel.snp) %>% unique
 eqtl_sentinels <- pull(eqtl_hotspots, sentinel) %>% unique
 

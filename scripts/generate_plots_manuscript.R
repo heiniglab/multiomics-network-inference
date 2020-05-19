@@ -239,7 +239,7 @@ panel_b2 <- eqtl_ggplot
 
 # used in the thesis
 ga <- ggarrange(panel_b1, panel_b2, ncol=2, labels = "AUTO")
-save_plot("results/current/figures/hotspots_pairplot.pdf", ga, ncol=3, nrow=2)
+save_plot("results/current/figures/thesis/hotspots_pairplot.pdf", ga, ncol=3, nrow=2)
 
 # ------------------------------------------------------------------------------
 print("Figure 1 - Panel B alternative using grandLinear plots, currently used")
@@ -401,7 +401,7 @@ panel_c_thesis <- ggarrange(panel_c1_thesis,
                             panel_c2_thesis,
                             ncol=2, labels="AUTO")
 
-save_plot("results/current/figures/collected_entities_thesis.pdf", panel_c_thesis,
+save_plot("results/current/figures/thesis/collected_entities_thesis.pdf", panel_c_thesis,
           ncol=2, base_asp = 1.2)
 
 # ------------------------------------------------------------------------------
@@ -640,6 +640,9 @@ simulation_mcc <- ggplot(toplot,
         plot.margin = margin(0.2,1,0.2,0.2,"cm"))
 simulation_mcc
 
+save_plot("results/current/figures/thesis/simulation_performance_thesis.pdf",
+          simulation_mcc + theme(legend.position = "bottom"), base_asp = 2)
+
 # ------------------------------------------------------------------------------
 print("Sample size simulation plot")
 
@@ -700,7 +703,8 @@ simulation_sample_size_mcc <- ggplot(toplot %>% filter(rdegree==0),
   theme(axis.text.x = element_text(hjust=0, vjust=0.5, angle=-45, size=12))
 
 simulation_sample_size_mcc
-
+save_plot("results/current/figures/thesis/simulation_performance_sample_size_thesis.pdf",
+          simulation_sample_size_mcc + theme(legend.position = "bottom"), base_asp = 2)
 
 # ------------------------------------------------------------------------------
 print("Figure 2 - Panel B")
@@ -784,6 +788,11 @@ data %>% ggplot(aes(x=reorder(graph_type, -cross_cohort_mcc, median),
   stat_summary(fun.y="mean", geom = "line", aes(group=type))
 
 tfa_expr_plot
+save_plot("results/current/figures/thesis/tfa_vs_expr_thesis.pdf", 
+          tfa_expr_plot + 
+            scale_color_grey(start = 0.3, end = 0.6) + 
+            theme(plot.margin = margin(0.6,1,0.2,0.2,"cm")), 
+          base_asp = 2)
 
 # This plot can be used as supplement
 tfa_expr_graph_score <- data %>%
@@ -794,7 +803,7 @@ tfa_expr_graph_score <- data %>%
   geom_point(position=position_jitterdodge(jitter.width = 0.15,
                                            dodge.width = 0.75),
              alpha=0.2) +
-  scb_binary + 
+  scale_color_grey(start = 0.3, end = 0.6) + 
   geom_hline(yintercept = 0, linetype="dotted", color="black") +
   labs(title="",
        y="graph score",
@@ -803,10 +812,15 @@ tfa_expr_graph_score <- data %>%
   theme(plot.title = element_text(hjust = 0.5),
         axis.title.x = element_blank(),
         axis.text.x = element_text(hjust=0, vjust=0.5, angle=-45, size=12),
-        legend.position = "bottom",
+        legend.position = c(0.7,0.8),
         legend.text = element_text(size=12),
         legend.title = element_text(size=14)) + 
-  stat_compare_means(aes(group=type), size=2, method="wilcox.test", hide.ns=T, label = "p.signif")
+  stat_compare_means(aes(group=type), size=2, method="wilcox.test", 
+                     hide.ns=T, label = "p.signif")
+
+tfa_expr_graph_score
+save_plot("results/current/supplement/graph_scores.pdf", tfa_expr_graph_score)
+
 
 # ------------------------------------------------------------------------------
 print("Figure 2 - Compile full plot")
@@ -819,8 +833,12 @@ figure2_alt <- ggarrange(ggarrange(simulation_sample_size_mcc,
                                    simulation_mcc,  ncol=2, common.legend = T,
                                    legend="right", labels=c("A", "B"), align = "h"),
                          ggarrange(expr_plot, 
-                                   tfa_expr_plot, ncol=2, common.legend = T, 
-                                   legend="right", labels=c("C","D")), 
+                                   tfa_expr_plot + 
+                                     scale_color_grey(start = 0.3, end = 0.6), 
+                                   ncol=2, 
+                                   common.legend = T, 
+                                   legend="right", 
+                                   labels=c("C","D")), 
                          nrow=2)
 figure2
 figure2_alt
@@ -868,7 +886,8 @@ res <- lapply(finput, function(f) { read_tsv(f)}) %>%
          graph_type = gsub("glasso$", "glasso (priors)", graph_type),
          graph_type = gsub("bdgraph_no_priors$", "bdgraph (empty)", graph_type),
          graph_type = gsub("bdgraph_no_priors_full$", "bdgraph (full)", graph_type),
-         graph_type = gsub("glasso_no_priors","glasso", graph_type))
+         graph_type = gsub("glasso_no_priors","glasso", graph_type)) %>%
+  filter(graph_type != "bdgraph (full)")
 
 gp1 <- res %>% 
   ggplot(aes(y = ACC, x= reorder(graph_type, -ACC, median))) + 
@@ -885,9 +904,12 @@ gp2 <- res %>%
   mutate(total_fraction = total_recovered / total_snp_genes) %>%
   ggplot(aes(x=reorder(graph_type, -total_fraction, max), y = total_fraction)) + 
   geom_bar(stat="identity") +
+  scale_y_continuous(limits=c(0,1)) + 
   labs(x = "", y = "overall fraction recovered") + 
   theme(axis.text.x = element_text(angle = -45, hjust=0), 
         plot.margin = margin(0.5,1,0.5,0.5,"cm"))
+
+save_plot("results/current/figures/thesis/snp_gene_recovery_thesis.pdf", gp2)
 
 final <- ggpubr::ggarrange(gp1,gp2, align = "h", ncol = 2, labels = "AUTO")
 save_plot("results/current/supplement/snp_gene_recovery.pdf", final, 

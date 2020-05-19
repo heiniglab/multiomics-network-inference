@@ -17,16 +17,19 @@ output:
 ---
 
 ```{r}
+knitr::opts_knit$set(root.dir=normalizePath("../../"))
 library(ggplot2)
-library(wesanderson)
-source("../scripts/lib.R")
-cols <- set_defaultcolors()
+library(cowplot)
+source("../lib.R")
+
+theme_set(theme_cowplot() + background_grid(major="xy"))
 ```
 
 This document summarizes the simulation study for the bayesian Gaussian Graphical Modelling approach.
 For each of the sentinels which had a 'true graph' available (currently based on the network-randwomwalk
 approach) we generated data and applied the bdgraph algorithm.
 
+THIS PART IS OUTDATED
 ```{r}
 # get all results into a single large table
 finput <- unlist(snakemake@input)
@@ -61,6 +64,9 @@ tab$sentinel <- gsub("_.*","", rownames(tab))
 ```
 
 Overall we are looking at `r length(unique(tab$snp))` sentinels for we which we have calculated GGM fits using different models, depicted in the plots below as 'ggm.type'. We show summary plots for the individual ggm.types for some standard performance measures (specificity, sensitivity, F1.score) as well as he Matthew's Correlation Coefficient (MCC) which is a correlation measure which can be applied if the individual classes differe largely in size.
+
+THIS PART IS OUTDATED
+
 ```{r}
 # prepare ggplot
 theme_set(theme_bw())
@@ -133,4 +139,36 @@ dev.off()
 
 ```
 
+
+Here we want to check how well priors help in recovering only SNP-to-Gene connections
+
+```{r}
+
+# read in summary tables
+finput <- list.files("../../results/current/biogrid_stringent/simulation_rerun/validation/snp_gene_recovery", 
+                     "*.tsv",
+                     full.names = T)
+res <- lapply(finput, function(f) { read_tsv(f)}) %>% bind_rows()
+
+gp1 <- res %>% 
+  ggplot(aes(y = ACC, x= reorder(graph_type, -ACC, median))) + 
+  geom_boxplot() + 
+  labs(x = "") + 
+  theme(axis.text.x = element_text(angle = -45, hjust=0))
+
+# get summary for each graph_type (total number of snp genes in true graphs and
+# identified)
+gp2 <- res %>%
+  group_by(graph_type) %>%
+  summarise(total_snp_genes = sum(number_snp_genes),
+            total_recovered = sum(recovered_snp_genes)) %>%
+  mutate(total_fraction = total_recovered / total_snp_genes) %>%
+  ggplot(aes(x=reorder(graph_type, -total_fraction, max), y = total_fraction)) + 
+  geom_bar(stat="identity") +
+  labs(x = "", y = "overall fraction recovered") + 
+  theme(axis.text.x = element_text(angle = -45, hjust=0))
+
+ggpubr::ggarrange(gp1,gp2, ncol = 2)
+
+```
 <a download="summarize-simulation.Rmd" href="`r base64enc::dataURI(file = params$rmd, mime = 'text/rmd', encoding = 'base64')`">R Markdown source file (to produce this document)</a>

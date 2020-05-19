@@ -15,9 +15,12 @@ source("scripts/biomaRt.R")
 # ------------------------------------------------------------------------------
 print("Processing.")
 # ------------------------------------------------------------------------------
+fgwas <- snakemake@input$gwas
+fout_snp_locs <- snakemake@output$snp_locs
+fout_snp_pvalues <- snakemake@output$snp_pvalues
 
 # load GWAS data and Position data for each SNP in there
-gwas <- read_tsv("data/current/gwas_atlas/lean_body_mass/wholebodyleanmass.results.metal_.txt")
+gwas <- read_tsv(fgwas)
 snp_pos <- get_snpPos_biomart(gwas$MarkerName)
 
 # merge GWAS with position data, prepare dataframe for BIM file output
@@ -29,12 +32,12 @@ gwas_with_pos <- left_join(gwas, snp_pos, by=c("MarkerName" = "snp")) %>%
 
 # write bim output format
 write_tsv(gwas_with_pos %>% dplyr::select(-`P-value`), 
-          "results/current/biogrid_stringent/magma_enrichment_tfa/snp_locs_lbm.bim",
+          fout_snp_locs,
           col_names=F)
 
 # write P-value file
 write_tsv(gwas_with_pos %>% dplyr::select(snp, `P-value`), 
-          "results/current/biogrid_stringent/magma_enrichment_tfa/snp_pvalues_lbm.bim",
+          fout_snp_pvalues,
           col_names=T)
 
 # ------------------------------------------------------------------------------

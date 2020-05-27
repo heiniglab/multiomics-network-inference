@@ -67,7 +67,7 @@ installation of *Snakemake* can be used to exeucted the workflow in the respecti
 Otherwise, one needs to modify the *script.py* script of *Snakemake* to execute all scripts within the
 provided container.
 
-## Get the randwom_walk data:
+## Data from previous random walks
 Currently we are using some precalculated information which we at the moment
 cannot reproduce in full using this specific workflow (as the data originate from the original meQTL
 project from which we obtained the trans-meQTL hotspots). While this is not strictly

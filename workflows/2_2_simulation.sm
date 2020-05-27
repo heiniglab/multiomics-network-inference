@@ -138,17 +138,8 @@ rule validate_all_subsets:
 		"""
 
 #------------------------------------------------------------------------------
-# Get a summary file for all iterations and sentinels in the simulation study
+# Check recovery of mixed edges (SNP-gene)
 #------------------------------------------------------------------------------
-rule all_simulation:
-	input:
-		expand(DSIM_VALIDATION + "{sentinel}-iter{iter}.txt", sentinel=MEQTL.sentinel, iter=ITERATIONS)
-	output:
-		DSIM_VALIDATION + "validation.tsv"
-	shell:
-		"""
-		cat {input} | sort -r | uniq > {output}
-		"""
 
 rule summarize_snp_gene_recovery:
 	output:
@@ -175,3 +166,9 @@ rule all_summarize_snp_gene_recovery:
 		"""
 		cat {input} | sort -r | uniq > {output}
 		"""
+
+rule all_simulation:
+	input:
+		DSIM_VALIDATION + "snp_gene_recovery/all.tsv",
+		DSIM + "validation-subsets.txt",
+		DSIM + "validation-subsetall.txt"

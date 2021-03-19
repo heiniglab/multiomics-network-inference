@@ -6,6 +6,6 @@
 	"ntasks"   : 1,
 	"cpu"      : "{threads}",
 	"log"      : "{log[0]}",
-	"partition": "icb_cpu"
+	"partition": "cpu_p"
     }
 }

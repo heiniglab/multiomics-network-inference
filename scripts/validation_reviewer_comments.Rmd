@@ -139,9 +139,32 @@ result <- mclapply(sentinels, function(sentinel) {
   }) %>% bind_rows() %>%
     mutate(sentinel = sentinel) %>%
     dplyr::select(sentinel, everything())
-}, mc.cores = 4) %>% bind_rows()
+}, mc.cores = 4) %>% bind_rows() %>%
+    mutate(is_prior_based = case_when(graph_model %in% c("glasso", 
+                                                       "bdgraph", 
+                                                       "irafnet") ~ TRUE,
+                                    TRUE ~ FALSE))
 result
 
+ggplot(result %>% mutate(estimate = case_when(is.infinite(estimate) ~ 1e4, 
+                                              TRUE ~ estimate)), 
+       aes(x=log10(estimate), 
+           group=is_prior_based, 
+           color=is_prior_based)) + 
+  geom_freqpoly()
+```
+
+Above are the initial 'full' results, i.e. for each graph model and sentinel,
+we see the evaluation by use of the fisher test.
+
+The plot indicates the distribution (log10) of estimates over all models and sentinels.
+`estimates` amounging to `Inf` were substituted by `10e4` and result in the 
+peaks located at the far right of the plot.
+
+Now we look at a simple summary, where we sum up all contingency tables and
+calculate a single fisher test for each of the graph models.
+
+```{r prior_importance_replication_summarized}
 summarized <- group_by(result, graph_model) %>%
   summarize(prior_and_replicated = sum(prior_and_replicated),
              prior_not_replicated = sum(prior_not_replicated),

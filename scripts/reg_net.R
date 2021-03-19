@@ -689,7 +689,7 @@ genie3 <-
         r2 <- r2 * (-1)
 
       # get the mean node connectivity
-      mcon <- mean(sum(ds - 1)) / 2
+      mcon <- (sum(ds - 1)) / 2
 
       # return ll of fitted distr
       c(

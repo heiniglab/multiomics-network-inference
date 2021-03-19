@@ -2,7 +2,8 @@
 title: Replication validation based on reviewer comments
 author: Johann Hawe | johann.hawe@tum.de
 output:
-  pdf_document: default
+  pdf_document: 
+    toc: yes
   html_document: default
 ---
 
@@ -12,7 +13,6 @@ library(igraph)
 library(graph)
 library(readr)
 library(dplyr)
-library(GenomicRanges)
 library(ggplot2)
 library(parallel)
 library(reshape2)
@@ -20,6 +20,9 @@ library(cowplot)
 theme_set(theme_cowplot() + background_grid(major="xy"))
 
 threads <- 4
+
+knitr::opts_chunk$set(echo = FALSE)
+
 ```
 
 ## Load data
@@ -27,7 +30,7 @@ threads <- 4
 We load all previously generated data, including the collected priors and the
 model fits for KORA and LOLIPOP.
 
-```{r load_data, echo = FALSE}
+```{r load_data}
 fpriors <- 
   list.files("results/current/biogrid_stringent/priors/", 
              "*.rds", full.names = T)

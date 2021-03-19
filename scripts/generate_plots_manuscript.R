@@ -341,7 +341,7 @@ counts <- bind_rows(meqtl_counts, eqtl_counts)
 medians <- function(d, g) {
   d %>%
     filter(group %in% g) %>% 
-    select(-group) %>%
+    dplyr::select(-group) %>%
     summarise_all(.funs = median)
 }
 print("Median number of entities for eQTLs:")
@@ -503,6 +503,17 @@ ga <- ggarrange(prior_fraction,
                 nrow=1, labels=c("A"))
 
 save_plot("results/current/figures/prior_fractions.pdf", ga, 
+          ncol=2, nrow=2)
+
+prior_plot_thesis <- ggarrange(panel_d, 
+                               ggarrange(priors_vs_total_edges,
+                                         priors_vs_total_edges_frac,
+                                         labels=c("B","C"), ncol=2), 
+                               labels="A",
+                               nrow = 2)
+
+save_plot("results/current/figures/thesis/prior_plots.pdf", 
+          prior_plot_thesis,
           ncol=2, nrow=2)
 
 #-----------------------------------------------------------------------------
@@ -919,3 +930,198 @@ save_plot("results/current/supplement/snp_gene_recovery.pdf", final,
 print("Done.\nSessionInfo:")
 # ------------------------------------------------------------------------------
 sessionInfo()
+
+
+
+
+
+# ------------------------------------------------------------------------------
+print("Matthias evaluation")
+# ------------------------------------------------------------------------------
+finput <- paste0(RESULT_PATH, "simulation_rerun/validation-subsetall.txt")
+
+# create data-matrix
+print("Reading simulation validation results...")
+res <- read_tsv(finput) %>%
+  mutate(R = paste0("R=", rdegree))
+
+
+# create nicer method names
+tab <- res %>% 
+  mutate(comparison = gsub("bdgraph$", "bdgraph (priors)", comparison),
+         comparison = gsub("glasso$", "glasso (priors)", comparison),
+         comparison = gsub("bdgraph_no_priors$", "bdgraph (empty)", comparison),
+         comparison = gsub("bdgraph_no_priors_full$", "bdgraph (full)", comparison),
+         comparison = gsub("glasso_no_priors","glasso", comparison)) %>%
+  dplyr::rename(method=comparison)
+toplot <- tab %>%
+  filter(method != "bdgraph (full)") %>%
+  mutate(method = gsub("bdgraph \\(empty\\)", "bdgraph", method)) %>%
+  mutate(method = factor(
+    method,
+    ordered = T,
+    levels = c(
+      "bdgraph",
+      "bdgraph (priors)",
+      "glasso",
+      "glasso (priors)",
+      "irafnet",
+      "genie3",
+      "genenet"
+    )
+  ))
+
+toplot_all_no_priors <- toplot %>%
+  filter(method %in% c("bdgraph", "glasso", "genie3", "genenet"))
+
+toplot_priors <- toplot %>%
+  filter(method %in% c("bdgraph","glasso","bdgraph (priors)", "glasso (priors)"))
+
+simulation_mcc_no_priors <- ggplot(toplot_all_no_priors,
+                         aes(y=MCC, 
+                             x=R, 
+                             color=method)) +
+  stat_boxplot(geom="errorbar", width=.75)+
+  geom_boxplot(outlier.size=0, alpha=0.5, coef=0, outlier.shape = NA, ) + 
+  stat_summary(fun.y=median, geom="smooth", 
+               position=position_dodge(0.75),
+               aes(group=method),lwd=0.8) +
+  scb_graphs +
+  background_grid(major="x") +
+  geom_vline(xintercept = 11.5, size=1.5, color="black", linetype="dashed") + 
+  labs(x="prior error",
+       y="MCC",
+       fill="") + 
+  theme(legend.position = "right",
+        legend.text = element_text(size=12),
+        legend.title = element_text(size=14), 
+        axis.text.x = element_text(hjust=0, vjust=0.5, angle=-45, size=12),
+        axis.title.x = element_text(size=14, 
+                                    margin = margin(-1, 0, 0, 0, unit = "lines")),
+        plot.margin = margin(0.2,1,0.2,0.2,"cm"))
+
+simulation_mcc_priors <- ggplot(toplot_priors,
+                                   aes(y=MCC, 
+                                       x=R, 
+                                       color=method)) +
+  stat_boxplot(geom="errorbar", width=.75)+
+  geom_boxplot(outlier.size=0, alpha=0.5, coef=0, outlier.shape = NA, ) + 
+  stat_summary(fun.y=median, geom="smooth", 
+               position=position_dodge(0.75),
+               aes(group=method),lwd=0.8) +
+  scb_graphs +
+  background_grid(major="x") +
+  geom_vline(xintercept = 11.5, size=1.5, color="black", linetype="dashed") + 
+  labs(x="prior error",
+       y="MCC",
+       fill="") + 
+  theme(legend.position = "right",
+        legend.text = element_text(size=12),
+        legend.title = element_text(size=14), 
+        axis.text.x = element_text(hjust=0, vjust=0.5, angle=-45, size=12),
+        axis.title.x = element_text(size=14, 
+                                    margin = margin(-1, 0, 0, 0, unit = "lines")),
+        plot.margin = margin(0.2,1,0.2,0.2,"cm"))
+
+save_plot("results/current/figures/simulation_performance_matthias_eval_no_priors.pdf",
+          simulation_mcc_no_priors + theme(legend.position = "bottom"), base_asp = 2)
+save_plot("results/current/figures/simulation_performance_matthias_eval_priors.pdf",
+          simulation_mcc_priors + theme(legend.position = "bottom"), base_asp = 2)
+# ------------------------------------------------------------------------------
+print("Sample size simulation plot")
+
+finput <- file.path(RESULT_PATH, "simulation_rerun/validation-subsets.tsv")
+
+tab <- read_tsv(finput) %>% 
+  mutate(comparison = gsub("bdgraph$", "bdgraph (priors)", comparison),
+         comparison = gsub("glasso$", "glasso (priors)", comparison),
+         comparison = gsub("bdgraph_no_priors$", "bdgraph (empty)", comparison),
+         comparison = gsub("bdgraph_no_priors_full$", "bdgraph (full)", comparison),
+         comparison = gsub("glasso_no_priors","glasso", comparison)) %>%
+  dplyr::rename(method=comparison) %>%
+  mutate(subset = factor(subset, level=c(seq(50,600,by=50)), ordered = T))
+
+toplot <- tab %>%
+  filter(method != "bdgraph (full)") %>%
+  mutate(method = gsub("bdgraph \\(empty\\)", "bdgraph", method)) %>%
+  mutate(method = factor(
+    method,
+    ordered = T,
+    levels = c(
+      "bdgraph",
+      "bdgraph (priors)",
+      "glasso",
+      "glasso (priors)",
+      "irafnet",
+      "genie3",
+      "genenet"
+    )
+  ))
+
+toplot_all_no_priors <- toplot %>%
+  filter(method %in% c("bdgraph", "glasso", "genie3", "genenet"))
+
+toplot_priors <- toplot %>%
+  filter(method %in% c("bdgraph","glasso","bdgraph (priors)", "glasso (priors)"))
+
+simulation_sample_size_mcc_no_priors <- ggplot(toplot_all_no_priors %>% filter(rdegree==0),
+                                     aes(y = MCC,
+                                         x = subset,
+                                         color = method)) +
+  scb_graphs +
+  stat_boxplot(geom = "errorbar", width = .75) +
+  geom_boxplot(
+    outlier.size = 0,
+    alpha = 0.5,
+    coef = 0,
+    outlier.shape = NA
+  ) +
+  stat_summary(
+    fun.y = median,
+    geom = "smooth",
+    position = position_dodge(0.75),
+    aes(group = method),
+    lwd = 0.8
+  ) +
+  scale_y_continuous(
+    limits = c(min(tab$MCC), 1),
+    breaks = c(0, 0.25, 0.5, 0.75, 1)
+    
+  ) +
+  labs(color = "method",
+       x = "subset size") + 
+  theme(axis.text.x = element_text(hjust=0, vjust=0.5, angle=-45, size=12))
+
+simulation_sample_size_mcc_priors <- ggplot(toplot_priors %>% filter(rdegree==0),
+                                               aes(y = MCC,
+                                                   x = subset,
+                                                   color = method)) +
+  scb_graphs +
+  stat_boxplot(geom = "errorbar", width = .75) +
+  geom_boxplot(
+    outlier.size = 0,
+    alpha = 0.5,
+    coef = 0,
+    outlier.shape = NA
+  ) +
+  stat_summary(
+    fun.y = median,
+    geom = "smooth",
+    position = position_dodge(0.75),
+    aes(group = method),
+    lwd = 0.8
+  ) +
+  scale_y_continuous(
+    limits = c(min(tab$MCC), 1),
+    breaks = c(0, 0.25, 0.5, 0.75, 1)
+    
+  ) +
+  labs(color = "method",
+       x = "subset size") + 
+  theme(axis.text.x = element_text(hjust=0, vjust=0.5, angle=-45, size=12))
+
+
+save_plot("results/current/figures/simulation_performance_samplesize_matthias_eval_no_priors.pdf",
+          simulation_sample_size_mcc_no_priors + theme(legend.position = "bottom"), base_asp = 2)
+save_plot("results/current/figures/simulation_performance_samplesize_matthias_eval_priors.pdf",
+          simulation_sample_size_mcc_priors + theme(legend.position = "bottom"), base_asp = 2)

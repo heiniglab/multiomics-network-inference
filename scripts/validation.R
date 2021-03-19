@@ -46,10 +46,6 @@ flolipop_data <- snakemake@input[["lolipop_data"]]
 fkora_fit <- snakemake@input[["kora_fit"]]
 flolipop_fit <- snakemake@input[["lolipop_fit"]]
 
-# contain the 'old' fits, i.e. old glasso and w/o genie3
-#fkora_fit_old <- snakemake@input[["kora_fit_old"]]
-#flolipop_fit_old <- snakemake@input[["lolipop_fit_old"]]
-
 fgtex <- snakemake@input[["gtex"]]
 fgeo <- snakemake@input[["geo"]]
 fciseqtl_kora <- snakemake@input[["cis_kora"]]
@@ -69,9 +65,6 @@ cohort <- snakemake@wildcards$cohort
 # output
 # main outfile for validation results
 fout <- snakemake@output[[1]]
-
-# additional outputs, mostly plots
-#fmediation_summary_plot <- snakemake@output$mediation_summary_plot
 
 # ------------------------------------------------------------------------------
 print("Loading data.")
@@ -125,11 +118,6 @@ print("Loading GGM fits.")
 kfit <- readRDS(fkora_fit)
 lfit <- readRDS(flolipop_fit)
 
-#kfit_old <- readRDS(fkora_fit_old)
-#lfit_old <- readRDS(flolipop_fit_old)
-
-#fits <- list(kora = kfit, lolipop = lfit,
-#             kora_old=kfit_old, lolipop_old=lfit_old)
 fits <- list(kora = kfit, lolipop = lfit)
 
 # we get the according dataset on which to validate
@@ -177,9 +165,9 @@ valid <- mclapply(graph_types, function(graph_type) {
   gd <- (ne * 2) / (nn * (nn - 1))
   row <- c(row, number_nodes=nn, number_edges=ne, graph_density=gd)
 
-  # ------------------------------------------------------------------------------
+  # ----------------------------------------------------------------------------
   print("Getting cluster information")
-  # ------------------------------------------------------------------------------
+  # ----------------------------------------------------------------------------
   # get all clusters in the graph
   ig = igraph::graph_from_graphnel(graph)
   cl = clusters(ig)
@@ -405,9 +393,9 @@ valid <- mclapply(graph_types, function(graph_type) {
     row, med_comparison
   )
 
-  # ------------------------------------------------------------------------------
+  # ----------------------------------------------------------------------------
   print("Validating cis-eQTLs.")
-  # ------------------------------------------------------------------------------
+  # ----------------------------------------------------------------------------
 
   # filter ceqtl to be only related to our sentinel SNP
   # TODO use proxy/high ld snps to increase ceqtl number?
@@ -440,9 +428,9 @@ valid <- mclapply(graph_types, function(graph_type) {
              cisEqtl=fisher.test(cont)$p.value)
   }
 
-  # ------------------------------------------------------------------------------
+  # ----------------------------------------------------------------------------
   print("CpG-gene and TF-CpG validation.")
-  # ------------------------------------------------------------------------------
+  # ----------------------------------------------------------------------------
   # filter teqtl to be only related to our sentinel SNP
   # TODO use proxy/high ld snps to increase teqtl number?
   teqtlsub <-
@@ -472,9 +460,9 @@ valid <- mclapply(graph_types, function(graph_type) {
   row <-
     c(row, validate_cpggenes(bnd_symbol, cgenes, cgenes_selected))
 
-  # ------------------------------------------------------------------------------
+  # ----------------------------------------------------------------------------
   print("Gene-Gene validation.")
-  # ------------------------------------------------------------------------------
+  # ----------------------------------------------------------------------------
   # load geo whole blood expression data
   geo_sym <- all_genes[all_genes %in% geo$symbol]
   geosub <- geo[geo_sym]
@@ -486,25 +474,6 @@ valid <- mclapply(graph_types, function(graph_type) {
   val_g2g <- validate_gene2gene(expr.data, graph_maxcluster, all_genes)
   names(val_g2g) <- c("geo_gene_gene", "cohort_gene_gene")
   row <- c(row, val_g2g)
-
-  # ----------------------------------------------------------------------------
-  print("GO enrichment.")
-  # ----------------------------------------------------------------------------
-  # we want only genes which were selected by the model
-  network_genes <- unique(c(cgenes_selected, tfs_selected,
-                            sgenes_selected, spath_selected))
-  if(ranges$seed != "meqtl") {
-    network_genes <- unique(c(network_genes, trans_entities_selected))
-  }
-
-#  go <- validate_geneenrichment(network_genes)
-#  if(!is.null(go)) {
-#    names(go) <- c("go_ids", "go_terms", "go_pvals", "go_qvals")
-#  } else {
-#    go <- rep(NA, 4)
-#    names(go) <- c("go_ids", "go_terms", "go_pvals", "go_qvals")
-#  }
-#  row <- c(row, go)
 
   return(row)
 }, mc.cores=threads)

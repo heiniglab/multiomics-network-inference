@@ -57,11 +57,30 @@ sentinels <- names(fpriors)
 
 ## Prior importance for replication
 
-We investigate whether available prior information largely drives replication performance.
-In brief, we create a contingency table from all sentinels, where we check 1) whether an edge is replicated or not and 2) whether the edge has a prior assigned it or not.
-
-```{r prior_importance_replication}
+```{r helper_definitions, echo = FALSE}
 PSEUDO_PRIOR <- 1e-7
+
+# helper to extract prior edge/non edge sets
+get_prior_edge_sets <- function(prior_matrix) {
+  
+  prior_matrix_tibble <- prior_matrix %>%
+    melt() %>% as_tibble()
+  
+  prior_edges <-  prior_matrix_tibble %>%
+    filter(value > PSEUDO_PRIOR) %>%
+    rename(edge1 = Var1, edge2 = Var2) %>%
+    mutate(edge1 = as.character(edge1), edge2 = as.character(edge2)) %>%
+    filter(edge1 != edge2) %>%
+    dplyr::select(-value)
+  
+  non_prior_edges <- prior_matrix_tibble %>%
+    filter(value == PSEUDO_PRIOR) %>%
+    rename(edge1 = Var1, edge2 = Var2) %>%
+    mutate(edge1 = as.character(edge1), edge2 = as.character(edge2)) %>%
+    filter(edge1 != edge2) %>%
+    dplyr::select(-value)
+  return(list(prior_edges = prior_edges, non_prior_edges = non_prior_edges))
+}
 
 # helper to get tibble of edges from a graph object
 get_edges_from_graph <- function(graph) {
@@ -75,25 +94,19 @@ get_edges_from_graph <- function(graph) {
   # add the 'reverse' edge, too, as we investigated undirected graphs
   bind_rows(temp, rename(temp, edge1 = edge2, edge2 = edge1))
 }
+```
 
+We investigate whether available prior information largely drives replication performance.
+In brief, we create a contingency table from all sentinels, where we check 1) whether an edge is replicated or not and 2) whether the edge has a prior assigned it or not.
+
+```{r prior_importance_replication}
 # iterate over all sentinels and gather stats
 result <- mclapply(sentinels, function(sentinel) {
   
-  prior_edges <- readRDS(fpriors[[sentinel]]) %>%
-    melt() %>% as_tibble() %>%
-    filter(value > PSEUDO_PRIOR) %>%
-    rename(edge1 = Var1, edge2 = Var2) %>%
-    mutate(edge1 = as.character(edge1), edge2 = as.character(edge2)) %>%
-    filter(edge1 != edge2) %>%
-    dplyr::select(-value)
-  
-  non_prior_edges <- readRDS(fpriors[[sentinel]]) %>%
-    melt() %>% as_tibble() %>%
-    filter(value == PSEUDO_PRIOR) %>%
-    rename(edge1 = Var1, edge2 = Var2) %>%
-    mutate(edge1 = as.character(edge1), edge2 = as.character(edge2)) %>%
-    filter(edge1 != edge2) %>%
-    dplyr::select(-value)
+  prior_matrix <- readRDS(fpriors[[sentinel]])
+  temp <- get_prior_edge_sets(prior_matrix)
+  prior_edges <- temp$prior_edges
+  non_prior_edges <- temp$non_prior_edges
   
   kora_fits <- readRDS(fkora_fits[[sentinel]])
   lolipop_fits <- readRDS(flolipop_fits[[sentinel]])
@@ -207,6 +220,82 @@ ggplot(summarized_fishertest, aes(y=log10(estimate),
   labs(x="graph model")
 ```
 
+## Prior importance inferred edge set
+
+Contrary to the replicated edge set above, we can also have a look at the 'inferred' edge set,
+which are defined as the union of the edge sets from KORA and LOLIPOP.
+
+```{r prior_importance_inferred_edgeset}
+PSEUDO_PRIOR <- 1e-7
+
+
+# iterate over all sentinels and gather stats
+result <- mclapply(sentinels, function(sentinel) {
+  
+  prior_matrix <- readRDS(fpriors[[sentinel]])
+  temp <- get_prior_edge_sets(prior_matrix)
+  prior_edges <- temp$prior_edges
+  non_prior_edges <- temp$non_prior_edges
+  
+  kora_fits <- readRDS(fkora_fits[[sentinel]])
+  lolipop_fits <- readRDS(flolipop_fits[[sentinel]])
+  
+  graph_models <- names(kora_fits)[!grepl("_fit", names(kora_fits))]
+  
+  lapply(graph_models, function(graph_model) {
+    kora_edges <- get_edges_from_graph(kora_fits[[graph_model]])
+    lolipop_edges <- get_edges_from_graph(lolipop_fits[[graph_model]])
+    
+    full_edge_set <- bind_rows(kora_edges, lolipop_edges) %>%
+      distinct()
+    
+    # we always have both 'directions' for the undirected edges in the tibbles
+    # devide measures by 2
+    prior_and_inferred <- 
+      nrow(inner_join(prior_edges, full_edge_set,
+                      by=c("edge1", "edge2"))) / 2
+    
+    prior_not_inferred <- 
+      (nrow(prior_edges) / 2) - prior_and_inferred
+    
+    not_prior_and_inferred <- 
+      nrow(inner_join(non_prior_edges, full_edge_set,
+                      by=c("edge1", "edge2"))) / 2
+    
+    not_prior_not_inferred <- 
+      (nrow(non_prior_edges) / 2) - not_prior_and_inferred
+    
+    contingency <- matrix(c(prior_and_inferred, 
+                            prior_not_inferred,
+                            not_prior_and_inferred,
+                            not_prior_not_inferred), 
+                          ncol=2, byrow = T)
+    
+    fisher.test(contingency, alternative = "greater") %>% broom::tidy() %>%
+      mutate(graph_model = graph_model,
+             prior_and_inferred = prior_and_inferred,
+             prior_not_inferred = prior_not_inferred,
+             not_prior_and_inferred = not_prior_and_inferred,
+             not_prior_not_inferred = not_prior_not_inferred) %>% 
+      dplyr::select(graph_model, -method, -alternative, everything())
+  }) %>% bind_rows() %>%
+    mutate(sentinel = sentinel) %>%
+    dplyr::select(sentinel, everything())
+}, mc.cores = 4) %>% bind_rows() %>%
+    mutate(is_prior_based = case_when(graph_model %in% c("glasso", 
+                                                       "bdgraph", 
+                                                       "irafnet") ~ TRUE,
+                                    TRUE ~ FALSE))
+result
+
+ggplot(result %>% mutate(estimate = case_when(is.infinite(estimate) ~ 1e4, 
+                                              TRUE ~ estimate)), 
+       aes(x=log10(estimate), 
+           group=is_prior_based, 
+           color=is_prior_based)) + 
+  geom_freqpoly()
+
+```
 
 ## Session Info
 ```{r session_info}

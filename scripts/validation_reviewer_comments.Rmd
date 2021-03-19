@@ -165,9 +165,20 @@ summarized_fishertest <- lapply(summarized$graph_model, function(current_model) 
     mutate(graph_model = current_model) %>%
     dplyr::select(graph_model, everything())
 }) %>% bind_rows() %>%
-  left_join(summarized, by="graph_model")
+  left_join(summarized, by="graph_model") %>%
+  mutate(is_prior_based = case_when(graph_model %in% c("glasso", 
+                                                       "bdgraph", 
+                                                       "irafnet") ~ TRUE,
+                                    TRUE ~ FALSE))
 
 summarized_fishertest
+
+ggplot(summarized_fishertest, aes(y=log10(estimate), 
+                                  x=reorder(graph_model, log10(estimate)),
+                                  fill = is_prior_based)) + 
+  geom_bar(stat="identity") + 
+  theme(axis.text.x = element_text(angle=-45, hjust=0, vjust=0)) + 
+  labs(x="graph model")
 ```
 
 

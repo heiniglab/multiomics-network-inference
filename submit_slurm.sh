@@ -9,8 +9,8 @@ if [[ -z ${log} ]] ; then
 fi
 
 # actual call
-nohup nice snakemake -u configs/slurm.json --jobs=150 --local-cores=1 \
-    --cluster "sbatch -t {cluster.time} -c {cluster.cpu} --mem-per-cpu {cluster.mem} \
+nohup nice snakemake -u configs/slurm.json --jobs=200 -k --local-cores=1 \
+    --latency-wait 40 --cluster "sbatch --nice=10000 -t {cluster.time} -c {cluster.cpu} --mem-per-cpu {cluster.mem} \
     -p {cluster.partition}" \
     ${target} &> ${log} &
 

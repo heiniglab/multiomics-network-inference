@@ -154,8 +154,8 @@ result <- mclapply(sentinels, function(sentinel) {
     dplyr::select(sentinel, everything())
 }, mc.cores = 4) %>% bind_rows() %>%
     mutate(is_prior_based = case_when(graph_model %in% c("glasso", 
-                                                       "bdgraph", 
-                                                       "irafnet") ~ TRUE,
+                                                         "bdgraph", 
+                                                         "irafnet") ~ TRUE,
                                     TRUE ~ FALSE))
 result
 
@@ -295,6 +295,49 @@ ggplot(result %>% mutate(estimate = case_when(is.infinite(estimate) ~ 1e4,
            color=is_prior_based)) + 
   geom_freqpoly()
 
+```
+
+```{r prior_importance_inferred_summarized}
+summarized <- group_by(result, graph_model) %>%
+  summarize(prior_and_inferred = sum(prior_and_inferred),
+             prior_not_inferred = sum(prior_not_inferred),
+             not_prior_and_inferred = sum(not_prior_and_inferred),
+             not_prior_not_inferred = sum(not_prior_not_inferred))
+
+summarized_fishertest <- lapply(summarized$graph_model, function(current_model) {
+  current_summarized <-
+    filter(summarized, graph_model == current_model)
+  
+  contingency_summarized <-
+    matrix(
+      c(
+        current_summarized$prior_and_inferred,
+        current_summarized$prior_not_inferred,
+        current_summarized$not_prior_and_inferred,
+        current_summarized$not_prior_not_inferred
+      ),
+      ncol = 2,
+      byrow = TRUE
+    )
+  fisher.test(contingency_summarized, alternative = "greater") %>% 
+    broom::tidy() %>%
+    mutate(graph_model = current_model) %>%
+    dplyr::select(graph_model, everything())
+}) %>% bind_rows() %>%
+  left_join(summarized, by="graph_model") %>%
+  mutate(is_prior_based = case_when(graph_model %in% c("glasso", 
+                                                       "bdgraph", 
+                                                       "irafnet") ~ TRUE,
+                                    TRUE ~ FALSE))
+
+summarized_fishertest
+
+ggplot(summarized_fishertest, aes(y=log10(estimate), 
+                                  x=reorder(graph_model, log10(estimate)),
+                                  fill = is_prior_based)) + 
+  geom_bar(stat="identity") + 
+  theme(axis.text.x = element_text(angle=-45, hjust=0, vjust=0)) + 
+  labs(x="graph model")
 ```
 
 ## Session Info

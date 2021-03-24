@@ -603,6 +603,9 @@ tab <- res %>%
   dplyr::rename(method=comparison)
 toplot <- tab %>%
   filter(method != "bdgraph (full)") %>%
+  mutate(is_prior_based = method %in% c("bdgraph (priors)", 
+                                        "glasso (priors)",
+                                        "irafnet")) %>%
   mutate(method = gsub("bdgraph \\(empty\\)", "bdgraph", method)) %>%
   mutate(method = factor(
     method,
@@ -617,6 +620,7 @@ toplot <- tab %>%
       "genenet"
     )
   ))
+  
 # get the MCC plot
 simulation_mcc <- ggplot(toplot,
                          aes(y=MCC, 
@@ -653,6 +657,50 @@ simulation_mcc
 
 save_plot("results/current/figures/thesis/simulation_performance_thesis.pdf",
           simulation_mcc + theme(legend.position = "bottom"), base_asp = 2)
+
+# ------------------------------------------------------------------------------
+print("Method comparison based on reviewer comments (fixed error, subset size)")
+toplot_filtered <- filter(toplot, R=="R=0.1")
+
+# compare prior vs non_prior for glasso and bdgraph
+toplot_glasso_bdgraph <- filter(toplot_filtered,
+                                grepl("glasso|bdgraph", method)) %>%
+  mutate(method_group = case_when(grepl("glasso", method) ~ "glasso",
+                                  TRUE ~ "bdgraph"))
+p1 <- ggplot(toplot_glasso_bdgraph,
+             aes(
+               y = MCC,
+               x = method,
+               color = method,
+               group = method
+             )) +
+  #  geom_violin(draw_quantiles = c(0.5)) +
+  geom_boxplot() +
+  ggpubr::stat_compare_means(
+    method.args = list(alternative = "less"),
+    comparisons = list(bdgraph = c(1, 2),
+                       glasso = c(3, 4))
+  ) +
+  scb_graphs +
+  theme(axis.text.x = element_blank())
+
+# compare overall prior VS non prior (should we do this?)
+p2 <- ggplot(toplot_filtered,
+             aes(
+               y = MCC,
+               x = is_prior_based,
+               color = method,
+               group = reorder(method, (-MCC))
+             )) +
+  #  geom_violin(draw_quantiles = c(0.5)) +
+  geom_boxplot() +
+  ggpubr::stat_compare_means(method.args = list(alternative = "less"),
+                             comparisons = list(base = c(1, 2))) +
+  scb_graphs
+
+ggarrange(p2, p1, 
+          ncol = 2, labels = c("AUTO"), 
+          common.legend = T, legend = "right")
 
 # ------------------------------------------------------------------------------
 print("Sample size simulation plot")

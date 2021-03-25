@@ -2,6 +2,9 @@ localrules: all_cohort, summarize_validation_eqtlgen, summarize_validation_meqtl
             render_validation, all_ggm, all_summarize_validation,
             plot_relevant_graphs
 
+wildcard_constraints:
+	cohort = "kora|lolipop"
+
 #-------------------------------------------------------------------------------
 # Target rule to run the complete cohort study.
 # Note: this runs a long time and should definitely be executed on a cluster
@@ -74,6 +77,32 @@ rule apply_ggm:
         script:
                 "../scripts/apply_ggm.R"
 
+rule apply_ggm_noisy_priors:
+        input:
+                data=DCOHORT_DATA + "{cohort}/{sentinel}_{seed}.rds",
+                priors=DPRIORS + "{sentinel}_{seed}.rds",
+                ranges=DRANGES + "{sentinel}_{seed}.rds",
+                cpg_context="results/current/cpg_context.rds",
+                tss_context="results/current/tfbs_tss_annot.rds",
+                ppi_db=PPI_DB
+        output:
+                fit=DCOHORT_FITS + "{cohort}/prior_noise/{sentinel}_{seed}.rds",
+                summary_file=DCOHORT_FITS + "{cohort}/prior_noise/{sentinel}_{seed}.pdf"
+#                gstart_file=DCOHORT_FITS + "{cohort}/prior_noise/{sentinel}_{seed}_gstart.pdf"
+        threads: 20
+        params:
+                time="2-00:00:00"
+        resources:
+                mem_mb=2000
+        conda:
+                "../envs/bioR.yaml"
+        benchmark:
+                "benchmarks/apply_ggm/prior_noise/{sentinel}_{cohort}_{seed}.bmk"
+        log:
+                "logs/apply_ggm/prior_noise/{sentinel}_{cohort}_{seed}.log"
+        script:
+                "../scripts/apply_ggm_with_prior_noise.R"
+	
 #------------------------------------------------------------------------------
 # Meta target rule to generate all GGMs
 #------------------------------------------------------------------------------

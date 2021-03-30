@@ -6,9 +6,9 @@
 #' @author Johann Hawe <johann.hawe@tum.de>
 # ------------------------------------------------------------------------------
 
-log <- file(snakemake@log[[1]], open="wt")
+log <- file(snakemake@log[[1]], open = "wt")
 sink(log)
-sink(log, type="message")
+sink(log, type = "message")
 
 # ------------------------------------------------------------------------------
 print("Prepare libraries and source scripts.")
@@ -39,7 +39,6 @@ fsummary_plot <- snakemake@output$summary_file
 
 # params
 threads <- snakemake@threads
-prior_noise <- snakemake@prior_noise
 
 # ------------------------------------------------------------------------------
 print("Load and prepare data.")
@@ -51,8 +50,9 @@ data <- readRDS(fdata)
 # removed from the CpGs during data preprocessing.
 # NOTE: we could possibly handle this differently? Seems that these particular
 # cpgs are highly influenced by genetic effects?
-use <- apply(data,2,function(x) (sum(is.na(x)) / length(x)) < 1)
-data <- data[,use]
+use <- apply(data, 2, function(x)
+  (sum(is.na(x)) / length(x)) < 1)
+data <- data[, use]
 
 print("Dimensions of data:")
 print(dim(data))
@@ -66,7 +66,7 @@ ranges <- readRDS(franges)
 # load PPI DB
 ppi_db <- readRDS(fppi_db)
 
-if(ranges$seed == "meqtl") {
+if (ranges$seed == "meqtl") {
   fcontext <- fcpg_context
 } else {
   fcontext <- ftss_context
@@ -85,13 +85,16 @@ print("Infer regulatory networks.")
 # helper to get a noisy prior matrix
 noisify_priors <- function(priors, noise_level) {
   PSEUDO_PRIOR <- 1e-7
-  number_edges_with_prior <- sum(priors>PSEUDO_PRIOR) / 2
-  number_entries_to_switch <- round(noise_level * number_edges_with_prior)
+  number_edges_with_prior <- sum(priors > PSEUDO_PRIOR) / 2
+  number_entries_to_switch <-
+    round(noise_level * number_edges_with_prior)
   
-  prior_idx <- sample(which(upper.tri(priors) & priors > PSEUDO_PRIOR), 
-                      number_entries_to_switch)
-  non_prior_idx <- sample(which(upper.tri(priors) & priors == PSEUDO_PRIOR),
-                         number_entries_to_switch)
+  prior_idx <-
+    sample(which(upper.tri(priors) & priors > PSEUDO_PRIOR),
+           number_entries_to_switch)
+  non_prior_idx <-
+    sample(which(upper.tri(priors) & priors == PSEUDO_PRIOR),
+           number_entries_to_switch)
   
   # swap idxs
   temp <- priors[prior_idx]
@@ -101,11 +104,11 @@ noisify_priors <- function(priors, noise_level) {
   return(priors)
 }
 
-noise_levels <- c(0.1)
+noise_levels <- seq(0.1, 0.9, by = 0.2)
 result <- lapply(noise_levels, function(noise_level) {
   priors <- noisify_priors(priors, noise_level)
-  infer_all_graphs(data, priors, ranges, fcontext, ppi_db,
-                   threads)
+  infer_all_graphs_priors(data, priors, ranges, fcontext, ppi_db,
+                          threads)
 })
 names(result) <- paste0("noise_level_", noise_levels)
 dev.off()
@@ -113,7 +116,7 @@ dev.off()
 # ------------------------------------------------------------------------------
 print("All done. Saving results.")
 # ------------------------------------------------------------------------------
-saveRDS(file=fout, result)
+saveRDS(file = fout, result)
 
 # ------------------------------------------------------------------------------
 print("Session info:")

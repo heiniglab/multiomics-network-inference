@@ -77,6 +77,10 @@ rule apply_ggm:
         script:
                 "../scripts/apply_ggm.R"
 
+#------------------------------------------------------------------------------
+# Apply ggm on collected data and priors for a sentinel, adding different levels
+# of prior noise for each inference tasks (only inferes prior based models).
+#------------------------------------------------------------------------------
 rule apply_ggm_noisy_priors:
         input:
                 data=DCOHORT_DATA + "{cohort}/{sentinel}_{seed}.rds",
@@ -112,6 +116,16 @@ rule all_ggm:
 		expand(DCOHORT_FITS + "kora/{sentinel}_meqtl.rds", sentinel=MEQTL.sentinel),
 		expand(DCOHORT_FITS + "kora/{sentinel}_eqtlgen.rds", sentinel=EQTLGEN.sentinel),
 		expand(DCOHORT_FITS + "lolipop/{sentinel}_eqtlgen.rds", sentinel=EQTLGEN.sentinel)
+		
+#------------------------------------------------------------------------------
+# Meta target rule to generate all GGMs with the prior noise analysis
+#------------------------------------------------------------------------------
+rule all_ggm_with_prior_noise:
+	input:
+		expand(DCOHORT_FITS + "lolipop/prior_noise/{sentinel}_meqtl.rds", sentinel=MEQTL.sentinel),
+		expand(DCOHORT_FITS + "kora/prior_noise/{sentinel}_meqtl.rds", sentinel=MEQTL.sentinel)
+#		expand(DCOHORT_FITS + "kora/prior_noise/{sentinel}_eqtlgen.rds", sentinel=EQTLGEN.sentinel),
+#		expand(DCOHORT_FITS + "lolipop/prior_noise/{sentinel}_eqtlgen.rds", sentinel=EQTLGEN.sentinel)
 		
 #------------------------------------------------------------------------------
 # Validate calculated ggms

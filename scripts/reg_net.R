@@ -854,6 +854,78 @@ infer_all_graphs <-
     return(result)
   }
 
+
+#' -----------------------------------------------------------------------------
+#' Infers graphs for all available prior based models and annotates them.
+#'
+#' @param data data matrix (n x p) to be used for fitting the models
+#' @param priors the p x p prior matrix
+#' @param ranges the ranges collection underlying the data
+#' @param fcontext the tfbs context file
+#' @param ppi_db the ppi db (graph) underlying the data
+#' @param threads number of threads to be used. Default: 1
+#'
+#' -----------------------------------------------------------------------------
+infer_all_graphs_priors <-
+  function(data,
+           priors,
+           ranges,
+           fcontext,
+           ppi_db,
+           threads = 1) {
+    # debug
+    print("Num Threads:")
+    print(RhpcBLASctl::omp_get_num_procs())
+    print("BLAS Num Threads:")
+    print(RhpcBLASctl::blas_get_num_procs())
+    
+    # we set the OMP/BLAS number of threads to 1
+    # this avoids issues we had in the glasso CV with multi-threading on cluster
+    # also necessary for BDgraph
+    RhpcBLASctl::omp_set_num_threads(1)
+    RhpcBLASctl::blas_set_num_threads(1)
+    
+    print("Fitting model using glasso.")
+    glasso <- reg_net(data, priors, "glasso", threads = threads)
+    
+    print("Fitting bdgraph using priors.")
+    bdgraph <- reg_net(data, priors, "bdgraph", threads = threads)
+    
+    print("Fitting model using iRafNet.")
+    irafnet <- reg_net(data, priors, "irafnet", threads = threads)
+    
+    # --------------------------------------------------------------------------
+    print("Add custom annotations for the graphs.")
+    # --------------------------------------------------------------------------
+    bdgraph$graph <- annotate.graph(bdgraph$graph,
+                                    ranges, ppi_db, fcontext)
+    
+    irafnet$graph <- annotate.graph(irafnet$graph,
+                                    ranges, ppi_db, fcontext)
+    
+    glasso$graph <- annotate.graph(glasso$graph,
+                                   ranges, ppi_db, fcontext)
+    
+    # --------------------------------------------------------------------------
+    print("Create result list.")
+    # --------------------------------------------------------------------------
+    result <- list(
+      # bdgraph
+      bdgraph_fit = bdgraph$fit,
+      bdgraph = bdgraph$graph,
+      # irafnet
+      irafnet_fit = irafnet$fit,
+      irafnet = irafnet$graph,
+      # glasso
+      glasso_fit = glasso$fit,
+      glasso = glasso$graph
+    )
+    
+    return(result)
+}
+
+
+
 #' -----------------------------------------------------------------------------
 #' Infers graphs for all available models and annotates them.
 #' This method is used for testing subsets of models, i.e. we manually select

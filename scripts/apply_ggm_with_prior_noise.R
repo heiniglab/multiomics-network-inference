@@ -26,12 +26,13 @@ print("Get snakemake parameters.")
 # ------------------------------------------------------------------------------
 
 #input
-franges <- snakemake@input[["ranges"]]
-fdata <- snakemake@input[["data"]]
-fppi_db <- snakemake@input[["ppi_db"]]
-fpriors <- snakemake@input[["priors"]]
-fcpg_context <- snakemake@input[["cpg_context"]]
-ftss_context <- snakemake@input[["tss_context"]]
+franges <- snakemake@input$ranges
+fdata_kora <- snakemake@input$data_kora
+fdata_lolipop <- snakemake@input$data_lolipop
+fppi_db <- snakemake@input$ppi_db
+fpriors <- snakemake@input$priors
+fcpg_context <- snakemake@input$cpg_context
+ftss_context <- snakemake@input$tss_context
 
 # output
 fout <- snakemake@output$fit
@@ -43,24 +44,35 @@ threads <- snakemake@threads
 # ------------------------------------------------------------------------------
 print("Load and prepare data.")
 # ------------------------------------------------------------------------------
-data <- readRDS(fdata)
+remove_all_na <- function(data) {
+  # remove (rare) all-NA cases. This can happen due to scaling of all-zero entities,
+  # which can arise due to a very large number of cis-meQTLs which effects get
+  # removed from the CpGs during data preprocessing.
+  # NOTE: we could possibly handle this differently? Seems that these particular
+  # cpgs are highly influenced by genetic effects?
+  use <- apply(data, 2, function(x)
+    (sum(is.na(x)) / length(x)) < 1)
+  data <- data[, use]
+  data
+}
 
-# remove (rare) all-NA cases. This can happen due to scaling of all-zero entities,
-# which can arise due to a very large number of cis-meQTLs which effects get
-# removed from the CpGs during data preprocessing.
-# NOTE: we could possibly handle this differently? Seems that these particular
-# cpgs are highly influenced by genetic effects?
-use <- apply(data, 2, function(x)
-  (sum(is.na(x)) / length(x)) < 1)
-data <- data[, use]
+data_kora <- remove_all_na(readRDS(fdata_kora))
+data_lolipop <- remove_all_na(readRDS(fdata_lolipop))
 
-print("Dimensions of data:")
-print(dim(data))
+print("Dimensions of KORA data:")
+print(dim(data_kora))
 
-priors <- readRDS(fpriors)
+print("Dimensions of LOLIPOP data:")
+print(dim(data_lolipop))
+
+# we only look at replication, so we only consider the nodes present in both
+# cohorts
+common_nodes <- intersect(colnames(data_kora), colnames(data_lolipop))
+
 
 # filter for available data in priros
-priors <- priors[colnames(data), colnames(data)]
+priors <- readRDS(fpriors)
+priors <- priors[common_nodes, common_nodes]
 ranges <- readRDS(franges)
 
 # load PPI DB
@@ -104,11 +116,17 @@ noisify_priors <- function(priors, noise_level) {
   return(priors)
 }
 
+
 noise_levels <- seq(0.1, 0.9, by = 0.2)
 result <- lapply(noise_levels, function(noise_level) {
   priors <- noisify_priors(priors, noise_level)
-  infer_all_graphs_priors(data, priors, ranges, fcontext, ppi_db,
-                          threads)
+  result_kora <-
+    infer_all_graphs_priors(data_kora, priors, ranges, fcontext, ppi_db,
+                            threads)
+  result_lolipop <-
+    infer_all_graphs_priors(data_lolipop, priors, ranges, fcontext, ppi_db,
+                            threads)
+  list(kora = result_kora, lolipop = result_lolipop)
 })
 names(result) <- paste0("noise_level_", noise_levels)
 dev.off()

@@ -83,16 +83,17 @@ rule apply_ggm:
 #------------------------------------------------------------------------------
 rule apply_ggm_noisy_priors:
         input:
-                data=DCOHORT_DATA + "{cohort}/{sentinel}_{seed}.rds",
+                data_kora=DCOHORT_DATA + "kora/{sentinel}_{seed}.rds",
+                data_lolipop=DCOHORT_DATA + "lolipop/{sentinel}_{seed}.rds",
                 priors=DPRIORS + "{sentinel}_{seed}.rds",
                 ranges=DRANGES + "{sentinel}_{seed}.rds",
                 cpg_context="results/current/cpg_context.rds",
                 tss_context="results/current/tfbs_tss_annot.rds",
                 ppi_db=PPI_DB
         output:
-                fit=DCOHORT_FITS + "{cohort}/prior_noise/{sentinel}_{seed}.rds",
-                summary_file=DCOHORT_FITS + "{cohort}/prior_noise/{sentinel}_{seed}.pdf"
-#                gstart_file=DCOHORT_FITS + "{cohort}/prior_noise/{sentinel}_{seed}_gstart.pdf"
+                fit=DCOHORT_FITS + "replication_prior_noise/{sentinel}_{seed}.rds",
+                summary_file=DCOHORT_FITS + "replication_prior_noise/{sentinel}_{seed}.pdf"
+#                gstart_file=DCOHORT_FITS + "replication_prior_noise/{sentinel}_{seed}_gstart.pdf"
         threads: 20
         params:
                 time="2-00:00:00"
@@ -122,10 +123,8 @@ rule all_ggm:
 #------------------------------------------------------------------------------
 rule all_ggm_with_prior_noise:
 	input:
-		expand(DCOHORT_FITS + "lolipop/prior_noise/{sentinel}_meqtl.rds", sentinel=MEQTL.sentinel),
-		expand(DCOHORT_FITS + "kora/prior_noise/{sentinel}_meqtl.rds", sentinel=MEQTL.sentinel)
-#		expand(DCOHORT_FITS + "kora/prior_noise/{sentinel}_eqtlgen.rds", sentinel=EQTLGEN.sentinel),
-#		expand(DCOHORT_FITS + "lolipop/prior_noise/{sentinel}_eqtlgen.rds", sentinel=EQTLGEN.sentinel)
+		expand(DCOHORT_FITS + "replication_prior_noise/{sentinel}_meqtl.rds", sentinel=MEQTL.sentinel),
+#		expand(DCOHORT_FITS + "replication_prior_noise/{sentinel}_eqtlgen.rds", sentinel=EQTLGEN.sentinel)
 		
 #------------------------------------------------------------------------------
 # Validate calculated ggms

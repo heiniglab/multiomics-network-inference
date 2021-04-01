@@ -249,32 +249,23 @@ graph_from_fit <- function(ggm.fit,
   
   # get the graph instance from the ggm fits
   if (inherits(ggm.fit, "bdgraph")) {
-    # only gives upper.tri -> invert
-    g.adj <- t(BDgraph::select(ggm.fit, cut = 0.9))
-    cn <- colnames(g.adj)
-    g <- graphNEL(nodes,
-                  edgemode = "undirected")
+    best_cutoff <-
+      get_best_graph_cutoff(
+        seq(0.5, 1, by = 0.01),
+        get_bdgraph_graph,
+        threads = 1,
+        rsquare.cut = 0.8,
+        ggm.fit,
+        nodes
+      )
+    print(paste0("BDgraph best cutoff is: ", best_cutoff))
     
-    # create edge matrix
-    v <- sm2vec(g.adj)
-    vidx <- sm.index(g.adj)
-    em <- cbind.data.frame(
-      is_edge = v,
-      node1 = cn[vidx[, 1]],
-      node2 = cn[vidx[, 2]],
-      stringsAsFactors = F
-    )
-    # get edges
-    em <- subset(em, is_edge == 1)
-    if (nrow(em) > 0) {
-      g <- addEdge(em$node1, em$node2, g)
-    }
+    g <- get_bdgraph_graph(best_cutoff, ggm.fit, nodes)
     
   } else if (inherits(ggm.fit, "irafnet")) {
     best_cutoff <-
       get_best_graph_cutoff(
         seq(0.01, 0.2, by = 0.01),
-        "irafnet",
         get_irafnet_graph,
         threads = 1,
         rsquare.cut = 0.8,
@@ -291,7 +282,6 @@ graph_from_fit <- function(ggm.fit,
     best_cutoff <-
       get_best_graph_cutoff(
         seq(0.8, 0.99, by = 0.01),
-        "genenet",
         get_genenet_graph,
         threads = 1,
         rsquare.cut = 0.8,
@@ -335,7 +325,37 @@ graph_from_fit <- function(ggm.fit,
 }
 
 # ------------------------------------------------------------------------------
-# Gets a graph object based on a iRafNet graph fit and a specific FDR cutoff
+# Gets a graph object based on a BDgraph graph fit and a specific posterior
+# probability cutoff
+# ------------------------------------------------------------------------------
+get_bdgraph_graph <- function(posterior_probability,
+                              model_fit,
+                              nodes) {
+  # only gives upper.tri -> invert
+  g_adj <- t(BDgraph::select(model_fit, cut = posterior_probability))
+  cn <- colnames(g_adj)
+  g <- graphNEL(nodes,
+                edgemode = "undirected")
+  
+  # create edge matrix
+  v <- sm2vec(g_adj)
+  vidx <- sm.index(g_adj)
+  em <- cbind.data.frame(
+    is_edge = v,
+    node1 = cn[vidx[, 1]],
+    node2 = cn[vidx[, 2]],
+    stringsAsFactors = F
+  )
+  # get edges
+  em <- subset(em, is_edge == 1)
+  if (nrow(em) > 0) {
+    g <- addEdge(em$node1, em$node2, g)
+  }
+  return(g)
+}
+
+# ------------------------------------------------------------------------------
+#' Gets a graph object based on a iRafNet graph fit and a specific FDR cutoff
 # ------------------------------------------------------------------------------
 get_irafnet_graph <- function(fdr_cutoff,
                               model_output,
@@ -701,7 +721,7 @@ genie3 <-
     }
     best_weight <-
       get_best_graph_cutoff(
-        cutoff_list,
+        all_link_weights,
         "genie3",
         get_genie3_graph,
         threads = 1,
@@ -715,8 +735,7 @@ genie3 <-
         model = model,
         nodes = colnames(data),
         linklist = linklist,
-        best_weight = best_weight,
-        pl_fits = fits
+        best_weight = best_weight
       )
     )
   }
@@ -737,31 +756,30 @@ genie3 <-
 #'
 # ------------------------------------------------------------------------------
 get_best_graph_cutoff <- function(cutoff_list,
-                                  model_type,
                                   graph_extraction_callback,
                                   threads = 1,
                                   rsquare.cut = 0.8,
                                   ...) {
-  print("getting fits")
-  fits <- mclapply(cutoff_list, function(cutoff) {
+  powerlaw_fits <- mclapply(cutoff_list, function(cutoff) {
     g <- graph_extraction_callback(cutoff, ...)
     fit <- get_powerlaw_fit(g)
-    fit$weight <- cutoff
+    if (!is.null(fit)) {
+      fit$weight <- cutoff
+    }
     fit
   }, mc.cores = threads)
   
-  print("extracting best weight.")
-  fits <- do.call(rbind.data.frame, fits)
-  colnames(fits) <-
+  powerlaw_fits <- do.call(rbind.data.frame, powerlaw_fits)
+  colnames(powerlaw_fits) <-
     c("ll", "ks_p", "alpha", "beta", "r2", "mcon", "weight")
-  rownames(fits) <- paste0("weight=", fits$weight)
+  rownames(powerlaw_fits) <- paste0("weight=", powerlaw_fits$weight)
   
   # get best weight (r2>=cutoff, then highest mean connectivity)
-  fits_r2 <- subset(fits, r2 >= rsquare.cut)
+  fits_r2 <- subset(powerlaw_fits, r2 >= rsquare.cut)
   if (nrow(fits_r2) < 1) {
     # didn't find a cutoff, so we take the maximum r2
     warning(paste0("No R^2 above ", rsquare.cut))
-    fits_r2 <- subset(fits, r2 == max(r2))
+    fits_r2 <- subset(powerlaw_fits, r2 == max(r2))
   }
   fits_mcon <- subset(fits_r2, mcon == max(mcon))
   fits_beta <- fits_mcon[which.min(-1 - fits_mcon$beta), ]
@@ -781,6 +799,7 @@ get_best_graph_cutoff <- function(cutoff_list,
 #' -----------------------------------------------------------------------------
 get_powerlaw_fit <- function(graph, nbreaks = 20) {
   ds <- graph::degree(graph)
+  
   if (var(ds) == 0)
     return(NULL)
   

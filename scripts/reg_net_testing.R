@@ -36,6 +36,12 @@ priors <-
   readRDS("results/current/biogrid_stringent/priors/rs9859077_meqtl.rds")
 priors <- priors[colnames(data), colnames(data)]
 
+# we set the OMP/BLAS number of threads to 1
+# this avoids issues we had in the glasso CV with multi-threading on cluster
+# also necessary for BDgraph
+RhpcBLASctl::omp_set_num_threads(1)
+RhpcBLASctl::blas_set_num_threads(1)
+
 print("testing genenet")
 genenet_result <- reg_net(data, NULL, model = "genenet", threads=threads)
 plot(genenet_result$graph)

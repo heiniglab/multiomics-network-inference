@@ -96,17 +96,27 @@ print("Infer regulatory networks.")
 
 # helper to get a noisy prior matrix
 noisify_priors <- function(priors, noise_level) {
+  
+  if(noise_level == 0) return(priors)
+  
   PSEUDO_PRIOR <- 1e-7
-  number_edges_with_prior <- sum(priors > PSEUDO_PRIOR) / 2
+  number_edges_with_prior <- sum(priors[upper.tri(priors)] > PSEUDO_PRIOR)
+  number_edges_without_prior <- sum(priors[upper.tri(priors)] == PSEUDO_PRIOR)
+  
   number_entries_to_switch <-
     round(noise_level * number_edges_with_prior)
+  
+  # rare cases where we have more prior annotated edges than no-prior edges
+  if(number_entries_to_switch > number_edges_without_prior) {
+    number_entries_to_switch <- number_edges_without_prior
+  }
   
   prior_idx <-
     sample(which(upper.tri(priors) & priors > PSEUDO_PRIOR),
            number_entries_to_switch)
   non_prior_idx <-
     sample(which(upper.tri(priors) & priors == PSEUDO_PRIOR),
-           number_entries_to_switch)
+           min(number_entries_to_switch, ))
   
   # swap idxs
   temp <- priors[prior_idx]
@@ -116,15 +126,15 @@ noisify_priors <- function(priors, noise_level) {
   return(priors)
 }
 
-
-noise_levels <- seq(0.1, 0.9, by = 0.2)
+# include 0 noise ('normal' model)
+noise_levels <- seq(0, 0.8, by = 0.2)
 result <- lapply(noise_levels, function(noise_level) {
   priors <- noisify_priors(priors, noise_level)
   result_kora <-
-    infer_all_graphs_priors(data_kora, priors, ranges, fcontext, ppi_db,
+    infer_all_graphs(data_kora, priors, ranges, fcontext, ppi_db,
                             threads)
   result_lolipop <-
-    infer_all_graphs_priors(data_lolipop, priors, ranges, fcontext, ppi_db,
+    infer_all_graphs(data_lolipop, priors, ranges, fcontext, ppi_db,
                             threads)
   list(kora = result_kora, lolipop = result_lolipop)
 })

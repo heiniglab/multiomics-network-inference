@@ -102,9 +102,9 @@ rule apply_ggm_noisy_priors:
         conda:
                 "../envs/bioR.yaml"
         benchmark:
-                "benchmarks/apply_ggm/prior_noise/{sentinel}_{cohort}_{seed}.bmk"
+                "benchmarks/apply_ggm/prior_noise/{sentinel}_{seed}.bmk"
         log:
-                "logs/apply_ggm/prior_noise/{sentinel}_{cohort}_{seed}.log"
+                "logs/apply_ggm/prior_noise/{sentinel}_{seed}.log"
         script:
                 "../scripts/apply_ggm_with_prior_noise.R"
 	

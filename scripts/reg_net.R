@@ -33,7 +33,7 @@ reg_net.models <- function() {
 #' @param data The data matrix (n x p) from which to infer the network. Must
 #' have column names (i.e. node names)
 #' @param priors The matrix of priors (p x p) which to use. Needs to be set to
-#' NULL explicitely to disregard priros. In case of bdgraph model, these are 
+#' NULL explicitely to disregard priros. In case of bdgraph model, these are
 #' used to define a start graph for the algorithm.
 #' @param model The model to be used. One of `reg_net.models()`
 #' @param threads optional. Number of threads to be used (if applicable)
@@ -65,7 +65,7 @@ reg_net <- function(data,
                     mtry = round(sqrt(ncol(data) - 1)),
                     npermut = 5) {
   require(doParallel)
-
+  
   # vector of all nodes
   nodes <- colnames(data)
   
@@ -73,23 +73,23 @@ reg_net <- function(data,
   ms <- reg_net.models()
   if (!(model %in% ms))
     stop(paste0("Model not supported: ", model))
-
-  if(any(is.na(data))) {
+  
+  if (any(is.na(data))) {
     warning("Handling NAs present in data automatically!")
   }
   
   # for genenet and iRafNet, remove NAs
   data_no_nas <- data[, apply(data, 2, function(x)
     ! anyNA(x))]
-
+  
   if (!is.null(priors)) {
     # if prior dimensions do not match, try to subset priors
-    if(ncol(data) < ncol(priors)) {
+    if (ncol(data) < ncol(priors)) {
       warning("Subsetting priors automatically. You should check your input.")
       priors <- priors[colnames(data), colnames(data)]
-
+      
       # sanity check: do colnames match?
-      if(!all(colnames(priors) == colnames(data))) {
+      if (!all(colnames(priors) == colnames(data))) {
         stop("Column names did not match after autmatic prior subsetting.")
       }
     }
@@ -103,10 +103,10 @@ reg_net <- function(data,
   # check which model to build
   if ("genenet" %in% model) {
     require(GeneNet)
-
+    
     # get partial correlation estimates
     pcors <- ggm.estimate.pcor(data.matrix(data_no_nas))
-
+    
     fit <- network.test.edges(pcors, plot = F)
     fit$node1 <- colnames(data_no_nas)[fit$node1]
     fit$node2 <- colnames(data_no_nas)[fit$node2]
@@ -121,7 +121,7 @@ reg_net <- function(data,
       # set default uniform prior
       # 0.5 reflects uniform according to email from the package author from 4.8.17
       bdpriors <- 0.5
-
+      
       # build without priors, nevertheless, we could have a custom start graph
       if (use_gstart) {
         if (is.null(gstart)) {
@@ -133,7 +133,7 @@ reg_net <- function(data,
     } else {
       # we have priors
       bdpriors <- priors
-     
+      
       # check whether to use the prior based start graph
       if (use_gstart) {
         gstart <- get_gstart_from_priors(bdpriors)
@@ -157,12 +157,12 @@ reg_net <- function(data,
     
   } else if ("irafnet" %in% model) {
     require(iRafNet)
-
+    
     if (threads > 1) {
       cl <- makeCluster(threads)
       registerDoParallel(cl)
     }
-
+    
     irn_out <-
       iRafNet(data_no_nas,
               priors_no_nas,
@@ -181,11 +181,14 @@ reg_net <- function(data,
       threads = threads
     )
     
-    fit <- list(irn_out = irn_out, irn_perm_out = irn_perm_out,
-                nodes = colnames(data_no_nas))
+    fit <- list(
+      irn_out = irn_out,
+      irn_perm_out = irn_perm_out,
+      nodes = colnames(data_no_nas)
+    )
     
     class(fit) <- c(class(fit), "irafnet")
-
+    
     if (threads > 1) {
       stopCluster(cl)
     }
@@ -208,14 +211,16 @@ reg_net <- function(data,
   
   # now get the graph object
   g <- graph_from_fit(fit, nodes, annotate = F)
-
+  
   return(list(graph = g, fit = fit))
 }
 
 # ------------------------------------------------------------------------------
-#' Creates a graphNEL object from a given bdgraph result for a defined cutoff
+#' Creates a graphNEL object from a given model result
+#' Evaluates fit to powerlaw distribution to determine significance cutoffs
+#' for some models (currently: genenet, genie3 and irafnet)
 #'
-#' @param ggm.fit The bdgraph ggm fit
+#' @param ggm.fit The ggm fit
 #' @param nodes All nodes of the graph. Will be used to create the
 #' graph object
 #' @param ranges The ranges of the entities used for the graph fit
@@ -228,7 +233,7 @@ reg_net <- function(data,
 #' @author Johann Hawe
 #'
 # ------------------------------------------------------------------------------
-graph_from_fit <- function(ggm.fit, 
+graph_from_fit <- function(ggm.fit,
                            nodes,
                            ranges = NULL,
                            ppi_db = NULL,
@@ -236,12 +241,12 @@ graph_from_fit <- function(ggm.fit,
   if (annotate & is.null(ranges)) {
     stop("Ranges must not be null for annotating graphs!")
   }
-
+  
   library(BDgraph)
   library(graph)
   library(igraph)
   require(reshape2)
-
+  
   # get the graph instance from the ggm fits
   if (inherits(ggm.fit, "bdgraph")) {
     # only gives upper.tri -> invert
@@ -253,10 +258,12 @@ graph_from_fit <- function(ggm.fit,
     # create edge matrix
     v <- sm2vec(g.adj)
     vidx <- sm.index(g.adj)
-    em <- cbind.data.frame(is_edge=v, 
-                           node1=cn[vidx[,1]], 
-                           node2=cn[vidx[,2]], 
-                           stringsAsFactors=F)
+    em <- cbind.data.frame(
+      is_edge = v,
+      node1 = cn[vidx[, 1]],
+      node2 = cn[vidx[, 2]],
+      stringsAsFactors = F
+    )
     # get edges
     em <- subset(em, is_edge == 1)
     if (nrow(em) > 0) {
@@ -264,20 +271,35 @@ graph_from_fit <- function(ggm.fit,
     }
     
   } else if (inherits(ggm.fit, "irafnet")) {
-    best_cutoff <- get_best_graph_cutoff(seq(0.01, 0.2, by=0.01), "irafnet", 
-                                         get_irafnet_graph, threads = 1,
-                                         ggm.fit$irn_out, ggm.fit$irn_perm_out,
-                                         nodes)
+    best_cutoff <-
+      get_best_graph_cutoff(
+        seq(0.01, 0.2, by = 0.01),
+        "irafnet",
+        get_irafnet_graph,
+        threads = 1,
+        rsquare.cut = 0.8,
+        ggm.fit$irn_out,
+        ggm.fit$irn_perm_out,
+        nodes
+      )
     
-    g <- get_irafnet_graph(best_cutoff, ggm.fit$irn_out, ggm.fit$irn_perm_out,
-                           nodes)
+    g <-
+      get_irafnet_graph(best_cutoff, ggm.fit$irn_out, ggm.fit$irn_perm_out,
+                        nodes)
     
   } else if (inherits(ggm.fit, "genenet")) {
-    best_cutoff <- get_best_graph_cutoff(seq(0.8, 0.99, by=0.01), "genenet", 
-                                         get_genenet_graph, threads = 1,
-                                         ggm.fit)
+    best_cutoff <-
+      get_best_graph_cutoff(
+        seq(0.8, 0.99, by = 0.01),
+        "genenet",
+        get_genenet_graph,
+        threads = 1,
+        rsquare.cut = 0.8,
+        ggm.fit,
+        nodes
+      )
     
-    g <- get_genenet_graph(best_cutoff, ggm.fit)
+    g <- get_genenet_graph(best_cutoff, ggm.fit, nodes)
     
   } else if (inherits(ggm.fit, "glasso")) {
     pm <- ggm.fit$wi
@@ -287,10 +309,12 @@ graph_from_fit <- function(ggm.fit,
     # create edge matrix
     v <- sm2vec(pm)
     vidx <- sm.index(pm)
-    em <- cbind.data.frame(pcor=v, 
-                           node1=cn[vidx[,1]], 
-                           node2=cn[vidx[,2]], 
-                           stringsAsFactors=F)
+    em <- cbind.data.frame(
+      pcor = v,
+      node1 = cn[vidx[, 1]],
+      node2 = cn[vidx[, 2]],
+      stringsAsFactors = F
+    )
     
     # define edges with pcor != 0
     em <- subset(em, pcor != 0)
@@ -302,7 +326,7 @@ graph_from_fit <- function(ggm.fit,
                           nodes,
                           ggm.fit$linklist)
   }
-
+  
   if (annotate) {
     # set node and edge attributes
     g <- annotate.graph(g, ranges, ppi_db)
@@ -313,11 +337,12 @@ graph_from_fit <- function(ggm.fit,
 # ------------------------------------------------------------------------------
 # Gets a graph object based on a iRafNet graph fit and a specific FDR cutoff
 # ------------------------------------------------------------------------------
-get_irafnet_graph <- function(fdr_cutoff, 
-                              model_output, permutation_output, nodes) {
-  
+get_irafnet_graph <- function(fdr_cutoff,
+                              model_output,
+                              permutation_output,
+                              nodes) {
   fit <- iRafNet_network(model_output,
-                         permutation_output, 
+                         permutation_output,
                          TH = fdr_cutoff)
   
   g <- graphNEL(nodes, edgemode = "undirected")
@@ -330,12 +355,12 @@ get_irafnet_graph <- function(fdr_cutoff,
 #' Gets a graph object from a genenet model fit and given a specific link
 #' probability cutoff (1-fdr)
 # ------------------------------------------------------------------------------
-get_genenet_graph <- function(prob_cutoff, model_fit) {
+get_genenet_graph <- function(prob_cutoff, model_fit, nodes) {
   net <- extract.network(model_fit,
                          cutoff.ggm = prob_cutoff)
   g <- graphNEL(nodes, edgemode = "undirected")
   
-  if(nrow(net) > 0) {
+  if (nrow(net) > 0) {
     g <- addEdge(net$node1, net$node2, g)
   }
   return(g)
@@ -355,29 +380,29 @@ get_genenet_graph <- function(prob_cutoff, model_fit) {
 # ------------------------------------------------------------------------------
 get_graph_score <- function(g, sentinel, ranges, density = NULL) {
   require(igraph)
-
+  
   seed <- ranges$seed
-
+  
   # get graph score
   score <- 0
-
+  
   # keep only cluster with sentinel
   cl <- clusters(g)
   if (!sentinel %in% names(cl$membership))
     return(0)
-
+  
   cn <- cl$membership[sentinel]
   subnodes <- names(cl$membership[cl$membership == cn])
   if (length(subnodes) < 2)
     return(0)
-
+  
   g <- induced_subgraph(g, subnodes)
-
+  
   # check whether we have any SNP gene.
   # if not, the score will be 0
   # otherwise proceed with check
   adj_sent <- igraph::neighbors(g, sentinel)$name
-
+  
   # get number of trans genes in our cluster
   v <- V(g)$name
   if (seed == "meqtl") {
@@ -385,7 +410,7 @@ get_graph_score <- function(g, sentinel, ranges, density = NULL) {
   } else {
     tg_in_v <- intersect(ranges$trans_genes$SYMBOL, v)
   }
-
+  
   if (seed %in% c("meqtl", "eqtlgen", "eqtl")) {
     # weight for cis-genes
     X <- 0.5
@@ -395,13 +420,13 @@ get_graph_score <- function(g, sentinel, ranges, density = NULL) {
     } else {
       score <- score + X
     }
-
+    
     # define proportion to use for scoring
     cis_in_v <- intersect(ranges$snp_genes$SYMBOL, v)
     cis_not_sent <- setdiff(cis_in_v, cis_sent)
     Y_cis <- X / length(cis_in_v)
     Y_trans <- X / length(tg_in_v)
-
+    
     # check for cis genes which are not connected to the snp/any other
     # snp genes
     for (cis in cis_not_sent) {
@@ -410,14 +435,14 @@ get_graph_score <- function(g, sentinel, ranges, density = NULL) {
         score <- score - Y_cis
       }
     }
-
+    
     # check whether trans genes are directly connected to sentinel
     # score gets a penalty for each such instance
     tg_sent <- intersect(tg_in_v, adj_sent)
     for (i in tg_sent) {
       score <- score - Y_trans
     }
-
+    
     # now we investigate whether we can reach the trans genes
     # starting from the snp_genes. for this we first
     # remove the sentinel from the network
@@ -427,7 +452,7 @@ get_graph_score <- function(g, sentinel, ranges, density = NULL) {
         # we always remove all other trans genes than the current
         # one to avoid walking over other trans genes to reach it
         sg <- delete.vertices(g, setdiff(tg_in_v, trans))
-
+        
         # get path to trans_gene
         paths <-
           suppressWarnings(get.shortest.paths(sg, cis, trans))$vpath[[1]]
@@ -439,20 +464,20 @@ get_graph_score <- function(g, sentinel, ranges, density = NULL) {
   } else {
     # TODO: we could check whether sentinel is TF, then get fraction of
     # directly reachable trans genes
-
+    
     # fraction of reachable TGs via at least one TF or spath gene
     Y_trans <- 1 / length(tg_in_v)
-
+    
     for (trans in tg_in_v) {
       # remove all other trans-genes to get only independently reachable TGs
       sg <- delete.vertices(g, setdiff(tg_in_v, trans))
-
+      
       paths <-
         suppressWarnings(get.shortest.paths(sg, sentinel, trans))$vpath[[1]]
-
+      
       # we need at least one TF or Spath gene on the path
       pgenes <- unique(c(ranges$tfs$SYMBOL, ranges$spath$SYMBOL))
-
+      
       if (length(paths) > 1 && any(pgenes %in% paths$name)) {
         score <- score + Y_trans
       }
@@ -482,7 +507,7 @@ loglik <- function(theta, sigma, n, p) {
   c2 <- p * log(2 * pi)
   logdet <- determinant(theta, logarithm = T)$modulus
   ll <- c1 * (logdet - sum(sigma * theta) - c2)
-
+  
   return(ll)
 }
 
@@ -518,7 +543,7 @@ bic <- function(ll, n, k) {
 #' -----------------------------------------------------------------------------
 glasso_cv <- function(data,
                       priors = NULL,
-                      nodes, 
+                      nodes,
                       k = 5,
                       rholist = seq(0.01, 1, by = 0.005),
                       threads = 1) {
@@ -530,21 +555,22 @@ glasso_cv <- function(data,
   
   n <- nrow(data)
   folds <- cvFolds(n, k, type = "random")
-
+  
   # define penalties to be used in glasso
-  if(!is.null(priors)) {
+  if (!is.null(priors)) {
     penalties <- (1 - priors)
   }
   
   # get the ll progression for all CV folds
   loglikes <- lapply(1:k, function(ki) {
-    S_train <- cov(data[folds$which != ki, ], use = "na.or.complete")
-    S_test  <- cov(data[folds$which == ki, ], use = "na.or.complete")
-
+    S_train <- cov(data[folds$which != ki,], use = "na.or.complete")
+    S_test  <-
+      cov(data[folds$which == ki,], use = "na.or.complete")
+    
     # get the number of variables
     p <- ncol(S_test)
     n <- nrow(S_test)
-
+    
     # check all rhos
     # NOTE: we can't use glassopath since we want to include the prior
     # information
@@ -560,18 +586,18 @@ glasso_cv <- function(data,
       }
       rownames(gl$wi) <- colnames(gl$wi) <- colnames(data)
       class(gl) <- c(class(gl), "glasso")
-
+      
       # get log likelihood, number of edges and BIC
       ll <- loglik(gl$wi, S_test, n, p)
-
+      
       g <- graph_from_fit(gl, nodes, annotate = F)
       ne <- numEdges(g)
-
+      
       # eBIC?
       bic <- bic(ll = ll, n = n, k = ne)
-
+      
       c(ll, bic, ne)
-
+      
     }, mc.cores = threads))
   })
   loglikes <- do.call(rbind, loglikes)
@@ -579,14 +605,14 @@ glasso_cv <- function(data,
     paste0(c("rho_rho=", "bic_rho=", "edgeNum_rho="),
            rep(rholist, each = 3))
   rownames(loglikes) <- paste0("k=", 1:k)
-
+  
   # get the 'best' rho according to the BIC
   bic_sub <- colMeans(loglikes[, grepl("bic", colnames(loglikes))])
   ind <- which.min(bic_sub)
-
+  
   # retrieve rho from the name
   rho <- as.numeric(strsplit(names(ind), "=")[[1]][2])
-
+  
   # retrain the full model
   S <- cov(data, use = "na.or.complete")
   if (!is.null(priors)) {
@@ -596,11 +622,11 @@ glasso_cv <- function(data,
   }
   # set names on precision matrix
   rownames(model$wi) <- colnames(model$wi) <- colnames(data)
-
+  
   # remember rho and loglikelihoods
   model$rho_best <- rho
   model$rho_progression <- loglikes
-
+  
   return(model)
 }
 
@@ -615,9 +641,9 @@ glasso_cv <- function(data,
 #' -----------------------------------------------------------------------------
 get_genie3_graph <- function(threshold, nodes, linklist) {
   require(graph)
-
+  
   edges <- subset(linklist, weight >= threshold)
-
+  
   if (nrow(edges) > 0) {
     g <- graph::graphNEL(nodes,
                          edgemode = "undirected")
@@ -640,19 +666,17 @@ get_genie3_graph <- function(threshold, nodes, linklist) {
 #'
 #' @param data The data matrix (n x p)
 #' @param threads The number of threads to be used
-#' @param rsquare.cut Which rsquare cutoff to use when determining the best
-#' GENIE3 weights to generate the final network. Default: 0.9
+#' @param verbose Whether to be verbose about the process or not
 #'
 #' -----------------------------------------------------------------------------
 genie3 <-
   function(data,
            threads = 1,
-           rsquare.cut = 0.8,
            verbose = T) {
     require(GENIE3)
     require(igraph)
     require(parallel)
-
+    
     # we expect a n x p matrix, genie3 needs a p x n matrix
     if (verbose) {
       start <- Sys.time()
@@ -664,20 +688,28 @@ genie3 <-
       print(paste0("GENIE3 benchmark: ", end - start))
     }
     all_link_weights <- sort(unique(linklist$weight))
-
+    
     lw <- length(all_link_weights)
     # get a subset to check if needed
     if (lw > 500) {
-      all_link_weights <- quantile(all_link_weights, 
+      all_link_weights <- quantile(all_link_weights,
                                    seq(0, 1, by = 0.005))
     }
-
-    print(paste0("Checking ", length(all_link_weights), " weights."))
-  
-    best_weight <- 
-      get_best_graph_cutoff(cutoff_list, "genie3", 
-                            get_genie3_graph, colnames(data), linklist)
- 
+    
+    if (verbose) {
+      print(paste0("Checking ", length(all_link_weights), " weights."))
+    }
+    best_weight <-
+      get_best_graph_cutoff(
+        cutoff_list,
+        "genie3",
+        get_genie3_graph,
+        threads = 1,
+        rsquare.cut = 0.8,
+        colnames(data),
+        linklist
+      )
+    
     return(
       list(
         model = model,
@@ -690,13 +722,13 @@ genie3 <-
   }
 
 # ------------------------------------------------------------------------------
-#' Gets the best cutoff from a list of given cutoffs with respect to the 
+#' Gets the best cutoff from a list of given cutoffs with respect to the
 #' goodness of fit to a powerlaw distribution of graphs
 #'
 #' @param cutoff_list The list of cutoff values to be screened (as a vector)
 #' @param model_type The type of the model to get the best cutoff for. Currently
 #' either 'genie3', 'irafnet' or 'genenet'
-#' @param graph_extraction_callback A method which can be used to obtain a new 
+#' @param graph_extraction_callback A method which can be used to obtain a new
 #' graph object for the specified model. First param needs to be the currently selected cutoff/weight.
 #' @parma threads Number of threads to be used for screening
 #' @param ... Extra parameteres being passed to the graph extraction callback
@@ -708,15 +740,20 @@ get_best_graph_cutoff <- function(cutoff_list,
                                   model_type,
                                   graph_extraction_callback,
                                   threads = 1,
+                                  rsquare.cut = 0.8,
                                   ...) {
+  print("getting fits")
   fits <- mclapply(cutoff_list, function(cutoff) {
     g <- graph_extraction_callback(cutoff, ...)
-    get_powerlaw_fit(g, threads)
+    fit <- get_powerlaw_fit(g)
+    fit$weight <- cutoff
+    fit
   }, mc.cores = threads)
   
+  print("extracting best weight.")
   fits <- do.call(rbind.data.frame, fits)
   colnames(fits) <-
-    c("weight", "ll", "ks_p", "alpha", "beta", "r2", "mcon")
+    c("ll", "ks_p", "alpha", "beta", "r2", "mcon", "weight")
   rownames(fits) <- paste0("weight=", fits$weight)
   
   # get best weight (r2>=cutoff, then highest mean connectivity)
@@ -727,7 +764,7 @@ get_best_graph_cutoff <- function(cutoff_list,
     fits_r2 <- subset(fits, r2 == max(r2))
   }
   fits_mcon <- subset(fits_r2, mcon == max(mcon))
-  fits_beta <- fits_mcon[which.min(-1 - fits_mcon$beta),]
+  fits_beta <- fits_mcon[which.min(-1 - fits_mcon$beta), ]
   
   return(fits_beta$weight)
 }
@@ -735,14 +772,14 @@ get_best_graph_cutoff <- function(cutoff_list,
 #' -----------------------------------------------------------------------------
 #' we can use igraph packages 'fit_power_law' to fit the degree distribution
 #' to a power law distr for each weight cutoff
-#' 
+#'
 #' @param graph The graph object for which to get the fit
 #' @param nbreaks The number of breaks to use when discretizing the degree
 #' distribution / getting its frequencies. Default: 20
-#' 
+#'
 #' @author Johann Hawe <johann.hawe@tum.de>
 #' -----------------------------------------------------------------------------
-get_powerlaw_fit <- function(graph, nbreaks=20) {
+get_powerlaw_fit <- function(graph, nbreaks = 20) {
   ds <- graph::degree(graph)
   if (var(ds) == 0)
     return(NULL)
@@ -787,8 +824,7 @@ get_powerlaw_fit <- function(graph, nbreaks=20) {
   mcon <- (sum(ds - 1)) / 2
   
   # return ll of fitted distr
-  c(
-    weight = weight,
+  list(
     ll = fit$logLik,
     ks_p = fit$KS.p,
     alpha = fit$alpha,
@@ -816,7 +852,6 @@ infer_all_graphs <-
            fcontext,
            ppi_db,
            threads = 1) {
-
     # debug
     print("Num Threads:")
     print(RhpcBLASctl::omp_get_num_procs())
@@ -825,7 +860,7 @@ infer_all_graphs <-
     
     # we set the OMP/BLAS number of threads to 1
     # this avoids issues we had in the glasso CV with multi-threading on cluster
-    # also necessary for BDgraph 
+    # also necessary for BDgraph
     RhpcBLASctl::omp_set_num_threads(1)
     RhpcBLASctl::blas_set_num_threads(1)
     
@@ -834,61 +869,66 @@ infer_all_graphs <-
     
     print("Fitting model using glasso.")
     glasso <- reg_net(data, priors, "glasso", threads = threads)
-
+    
     print("Fitting model using glasso, no priors.")
-    glasso_no_priors <- reg_net(data, NULL, "glasso", threads = threads)
-
+    glasso_no_priors <-
+      reg_net(data, NULL, "glasso", threads = threads)
+    
     print("Fitting model using genie3.")
     genie3 <- reg_net(data, NULL, "genie3", threads = threads)
-
+    
     print("Fitting bdgraph using priors.")
     bdgraph <- reg_net(data, priors, "bdgraph", threads = threads)
-
+    
     print("Fitting bdgraph without priors.")
     bdgraph_no_priors <- reg_net(data,
                                  NULL,
                                  "bdgraph",
                                  use_gstart = F,
                                  threads = threads)
-
+    
     print("Fitting bdgraph without priors, full start graph.")
-    bdgraph_no_priors_full <- reg_net(data,
-                                 NULL,
-                                 "bdgraph",
-                                 use_gstart = T,
-                                 gstart = "full",
-                                 threads = threads)
-
+    bdgraph_no_priors_full <- reg_net(
+      data,
+      NULL,
+      "bdgraph",
+      use_gstart = T,
+      gstart = "full",
+      threads = threads
+    )
+    
     print("Fitting model using iRafNet.")
     irafnet <- reg_net(data, priors, "irafnet", threads = threads)
-
+    
     # --------------------------------------------------------------------------
     print("Add custom annotations for the graphs.")
     # --------------------------------------------------------------------------
-    bdgraph$graph <- annotate.graph(bdgraph$graph, 
+    bdgraph$graph <- annotate.graph(bdgraph$graph,
                                     ranges, ppi_db, fcontext)
     
-    bdgraph_no_priors$graph <- annotate.graph(bdgraph_no_priors$graph,
-                                              ranges, ppi_db, fcontext)
+    bdgraph_no_priors$graph <-
+      annotate.graph(bdgraph_no_priors$graph,
+                     ranges, ppi_db, fcontext)
     
-    bdgraph_no_priors_full$graph <- annotate.graph(bdgraph_no_priors_full$graph,
-                                                   ranges, ppi_db, fcontext)
+    bdgraph_no_priors_full$graph <-
+      annotate.graph(bdgraph_no_priors_full$graph,
+                     ranges, ppi_db, fcontext)
     
-    irafnet$graph <- annotate.graph(irafnet$graph, 
+    irafnet$graph <- annotate.graph(irafnet$graph,
                                     ranges, ppi_db, fcontext)
     
-    genenet$graph <- annotate.graph(genenet$graph, 
+    genenet$graph <- annotate.graph(genenet$graph,
                                     ranges, ppi_db, fcontext)
-
-    genie3$graph <- annotate.graph(genie3$graph, 
+    
+    genie3$graph <- annotate.graph(genie3$graph,
                                    ranges, ppi_db, fcontext)
-
-    glasso$graph <- annotate.graph(glasso$graph, 
+    
+    glasso$graph <- annotate.graph(glasso$graph,
                                    ranges, ppi_db, fcontext)
     
     glasso_no_priors$graph <- annotate.graph(glasso_no_priors$graph,
                                              ranges, ppi_db, fcontext)
-
+    
     # --------------------------------------------------------------------------
     print("Create result list.")
     # --------------------------------------------------------------------------
@@ -918,7 +958,7 @@ infer_all_graphs <-
       genie3_fit = genie3$fit,
       genie3 = genie3$graph
     )
-
+    
     return(result)
   }
 
@@ -990,7 +1030,7 @@ infer_all_graphs_priors <-
     )
     
     return(result)
-}
+  }
 
 
 
@@ -1015,7 +1055,6 @@ infer_all_graphs_subset <-
            fcontext,
            ppi_db,
            threads = 1) {
-    
     require(tidyverse)
     
     # debug
@@ -1026,38 +1065,40 @@ infer_all_graphs_subset <-
     
     # we set the OMP/BLAS number of threads to 1
     # this avoids issues we had in the glasso CV with multi-threading on cluster
-    # also necessary for BDgraph 
+    # also necessary for BDgraph
     RhpcBLASctl::omp_set_num_threads(1)
     RhpcBLASctl::blas_set_num_threads(1)
     
     print("Fitting model using GeneNet.")
     genenet <- reg_net(data, NULL, "genenet", threads = threads)
- 
+    
     # naive network, i.e. simply check corr > 0.5
     naive <- cor(data)
-    naive[naive>0.5] <- 1
+    naive[naive > 0.5] <- 1
     naive[naive != 1] <- 0
     naive_graph <- graphNEL(colnames(data))
-    naive_graph <- with(melt(naive) %>% filter(value==1), 
-                        addEdge(as.character(Var1), 
-                                as.character(Var2), naive_graph))
+    naive_graph <- with(
+      melt(naive) %>% filter(value == 1),
+      addEdge(as.character(Var1),
+              as.character(Var2), naive_graph)
+    )
     
-    nlist <- list(naive=naive, graph = naive_graph)
+    nlist <- list(naive = naive, graph = naive_graph)
     
     # --------------------------------------------------------------------------
     print("Add custom annotations for the graphs.")
     # --------------------------------------------------------------------------
-    genenet$graph <- annotate.graph(genenet$graph, 
+    genenet$graph <- annotate.graph(genenet$graph,
                                     ranges, ppi_db, fcontext)
     
-    nlist$graph <- annotate.graph(nlist$graph, 
+    nlist$graph <- annotate.graph(nlist$graph,
                                   ranges, ppi_db, fcontext)
-   
+    
     # --------------------------------------------------------------------------
     print("Create result list.")
     # --------------------------------------------------------------------------
     result <- list(
-     # genenet
+      # genenet
       genenet_fit = genenet$fit,
       genenet = genenet$graph,
       naive_fit = nlist$naive,
@@ -1077,13 +1118,13 @@ infer_all_graphs_subset <-
 #' @param threads number of threads to be used. Default: 1
 #'
 #' -----------------------------------------------------------------------------
-test_inference <- function(true_graph, data, iteration, threads = 1) {
-    
+test_inference <-
+  function(true_graph, data, iteration, threads = 1) {
     require(tidyverse)
     
     # we set the OMP/BLAS number of threads to 1
     # this avoids issues we had in the glasso CV with multi-threading on cluster
-    # also necessary for BDgraph 
+    # also necessary for BDgraph
     RhpcBLASctl::omp_set_num_threads(1)
     RhpcBLASctl::blas_set_num_threads(1)
     
@@ -1091,7 +1132,8 @@ test_inference <- function(true_graph, data, iteration, threads = 1) {
     genenet <- reg_net(data, NULL, "genenet", threads = threads)
     
     print("Fitting model using glasso, no priors.")
-    glasso_no_priors <- reg_net(data, NULL, "glasso", threads = threads)
+    glasso_no_priors <-
+      reg_net(data, NULL, "glasso", threads = threads)
     
     print("Fitting bdgraph without priors.")
     bdgraph_no_priors <- reg_net(data,
@@ -1099,17 +1141,19 @@ test_inference <- function(true_graph, data, iteration, threads = 1) {
                                  "bdgraph",
                                  use_gstart = F,
                                  threads = threads)
-
+    
     # naive network, i.e. simply check corr > 0.5
     naive <- cor(data)
-    naive[naive>0.5] <- 1
+    naive[naive > 0.5] <- 1
     naive[naive != 1] <- 0
     naive_graph <- graphNEL(colnames(data))
-    naive_graph <- with(melt(naive) %>% filter(value==1), 
-                        addEdge(as.character(Var1), 
-                                as.character(Var2), naive_graph))
+    naive_graph <- with(
+      melt(naive) %>% filter(value == 1),
+      addEdge(as.character(Var1),
+              as.character(Var2), naive_graph)
+    )
     
-    nlist <- list(naive=naive, graph = naive_graph)
+    nlist <- list(naive = naive, graph = naive_graph)
     
     # --------------------------------------------------------------------------
     print("Create result list.")
@@ -1137,11 +1181,12 @@ test_inference <- function(true_graph, data, iteration, threads = 1) {
     
     perf <- lapply(names(gs), function(g) {
       # we need the adjacency matrix for comparison
-      perf <- t(BDgraph::compare(as(true_graph, "matrix"), as(gs[[g]], "matrix")))
+      perf <-
+        t(BDgraph::compare(as(true_graph, "matrix"), as(gs[[g]], "matrix")))
       comparisons <- c("True", g)
       perf <- as.data.frame(perf)
       rownames(perf) <- comparisons
-      perf <- perf[!grepl("True", rownames(perf)), ]
+      perf <- perf[!grepl("True", rownames(perf)),]
       
       # annotate density for comparison
       ig <- igraph::igraph.from.graphNEL(gs[[g]])
@@ -1164,18 +1209,18 @@ test_inference <- function(true_graph, data, iteration, threads = 1) {
 
 
 #' -----------------------------------------------------------------------------
-#' Combine two graph objects. 
+#' Combine two graph objects.
 #'
 #' Keeps only nodes and edges present in both graphs
-#' 
+#'
 #' @param g1 graphNEL object
 #' @param g2 graphNEL object
 #'
 #' @import graph
 #' @import igraph
-#' 
+#'
 #' @author Johann Hawe <johann.hawe@helmholtz-muenchen.de>
-#' 
+#'
 #' -----------------------------------------------------------------------------
 combine_graphs <- function(g1, g2) {
   require(graph)
@@ -1187,13 +1232,14 @@ combine_graphs <- function(g1, g2) {
   
   # use only common nodes, also ensure ordering of columns/rows
   use <- intersect(colnames(g1_mat), colnames(g2_mat))
-  g1_mat <- g1_mat[use,use]
-  g2_mat <- g2_mat[use,use]
+  g1_mat <- g1_mat[use, use]
+  g2_mat <- g2_mat[use, use]
   
   # get the graph from the combined matrix (i.e. only were edges are present in
   # both cohorts), also remove zero-degree nodes
   inc_combined <- (g1_mat == 1 & g2_mat == 1)
-  g_combined <- igraph::as_graphnel(graph_from_adjacency_matrix(inc_combined,
-                                                                mode="undirected"))
+  g_combined <-
+    igraph::as_graphnel(graph_from_adjacency_matrix(inc_combined,
+                                                    mode = "undirected"))
   g_combined
 }

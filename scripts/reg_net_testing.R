@@ -1,6 +1,8 @@
 #' -----------------------------------------------------------------------------
 #' Script used to unit test methods available in reg_net.R
-#'
+#' Right now no proper unit tests. We merely test whether individual methods
+#' throw errors or not.
+#' 
 #' @author Johann Hawe <johann.hawe@helmholtz-muenchen.de>
 #'
 #' @date Thu Apr  1 12:11:50 2021
@@ -26,25 +28,34 @@ data <- data.matrix(data)
 use <- apply(data,2,function(x) (sum(is.na(x)) / length(x)) < 1)
 data <- data[,use]
 
+# take a subset of nodes to speed up tests
+data <- data[,1:20]
 print(dim(data))
+
+priors <- 
+  readRDS("results/current/biogrid_stringent/priors/rs9859077_meqtl.rds")
+priors <- priors[colnames(data), colnames(data)]
 
 print("testing genenet")
 genenet_result <- reg_net(data, NULL, model = "genenet", threads=threads)
-print(genenet_result$graph)
+plot(genenet_result$graph)
+
+print("testing irafnet")
+irafnet_result <- reg_net(data, priors, model = "irafnet", threads=threads)
+plot(irafnet_result$graph)
 
 print("testing glasso")
 glasso_result <- reg_net(data, NULL, model = "glasso", threads = threads)
-print(glasso_result$graph)
+plot(glasso_result$graph)
 
 print("testing genie3")
 genie_result <- reg_net(data, NULL, model = "genie3", threads=threads)
-print(genie_result$graph)
+plot(genie_result$graph)
 
-toplot <- melt(genie_result$fit$pl_fits, id.vars = "weight")
-ggplot(toplot, aes(x=weight, y=value)) + facet_wrap(~variable, ncol=2, scales="free_y") +
-  geom_line() +
-  geom_vline(xintercept = genie_result$fit$best_weight, color="red")
-
+print("testing bdgraph")
+bdgraph_result <- reg_net(data, priors, model = "bdgraph", use_gstart = T,
+                          threads=threads)
+plot(bdgraph_result$graph)
 
 # ------------------------------------------------------------------------------
 print("SessionInfo:")

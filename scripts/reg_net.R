@@ -704,46 +704,39 @@ genie3 <-
 #' @author Johann Hawe
 #'
 # ------------------------------------------------------------------------------
-get_best_graph_cutoff <- function(cutoff_list, model_type, 
+get_best_graph_cutoff <- function(cutoff_list,
+                                  model_type,
                                   graph_extraction_callback,
-                                  threads=1,
+                                  threads = 1,
                                   ...) {
-  # TODO!!
+  fits <- mclapply(cutoff_list, function(cutoff) {
+    g <- graph_extraction_callback(cutoff, ...)
+    get_powerlaw_fit(g, threads)
+  }, mc.cores = threads)
   
-  # generate powerlaw fits
-  if(model_type == "genie3") {
-    # weight based
-    fits <- mclapply(cutoff_list, function(weight) {
-      g <- graph_extraction_callback(weight, ...)
-      get_powerlaw_fit(g, threads)
-    }, mc.cores = threads)
-    
-    fits <- do.call(rbind.data.frame, fits)
-    colnames(fits) <-
-      c("weight", "ll", "ks_p", "alpha", "beta", "r2", "mcon")
-    rownames(fits) <- paste0("weight=", fits$weight)
-    
-    # get best weight (r2>=cutoff, then highest mean connectivity)
-    fits_r2 <- subset(fits, r2 >= rsquare.cut)
-    if (nrow(fits_r2) < 1) {
-      # didn't find a cutoff, so we take the maximum r2
-      warning(paste0("No R^2 above ", rsquare.cut))
-      fits_r2 <- subset(fits, r2 == max(r2))
-    }
-    fits_mcon <- subset(fits_r2, mcon == max(mcon))
-    fits_beta <- fits_mcon[which.min(-1 - fits_mcon$beta), ]
-    best_weight <- fits_beta$weight
-    
-  } else if(model_type == "irafnet" | model_type == "genenet") {
-    # FDR based
+  fits <- do.call(rbind.data.frame, fits)
+  colnames(fits) <-
+    c("weight", "ll", "ks_p", "alpha", "beta", "r2", "mcon")
+  rownames(fits) <- paste0("weight=", fits$weight)
+  
+  # get best weight (r2>=cutoff, then highest mean connectivity)
+  fits_r2 <- subset(fits, r2 >= rsquare.cut)
+  if (nrow(fits_r2) < 1) {
+    # didn't find a cutoff, so we take the maximum r2
+    warning(paste0("No R^2 above ", rsquare.cut))
+    fits_r2 <- subset(fits, r2 == max(r2))
   }
+  fits_mcon <- subset(fits_r2, mcon == max(mcon))
+  fits_beta <- fits_mcon[which.min(-1 - fits_mcon$beta),]
   
+  return(fits_beta$weight)
 }
 
 #' -----------------------------------------------------------------------------
 #' we can use igraph packages 'fit_power_law' to fit the degree distribution
 #' to a power law distr for each weight cutoff
 #' 
+#' @param graph The graph object for which to get the fit
 #' @param nbreaks The number of breaks to use when discretizing the degree
 #' distribution / getting its frequencies. Default: 20
 #' 

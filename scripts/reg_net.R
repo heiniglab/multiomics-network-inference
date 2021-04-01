@@ -46,8 +46,6 @@ reg_net.models <- function() {
 #' Default: round(sqrt(ncol(data)-1))
 #' @param npermut optional. Number of permutations to perform for
 #' iRafNet background
-#' @param irafnet.fdr optional. FDR cutoff for edges in final iRafNet graph.
-#' Default: 0.05
 #'
 #' @return Returns a list containing bot the final model fit as well as the
 #' graphNEL object extracted from that model fit.
@@ -65,8 +63,7 @@ reg_net <- function(data,
                     burnin = 5000,
                     ntrees = 1000,
                     mtry = round(sqrt(ncol(data) - 1)),
-                    npermut = 5,
-                    irafnet.fdr = 0.05) {
+                    npermut = 5) {
   require(doParallel)
 
   # vector of all nodes
@@ -183,8 +180,10 @@ reg_net <- function(data,
       npermut,
       threads = threads
     )
-    fit <- iRafNet_network(irn_out, irn_perm_out, TH = irafnet.fdr)
-    fit <- list(fit = fit, nodes = colnames(data_no_nas))
+    
+    fit <- list(irn_out = irn_out, irn_perm_out = irn_perm_out,
+                nodes = colnames(data_no_nas))
+    
     class(fit) <- c(class(fit), "irafnet")
 
     if (threads > 1) {
@@ -265,17 +264,21 @@ graph_from_fit <- function(ggm.fit,
     }
     
   } else if (inherits(ggm.fit, "irafnet")) {
-    g <- graphNEL(nodes, edgemode = "undirected")
-    fit <- ggm.fit$fit
-    g <- addEdge(fit$gene1, fit$gene2, g)
-  } else if (inherits(ggm.fit, "genenet")) {
-    net <- extract.network(ggm.fit,
-                           cutoff.ggm = 0.8)
-    g <- graphNEL(nodes, edgemode = "undirected")
+    best_cutoff <- get_best_graph_cutoff(seq(0.01, 0.2, by=0.01), "irafnet", 
+                                         get_irafnet_graph, threads = 1,
+                                         ggm.fit$irn_out, ggm.fit$irn_perm_out,
+                                         nodes)
     
-    if(nrow(net) > 0) {
-      g <- addEdge(net$node1, net$node2, g)
-    }
+    g <- get_irafnet_graph(best_cutoff, ggm.fit$irn_out, ggm.fit$irn_perm_out,
+                           nodes)
+    
+  } else if (inherits(ggm.fit, "genenet")) {
+    best_cutoff <- get_best_graph_cutoff(seq(0.8, 0.99, by=0.01), "genenet", 
+                                         get_genenet_graph, threads = 1,
+                                         ggm.fit)
+    
+    g <- get_genenet_graph(best_cutoff, ggm.fit)
+    
   } else if (inherits(ggm.fit, "glasso")) {
     pm <- ggm.fit$wi
     cn <- colnames(pm)
@@ -295,14 +298,45 @@ graph_from_fit <- function(ggm.fit,
       g <- addEdge(em$node1, em$node2, g)
     }
   } else if (inherits(ggm.fit, "genie3")) {
-    g <- get_genie3_graph(nodes,
-                          ggm.fit$linklist,
-                          ggm.fit$best_weight)
+    g <- get_genie3_graph(ggm.fit$best_weight,
+                          nodes,
+                          ggm.fit$linklist)
   }
 
   if (annotate) {
     # set node and edge attributes
     g <- annotate.graph(g, ranges, ppi_db)
+  }
+  return(g)
+}
+
+# ------------------------------------------------------------------------------
+# Gets a graph object based on a iRafNet graph fit and a specific FDR cutoff
+# ------------------------------------------------------------------------------
+get_irafnet_graph <- function(fdr_cutoff, 
+                              model_output, permutation_output, nodes) {
+  
+  fit <- iRafNet_network(model_output,
+                         permutation_output, 
+                         TH = fdr_cutoff)
+  
+  g <- graphNEL(nodes, edgemode = "undirected")
+  g <- addEdge(fit$gene1, fit$gene2, g)
+  
+  return(g)
+}
+
+# ------------------------------------------------------------------------------
+#' Gets a graph object from a genenet model fit and given a specific link
+#' probability cutoff (1-fdr)
+# ------------------------------------------------------------------------------
+get_genenet_graph <- function(prob_cutoff, model_fit) {
+  net <- extract.network(model_fit,
+                         cutoff.ggm = prob_cutoff)
+  g <- graphNEL(nodes, edgemode = "undirected")
+  
+  if(nrow(net) > 0) {
+    g <- addEdge(net$node1, net$node2, g)
   }
   return(g)
 }
@@ -574,12 +608,12 @@ glasso_cv <- function(data,
 #' Gets a graphnel object from a fitted GENIE3 model for a specific link weight
 #' threshold
 #'
-#' @param nodes All nodes used in the calculation of the model
-#' @param model The trained GENIE3 model
 #' @param threshold The treshold to be applied in GENIE3's \code{getLinkList}
+#' @param nodes All nodes used in the calculation of the model
+#' @param linklist The ranked list of links as extracted from GENIE3
 #'
 #' -----------------------------------------------------------------------------
-get_genie3_graph <- function(nodes, linklist, threshold) {
+get_genie3_graph <- function(threshold, nodes, linklist) {
   require(graph)
 
   edges <- subset(linklist, weight >= threshold)
@@ -601,22 +635,19 @@ get_genie3_graph <- function(nodes, linklist, threshold) {
 #'
 #' Uses GENIE3 to estimate a regulatory network from the supplied data matrix.
 #' The threshold for the regulatory links is optimized by fitting the graph
-#' for a specific threshold to a powerlow and then selecting the threshold for
+#' for a specific threshold to a powerlaw and then selecting the threshold for
 #' which the likelihood of the fitted model is maximal
 #'
 #' @param data The data matrix (n x p)
 #' @param threads The number of threads to be used
 #' @param rsquare.cut Which rsquare cutoff to use when determining the best
 #' GENIE3 weights to generate the final network. Default: 0.9
-#' @param nbreaks The number of breaks to use when discretizing the degree
-#' distribution / getting its frequencies. Default: 20
 #'
 #' -----------------------------------------------------------------------------
 genie3 <-
   function(data,
            threads = 1,
            rsquare.cut = 0.8,
-           nbreaks = 20,
            verbose = T) {
     require(GENIE3)
     require(igraph)
@@ -642,83 +673,11 @@ genie3 <-
     }
 
     print(paste0("Checking ", length(all_link_weights), " weights."))
-
-    # we can use igraph packages 'fit_power_law' to fit the degree distribution
-    # to a power law distr for each weight cutoff
-    fits <- mclapply(all_link_weights, function(weight) {
-      g <- get_genie3_graph(colnames(data), linklist, weight)
-#      print(g)
-      ds <- graph::degree(g)
-      if (var(ds) == 0)
-        return(NULL)
-
-      ds1 <- ds + 1
-      # fit power law
-      fit <- igraph::fit_power_law(ds1)
-
-      # get the correlation between log10(p(k)) and log10(k)
-      # taken from: https://github.com/cran/WGCNA/blob/master/R/Functions.R
-      # function: scaleFreeFitIndex
-
-      # devide degrees into bins and get the respective frequencies
-      discretized = cut(ds, nbreaks)
-      dk = as.vector(tapply(ds, discretized, mean))
-      pdk = as.vector(tapply(ds, discretized, length) / length(ds))
-      pdk = ifelse(is.na(pdk), 0, pdk)
-
-      breaks1 = seq(from = min(ds),
-                    to = max(ds),
-                    length = nbreaks + 1)
-      hist1 = hist(ds,
-                   breaks = breaks1,
-                   plot = FALSE,
-                   right = TRUE)
-      dk2 = hist1$mids
-      dk = ifelse(is.na(dk), dk2, dk)
-      dk = ifelse(dk == 0, dk2, dk)
-
-      # get logs of degree distr and frequency, then calculate their linear fits
-      log_dk = as.vector(log10(dk))
-      log_pdk = as.numeric(log10(pdk + 1e-09))
-      lm1 = lm(log_pdk ~ log_dk)
-      r2 <- summary(lm1)$r.squared
-      beta <- lm1$coefficients["log_dk"]
-
-      # we need a negative slope for a 'plausible' network
-      if (beta > 0)
-        r2 <- r2 * (-1)
-
-      # get the mean node connectivity
-      mcon <- (sum(ds - 1)) / 2
-
-      # return ll of fitted distr
-      c(
-        weight = weight,
-        ll = fit$logLik,
-        ks_p = fit$KS.p,
-        alpha = fit$alpha,
-        beta = beta,
-        r2 = r2,
-        mcon = mcon
-      )
-    }, mc.cores = threads)
-
-    fits <- do.call(rbind.data.frame, fits)
-    colnames(fits) <-
-      c("weight", "ll", "ks_p", "alpha", "beta", "r2", "mcon")
-    rownames(fits) <- paste0("weight=", fits$weight)
-
-    # get best weight (r2>=cutoff, then highest mean connectivity)
-    fits_r2 <- subset(fits, r2 >= rsquare.cut)
-    if (nrow(fits_r2) < 1) {
-      # didn't find a cutoff, so we take the maximum r2
-      warning(paste0("No R^2 above ", rsquare.cut))
-      fits_r2 <- subset(fits, r2 == max(r2))
-    }
-    fits_mcon <- subset(fits_r2, mcon == max(mcon))
-    fits_beta <- fits_mcon[which.min(-1 - fits_mcon$beta), ]
-    best_weight <- fits_beta$weight
-
+  
+    best_weight <- 
+      get_best_graph_cutoff(cutoff_list, "genie3", 
+                            get_genie3_graph, colnames(data), linklist)
+ 
     return(
       list(
         model = model,
@@ -729,6 +688,122 @@ genie3 <-
       )
     )
   }
+
+# ------------------------------------------------------------------------------
+#' Gets the best cutoff from a list of given cutoffs with respect to the 
+#' goodness of fit to a powerlaw distribution of graphs
+#'
+#' @param cutoff_list The list of cutoff values to be screened (as a vector)
+#' @param model_type The type of the model to get the best cutoff for. Currently
+#' either 'genie3', 'irafnet' or 'genenet'
+#' @param graph_extraction_callback A method which can be used to obtain a new 
+#' graph object for the specified model. First param needs to be the currently selected cutoff/weight.
+#' @parma threads Number of threads to be used for screening
+#' @param ... Extra parameteres being passed to the graph extraction callback
+#'
+#' @author Johann Hawe
+#'
+# ------------------------------------------------------------------------------
+get_best_graph_cutoff <- function(cutoff_list, model_type, 
+                                  graph_extraction_callback,
+                                  threads=1,
+                                  ...) {
+  # TODO!!
+  
+  # generate powerlaw fits
+  if(model_type == "genie3") {
+    # weight based
+    fits <- mclapply(cutoff_list, function(weight) {
+      g <- graph_extraction_callback(weight, ...)
+      get_powerlaw_fit(g, threads)
+    }, mc.cores = threads)
+    
+    fits <- do.call(rbind.data.frame, fits)
+    colnames(fits) <-
+      c("weight", "ll", "ks_p", "alpha", "beta", "r2", "mcon")
+    rownames(fits) <- paste0("weight=", fits$weight)
+    
+    # get best weight (r2>=cutoff, then highest mean connectivity)
+    fits_r2 <- subset(fits, r2 >= rsquare.cut)
+    if (nrow(fits_r2) < 1) {
+      # didn't find a cutoff, so we take the maximum r2
+      warning(paste0("No R^2 above ", rsquare.cut))
+      fits_r2 <- subset(fits, r2 == max(r2))
+    }
+    fits_mcon <- subset(fits_r2, mcon == max(mcon))
+    fits_beta <- fits_mcon[which.min(-1 - fits_mcon$beta), ]
+    best_weight <- fits_beta$weight
+    
+  } else if(model_type == "irafnet" | model_type == "genenet") {
+    # FDR based
+  }
+  
+}
+
+#' -----------------------------------------------------------------------------
+#' we can use igraph packages 'fit_power_law' to fit the degree distribution
+#' to a power law distr for each weight cutoff
+#' 
+#' @param nbreaks The number of breaks to use when discretizing the degree
+#' distribution / getting its frequencies. Default: 20
+#' 
+#' @author Johann Hawe <johann.hawe@tum.de>
+#' -----------------------------------------------------------------------------
+get_powerlaw_fit <- function(graph, nbreaks=20) {
+  ds <- graph::degree(graph)
+  if (var(ds) == 0)
+    return(NULL)
+  
+  ds1 <- ds + 1
+  # fit power law
+  fit <- igraph::fit_power_law(ds1)
+  
+  # get the correlation between log10(p(k)) and log10(k)
+  # taken from: https://github.com/cran/WGCNA/blob/master/R/Functions.R
+  # function: scaleFreeFitIndex
+  
+  # devide degrees into bins and get the respective frequencies
+  discretized = cut(ds, nbreaks)
+  dk = as.vector(tapply(ds, discretized, mean))
+  pdk = as.vector(tapply(ds, discretized, length) / length(ds))
+  pdk = ifelse(is.na(pdk), 0, pdk)
+  
+  breaks1 = seq(from = min(ds),
+                to = max(ds),
+                length = nbreaks + 1)
+  hist1 = hist(ds,
+               breaks = breaks1,
+               plot = FALSE,
+               right = TRUE)
+  dk2 = hist1$mids
+  dk = ifelse(is.na(dk), dk2, dk)
+  dk = ifelse(dk == 0, dk2, dk)
+  
+  # get logs of degree distr and frequency, then calculate their linear fits
+  log_dk = as.vector(log10(dk))
+  log_pdk = as.numeric(log10(pdk + 1e-09))
+  lm1 = lm(log_pdk ~ log_dk)
+  r2 <- summary(lm1)$r.squared
+  beta <- lm1$coefficients["log_dk"]
+  
+  # we need a negative slope for a 'plausible' network
+  if (beta > 0)
+    r2 <- r2 * (-1)
+  
+  # get the mean node connectivity
+  mcon <- (sum(ds - 1)) / 2
+  
+  # return ll of fitted distr
+  c(
+    weight = weight,
+    ll = fit$logLik,
+    ks_p = fit$KS.p,
+    alpha = fit$alpha,
+    beta = beta,
+    r2 = r2,
+    mcon = mcon
+  )
+}
 
 #' -----------------------------------------------------------------------------
 #' Infers graphs for all available models and annotates them.

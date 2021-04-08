@@ -1,4 +1,5 @@
 #!/usr/bin/env Rscript
+
 # ------------------------------------------------------------------------------
 #' Apply graphical model inference on data collected for a specific sentinel.
 #' Adds a certain amount of noise to the prior information prior to inference.
@@ -67,8 +68,10 @@ print(dim(data_lolipop))
 
 # we only look at replication, so we only consider the nodes present in both
 # cohorts
-common_nodes <- intersect(colnames(data_kora), colnames(data_lolipop))
-
+common_nodes <-
+  intersect(colnames(data_kora), colnames(data_lolipop))
+data_kora <- data_kora[, common_nodes]
+data_lolipop <- data_lolipop[, common_nodes]
 
 # filter for available data in priros
 priors <- readRDS(fpriors)
@@ -96,18 +99,20 @@ print("Infer regulatory networks.")
 
 # helper to get a noisy prior matrix
 noisify_priors <- function(priors, noise_level) {
-  
-  if(noise_level == 0) return(priors)
+  if (noise_level == 0)
+    return(priors)
   
   PSEUDO_PRIOR <- 1e-7
-  number_edges_with_prior <- sum(priors[upper.tri(priors)] > PSEUDO_PRIOR)
-  number_edges_without_prior <- sum(priors[upper.tri(priors)] == PSEUDO_PRIOR)
+  number_edges_with_prior <-
+    sum(priors[upper.tri(priors)] > PSEUDO_PRIOR)
+  number_edges_without_prior <-
+    sum(priors[upper.tri(priors)] == PSEUDO_PRIOR)
   
   number_entries_to_switch <-
     round(noise_level * number_edges_with_prior)
   
   # rare cases where we have more prior annotated edges than no-prior edges
-  if(number_entries_to_switch > number_edges_without_prior) {
+  if (number_entries_to_switch > number_edges_without_prior) {
     number_entries_to_switch <- number_edges_without_prior
   }
   
@@ -116,12 +121,15 @@ noisify_priors <- function(priors, noise_level) {
            number_entries_to_switch)
   non_prior_idx <-
     sample(which(upper.tri(priors) & priors == PSEUDO_PRIOR),
-           min(number_entries_to_switch, ))
+           number_entries_to_switch)
   
   # swap idxs
   temp <- priors[prior_idx]
   priors[prior_idx] <- priors[non_prior_idx]
   priors[non_prior_idx] <- temp
+  
+  # make symmetric
+  priors[lower.tri(priors)] <- t(priors)[lower.tri(priors)]
   
   return(priors)
 }
@@ -129,13 +137,18 @@ noisify_priors <- function(priors, noise_level) {
 # include 0 noise ('normal' model)
 noise_levels <- seq(0, 0.8, by = 0.2)
 result <- lapply(noise_levels, function(noise_level) {
+  
+  print(paste0("Current noise level: ", noise_level))
+  
   priors <- noisify_priors(priors, noise_level)
+  
   result_kora <-
     infer_all_graphs(data_kora, priors, ranges, fcontext, ppi_db,
-                            threads)
+                     threads)
   result_lolipop <-
     infer_all_graphs(data_lolipop, priors, ranges, fcontext, ppi_db,
-                            threads)
+                     threads)
+  
   list(kora = result_kora, lolipop = result_lolipop)
 })
 names(result) <- paste0("noise_level_", noise_levels)

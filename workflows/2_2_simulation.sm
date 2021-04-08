@@ -173,7 +173,7 @@ rule all_simulation:
 		DSIM + "validation-subsets.txt",
 		DSIM + "validation-subsetall.txt"
 
-BENCHMARK_ITERATIONS = 50
+BENCHMARK_ITERATIONS = 20
 rule benchmark_model:
 	output:
 		result_table = "results/current/benchmark/result_table_{model}.rds"

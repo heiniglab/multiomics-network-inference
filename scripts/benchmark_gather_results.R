@@ -24,7 +24,8 @@ benchmark_number_iterations <- snakemake@params$benchmark_number_iterations
 # ------------------------------------------------------------------------------
 print("Loading data")
 # ------------------------------------------------------------------------------
-data <- lapply(snakemake@input, function(input_file) {
+result_files <- snakemake@input
+data <- lapply(result_files, function(input_file) {
   as_tibble(readRDS(input_file))
 }) %>% bind_rows
 

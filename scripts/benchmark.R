@@ -6,9 +6,9 @@
 #' @date Thu Apr  8 07:43:53 2021
 #' -----------------------------------------------------------------------------
 
-log <- file(snakemake@log[[1]], open="wt")
+log <- file(snakemake@log[[1]], open = "wt")
 sink(log)
-sink(log, type="message")
+sink(log, type = "message")
 
 # ------------------------------------------------------------------------------
 print("Load libraries and source scripts")
@@ -45,30 +45,35 @@ is_model_with_prior <-
 
 # only one where we can use  priors but without 'no prior' version
 if (model == "irafnet") {
-  benchmark_input[[model]] <- function() {
-    irafnet = reg_net(s$data, s$priors, model,
-                      threads = threads)
-  }
+  benchmark_input[[model]] <-
+    quote(reg_net(s$data, s$priors, model,
+                  threads = threads))
+  
   
 } else {
   if (is_model_with_prior) {
-    benchmark_input[[paste0(model, "_priors")]] <- function() {
-      
-      reg_net(s$data, s$priors, model,
-              threads = threads)
-    }
-    benchmark_input[[model]] <- function() {
+    benchmark_input[[paste0(model, "_priors")]] <-
+      quote(reg_net(s$data, s$priors, model,
+                    threads = threads))
+    
+    benchmark_input[[model]] <-
       # we set 'use_gstart' in case it is bdgraph
-      reg_net(s$data, NULL, model, use_gstart = F,
-              threads = threads)
-    }
+      quote(reg_net(
+        s$data,
+        NULL,
+        model,
+        use_gstart = F,
+        threads = threads
+      ))
+    
   } else {
-    benchmark_input[[model]] <- function() {
-      reg_net(s$data, NULL, model,
-              threads = threads)
-    }
+    benchmark_input[[model]] <-
+      quote(reg_net(s$data, NULL, model,
+                    threads = threads))
+    
   }
 }
+
 
 # ------------------------------------------------------------------------------
 print("Performing benchmark.")

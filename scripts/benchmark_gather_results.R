@@ -19,6 +19,8 @@ library(dplyr)
 library(cowplot)
 theme_set(theme_cowplot() + background_grid(major = "xy"))
 
+benchmark_number_iterations <- snakemake@params$benchmark_number_iterations
+
 # ------------------------------------------------------------------------------
 print("Loading data")
 # ------------------------------------------------------------------------------
@@ -38,14 +40,6 @@ gp <- ggplot(data,
       "Benchmark results for ",
       benchmark_number_iterations,
       " iterations."
-    ),
-    subtitle = paste0(
-      "P=",
-      simulation_number_of_nodes,
-      ";  N=",
-      simulation_sample_size,
-      ";  threads=",
-      threads
     )
   )
 

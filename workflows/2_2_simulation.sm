@@ -173,13 +173,14 @@ rule all_simulation:
 		DSIM + "validation-subsets.txt",
 		DSIM + "validation-subsetall.txt"
 
+BENCHMARK_ITERATIONS = 50
 rule benchmark_model:
 	output:
 		result_table = "results/current/benchmark/result_table_{model}.rds"
 	params:
 		simulation_sample_size = 600,
 		simulation_number_of_nodes = 70,
-		benchmark_number_iterations = 50,
+		benchmark_number_iterations = BENCHMARK_ITERATIONS,
 		time = "2-00:00:00"
 	log:
 		"logs/benchmark/{model}.log"
@@ -196,10 +197,13 @@ rule gather_benchmark_results:
 	output:
 		overview_plot = "results/current/benchmark/summary.pdf"
 	params:
-		time = "00:10:00"
+		time = "00:10:00",
+		benchmark_number_iterations = BENCHMARK_ITERATIONS,
 	resources:
-		mem_mb = 100
+		mem_mb = 1000
 	threads: 1
+	log:
+		"logs/benchmark/summary.log"
 	script:
 		"../scripts/benchmark_gather_results.R"
 

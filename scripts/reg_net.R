@@ -63,7 +63,8 @@ reg_net <- function(data,
                     burnin = 5000,
                     ntrees = 1000,
                     mtry = round(sqrt(ncol(data) - 1)),
-                    npermut = 5) {
+                    npermut = 5,
+                    verbose = FALSE) {
   require(doParallel)
   
   # vector of all nodes
@@ -71,8 +72,11 @@ reg_net <- function(data,
   
   # get available models
   ms <- reg_net.models()
-  if (!(model %in% ms))
+  if (!(model %in% ms)) {
     stop(paste0("Model not supported: ", model))
+  } else {
+    print(paste0("Running model '", model, "'"))
+  }
   
   if (any(is.na(data))) {
     warning("Handling NAs present in data automatically!")
@@ -105,9 +109,9 @@ reg_net <- function(data,
     require(GeneNet)
     
     # get partial correlation estimates
-    pcors <- ggm.estimate.pcor(data.matrix(data_no_nas))
+    pcors <- ggm.estimate.pcor(data.matrix(data_no_nas), verbose = FALSE)
     
-    fit <- network.test.edges(pcors, plot = F)
+    fit <- network.test.edges(pcors, plot = FALSE, verbose = FALSE)
     fit$node1 <- colnames(data_no_nas)[fit$node1]
     fit$node2 <- colnames(data_no_nas)[fit$node2]
     class(fit) <- c(class(fit), "genenet")
@@ -117,7 +121,10 @@ reg_net <- function(data,
     # check some conditions before applying the model
     # no priors
     if (is.null(priors)) {
-      print("Setting uniform prior.")
+      if(verbose) {
+        print("Setting uniform prior.")
+      }
+      
       # set default uniform prior
       # 0.5 reflects uniform according to email from the package author from 4.8.17
       bdpriors <- 0.5
@@ -158,10 +165,9 @@ reg_net <- function(data,
   } else if ("irafnet" %in% model) {
     require(iRafNet)
     
-    if (threads > 1) {
-      cl <- makeCluster(threads)
-      registerDoParallel(cl)
-    }
+    
+    cl <- makeCluster(threads)
+    registerDoParallel(cl)
     
     irn_out <-
       iRafNet(data_no_nas,
@@ -188,29 +194,31 @@ reg_net <- function(data,
     )
     
     class(fit) <- c(class(fit), "irafnet")
+  
+    stopCluster(cl)
     
-    if (threads > 1) {
-      stopCluster(cl)
-    }
   } else if ("glasso" %in% model) {
     require(glasso)
     if (!is.null(priors)) {
-      gl_out <- glasso_cv(data, priors, nodes, threads = threads)
+      gl_out <- glasso_cv(data, priors, nodes, 
+                          threads = threads, verbose = verbose)
     } else {
-      gl_out <- glasso_cv(data, NULL, nodes, threads = threads)
+      gl_out <- glasso_cv(data, NULL, nodes, 
+                          threads = threads, verbose = verbose)
     }
     class(gl_out) <- c(class(gl_out), "glasso")
     fit <- gl_out
   } else if ("genie3" %in% model) {
     require(GENIE3)
-    fit <- genie3(data_no_nas, threads = threads)
+    fit <- genie3(data_no_nas, 
+                  threads = threads, verbose = verbose)
     class(fit) <- c(class(fit), "genie3")
   } else if ("custom" %in% model) {
     stop("Sorry, custom model is not yet implemented.")
   }
   
   # now get the graph object
-  g <- graph_from_fit(fit, nodes, annotate = F)
+  g <- graph_from_fit(fit, nodes, annotate = F, verbose = verbose)
   
   return(list(graph = g, fit = fit))
 }
@@ -237,7 +245,8 @@ graph_from_fit <- function(ggm.fit,
                            nodes,
                            ranges = NULL,
                            ppi_db = NULL,
-                           annotate = T) {
+                           annotate = T, 
+                           verbose = FALSE) {
   if (annotate & is.null(ranges)) {
     stop("Ranges must not be null for annotating graphs!")
   }
@@ -251,14 +260,17 @@ graph_from_fit <- function(ggm.fit,
   if (inherits(ggm.fit, "bdgraph")) {
     best_cutoff <-
       get_best_graph_cutoff(
-        seq(0.5, 1, by = 0.01),
+        seq(0.5, 0.99, by = 0.01),
         get_bdgraph_graph,
         threads = 1,
         rsquare.cut = 0.8,
         ggm.fit,
         nodes
       )
-    print(paste0("BDgraph best cutoff is: ", best_cutoff))
+    
+    if(verbose) {
+      print(paste0("BDgraph best cutoff is: ", best_cutoff))
+    }
     
     g <- get_bdgraph_graph(best_cutoff, ggm.fit, nodes)
     
@@ -288,7 +300,6 @@ graph_from_fit <- function(ggm.fit,
         ggm.fit,
         nodes
       )
-    
     g <- get_genenet_graph(best_cutoff, ggm.fit, nodes)
     
   } else if (inherits(ggm.fit, "glasso")) {
@@ -377,7 +388,8 @@ get_irafnet_graph <- function(fdr_cutoff,
 # ------------------------------------------------------------------------------
 get_genenet_graph <- function(prob_cutoff, model_fit, nodes) {
   net <- extract.network(model_fit,
-                         cutoff.ggm = prob_cutoff)
+                         cutoff.ggm = prob_cutoff,
+                         verbose = FALSE)
   g <- graphNEL(nodes, edgemode = "undirected")
   
   if (nrow(net) > 0) {
@@ -566,12 +578,15 @@ glasso_cv <- function(data,
                       nodes,
                       k = 5,
                       rholist = seq(0.01, 1, by = 0.005),
-                      threads = 1) {
+                      threads = 1,
+                      verbose = FALSE) {
   require(glasso)
   require(cvTools)
   require(parallel)
   
-  print("Starting glasso CV.")
+  if(verbose) {
+    print("Starting glasso CV.")
+  }
   
   n <- nrow(data)
   folds <- cvFolds(n, k, type = "random")
@@ -692,7 +707,7 @@ get_genie3_graph <- function(threshold, nodes, linklist) {
 genie3 <-
   function(data,
            threads = 1,
-           verbose = T) {
+           verbose = FALSE) {
     require(GENIE3)
     require(igraph)
     require(parallel)
@@ -994,7 +1009,7 @@ infer_all_graphs_priors <-
            fcontext,
            ppi_db,
            threads = 1) {
- 
+    
     # we set the OMP/BLAS number of threads to 1
     # this avoids issues we had in the glasso CV with multi-threading on cluster
     # also necessary for BDgraph

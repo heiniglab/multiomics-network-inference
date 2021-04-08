@@ -17,6 +17,7 @@ library(cowplot)
 theme_set(theme_cowplot() + background_grid(major="xy"))
 
 source("scripts/reg_net.R")
+source("scripts/lib.R")
 
 threads <- 4
 
@@ -29,7 +30,7 @@ use <- apply(data,2,function(x) (sum(is.na(x)) / length(x)) < 1)
 data <- data[,use]
 
 # take a subset of nodes to speed up tests
-data <- data[,1:20]
+data <- data[,1:40]
 print(dim(data))
 
 priors <- 
@@ -53,6 +54,10 @@ plot(irafnet_result$graph)
 print("testing glasso")
 glasso_result <- reg_net(data, NULL, model = "glasso", threads = threads)
 plot(glasso_result$graph)
+
+print("testing glasso with priors")
+glasso_result_priors <- reg_net(data, priors, model = "glasso", threads = threads)
+plot(glasso_result_priors$graph)
 
 print("testing genie3")
 genie_result <- reg_net(data, NULL, model = "genie3", threads=threads)

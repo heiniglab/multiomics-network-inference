@@ -79,13 +79,25 @@ nohup nice snakemake --use-conda -w 10 -k -u configs/cluster.json --jobs=100 --l
   all_cohort > all_cohort.out &
 ```
 
+### Method benchmarking
+
+We implemented a benchmarking procedure to formally test runtimes for all applied models.
+The complete benchmark can be run using the following call:
+
+```
+./submit_slurm_benchmark.sh
+```
+
+The above script implicetely calls snakemake with the `gather_benchmark_results` rule.
+Results are summarized under `results/current/benchmark/summary.pdf`.
+
 ### Executing the simulation study
 
 We implemented a simulation study, were we generate ground truth graphs as well
 as noisy priors in order to compare inference methods with respect to 1) their 
 general performance to recover the ground truth network 2) how much they are 
-influenced by the exisiting prior information and noise therein. The target rule
-for this simulation study is `all_simulation`.
+influenced by the exisiting prior information and noise therein (in addition to their computational complexity, see above). 
+The target rule for this simulation study is `all_simulation`.
 
 ```{bash}
 
@@ -96,10 +108,19 @@ nohup nice snakemake --use-conda -w 10 -k -u configs/cluster.json --jobs=100 --l
 
 ```
 
-## Conda environment usage
+## Charliecloud image and conda environment usage
 
-A general conda environment is defined in *envs/bioR.yaml". This environment
-has been linked to all rules which are based on R scripts.
+At the moment of creating the workflow, the only option of using containers
+on the cluster was via charliecloud, which unfortunately is not supported by snakemake.
+To make it work, we manually edited the `jobscript.sh` from snakemake to extract the
+image if needed. In addition, we edited the `script.py` from snakemake to wrap any Rscript
+calls in a `ch-run` call with our specific charliecloud container. This is not ideal and not
+very portable, but allows as to have a simple software container in place which we can use on 
+other systems, too (such as MARCC from JHU).
+
+In addition, a general conda environment is defined in *envs/bioR.yaml". This environment
+has been linked to all rules which are based on R scripts. In principle, this conda env could be
+used instead of the charliecloud image, but it is **deprecated** now.
 To execute the pipelin using conda, you have to specify the *--use-conda*
 parameter in the snakemake call.
 

@@ -172,3 +172,34 @@ rule all_simulation:
 		DSIM_VALIDATION + "snp_gene_recovery/all.tsv",
 		DSIM + "validation-subsets.txt",
 		DSIM + "validation-subsetall.txt"
+
+rule benchmark_model:
+	output:
+		result_table = "results/current/benchmark/result_table_{model}.rds"
+	params:
+		simulation_sample_size = 600,
+		simulation_number_of_nodes = 70,
+		benchmark_number_iterations = 50,
+		time = "2-00:00:00"
+	log:
+		"logs/benchmark/{model}.log"
+	resources:
+		mem_mb = 3000,
+	threads: 1
+	script:
+		"../scripts/benchmark.R"
+
+MODELS = ["glasso", "genenet", "bdgraph", "genie3", "irafnet"]
+rule gather_benchmark_results:
+	input: 
+		expand("results/current/benchmark/result_table_{model}.rds", model = MODELS)
+	output:
+		overview_plot = "results/current/benchmark/summary.pdf"
+	params:
+		time = "00:10:00"
+	resources:
+		mem_mb = 100
+	threads: 1
+	script:
+		"../scripts/benchmark_gather_results.R"
+

@@ -96,7 +96,7 @@ rule apply_ggm_noisy_priors:
 #                gstart_file=DCOHORT_FITS + "replication_prior_noise/{sentinel}_{seed}_gstart.pdf"
         threads: 20
         params:
-                time="2-00:00:00"
+                time="3-00:00:00"
         resources:
                 mem_mb=2000
         conda:

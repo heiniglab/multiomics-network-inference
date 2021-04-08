@@ -722,7 +722,6 @@ genie3 <-
     best_weight <-
       get_best_graph_cutoff(
         all_link_weights,
-        "genie3",
         get_genie3_graph,
         threads = 1,
         rsquare.cut = 0.8,
@@ -871,11 +870,6 @@ infer_all_graphs <-
            fcontext,
            ppi_db,
            threads = 1) {
-    # debug
-    print("Num Threads:")
-    print(RhpcBLASctl::omp_get_num_procs())
-    print("BLAS Num Threads:")
-    print(RhpcBLASctl::blas_get_num_procs())
     
     # we set the OMP/BLAS number of threads to 1
     # this avoids issues we had in the glasso CV with multi-threading on cluster
@@ -1000,12 +994,7 @@ infer_all_graphs_priors <-
            fcontext,
            ppi_db,
            threads = 1) {
-    # debug
-    print("Num Threads:")
-    print(RhpcBLASctl::omp_get_num_procs())
-    print("BLAS Num Threads:")
-    print(RhpcBLASctl::blas_get_num_procs())
-    
+ 
     # we set the OMP/BLAS number of threads to 1
     # this avoids issues we had in the glasso CV with multi-threading on cluster
     # also necessary for BDgraph
@@ -1075,12 +1064,6 @@ infer_all_graphs_subset <-
            ppi_db,
            threads = 1) {
     require(tidyverse)
-    
-    # debug
-    print("Num Threads:")
-    print(RhpcBLASctl::omp_get_num_procs())
-    print("BLAS Num Threads:")
-    print(RhpcBLASctl::blas_get_num_procs())
     
     # we set the OMP/BLAS number of threads to 1
     # this avoids issues we had in the glasso CV with multi-threading on cluster

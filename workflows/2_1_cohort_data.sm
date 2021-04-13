@@ -124,7 +124,7 @@ rule all_ggm:
 rule all_ggm_with_prior_noise:
 	input:
 		expand(DCOHORT_FITS + "replication_prior_noise/{sentinel}_meqtl.rds", sentinel=MEQTL.sentinel),
-#		expand(DCOHORT_FITS + "replication_prior_noise/{sentinel}_eqtlgen.rds", sentinel=EQTLGEN.sentinel)
+		expand(DCOHORT_FITS + "replication_prior_noise/{sentinel}_eqtlgen.rds", sentinel=EQTLGEN.sentinel)
 		
 #------------------------------------------------------------------------------
 # Validate calculated ggms

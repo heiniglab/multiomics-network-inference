@@ -181,11 +181,11 @@ rule benchmark_model:
 		simulation_sample_size = 600,
 		simulation_number_of_nodes = 70,
 		benchmark_number_iterations = BENCHMARK_ITERATIONS,
-		time = "2-00:00:00"
+		time = "3-00:00:00"
 	log:
 		"logs/benchmark/{model}.log"
 	resources:
-		mem_mb = 3000,
+		mem_mb = 3000
 	threads: 1
 	script:
 		"../scripts/benchmark.R"

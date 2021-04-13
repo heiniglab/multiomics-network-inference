@@ -27,8 +27,11 @@ RhpcBLASctl::omp_set_num_threads(1)
 RhpcBLASctl::blas_set_num_threads(1)
 
 simulation_number_of_nodes <-
-  snakemake@params$simulation_number_of_nodes
-simulation_sample_size <- snakemake@params$simulation_sample_size
+  as.numeric(snakemake@wildcards$number_nodes)
+
+simulation_sample_size <- 
+  as.numeric(snakemake@wildcards$sample_size)
+
 benchmark_number_iterations <-
   snakemake@params$benchmark_number_iterations
 
@@ -93,6 +96,9 @@ benchmark_results <-   microbenchmark(
 # ------------------------------------------------------------------------------
 print("Benchmark done. Finishing up.")
 # ------------------------------------------------------------------------------
+benchmark_results$sample_size <- simulation_sample_size
+benchmark_results$number_of_nodes <- simulation_number_of_nodes
+
 saveRDS(benchmark_results, file = snakemake@output$result_table)
 
 # ------------------------------------------------------------------------------

@@ -297,3 +297,40 @@ plot_genie_progression <- function(model) {
     geom_line() +
     geom_vline(xintercept = model$fit$best_weight, color="red")
 }
+
+# ------------------------------------------------------------------------------
+#' Gets MCC and F1 between two graph objects (e.g. for comparing replication)
+#'
+#' @param comparison_graph The graph of interest which to compare to a
+#' reference graph
+#' @param reference_graph The reference graph to which to compare the graph of
+#' interest
+#'
+#' @author Johann Hawe
+#'
+# ------------------------------------------------------------------------------
+get_graph_replication_f1_mcc <- function(comparison_graph, reference_graph) {
+  
+  # get adjacency matrices
+  g_comparison_adj <- as(comparison_graph, "matrix")
+  g_reference_adj <- as(reference_graph, "matrix")
+  
+  # ensure that we have the same nodes only in all graphs.
+  # this might somewhat change results, but otherwise we
+  # cant compute the MCC properly.
+  use <- intersect(colnames(g_comparison_adj), colnames(g_reference_adj))
+  if (length(use) > 1) {
+    g_comparison_adj <- g_comparison_adj[use, use]
+    g_reference_adj <- g_reference_adj[use, use]
+    
+    # calculate performance using the DBgraph method compare()
+    comp <- BDgraph::compare(g_comparison_adj, g_reference_adj)
+    f1 <- comp["F1-score", "estimate1"]
+    mcc <- comp["MCC", "estimate1"]
+    
+    return(list(MCC = mcc, F1 = f1, number_common_nodes = length(use)))
+  } else {
+    warning("No node overlap between graphs, can't get replication matrics.")
+    return(NULL)
+  }
+}

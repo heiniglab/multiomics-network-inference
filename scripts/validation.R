@@ -327,35 +327,18 @@ valid <- mclapply(graph_types, function(graph_type) {
   # get graph fit on other cohort
   graph_val <- fits[[cohort_val]][[graph_type]]
 
-  # compare with largest connected component only
-  #g2 <- get_largest_cc(g2)
-  #if (!sentinel %in% graph::nodes(g2)) {
-  #  g2 <- graph::addNode(sentinel, g2)
-  #}
-
-  # get adjacency matrices
-  g_adj <- as(graph, "matrix")
-  g_val_adj <- as(graph_val, "matrix")
-
-  # ensure that we have the same nodes only in all graphs.
-  # this might somewhat change results, but otherwise we
-  # cant compute the MCC properly.
-  use <- intersect(colnames(g_adj), colnames(g_val_adj))
-  if (length(use) > 1) {
-    g_adj <- g_adj[use, use]
-    g_val_adj <- g_val_adj[use, use]
-
-    # calculate performance using the DBgraph method compare()
-    comp <- BDgraph::compare(g_adj, g_val_adj)
-    f1 <- comp["F1-score", "estimate1"]
-    mcc <- comp["MCC", "estimate1"]
+  replication <- get_graph_replication_f1_mcc(graph, graph_val)
+  
+  if (!is.null(replication)) {
+    f1 <- replication$F1
+    mcc <- replication$MCC
 
     print(paste0("MCC: ", format(mcc, digits = 3)))
     print(paste0("F1: ", format(f1, digits = 3)))
 
     # the fraction of nodes retained in the overlap w.r.t. to the
     # total number of possible nodes
-    common_nodes <- ncol(g_adj)
+    common_nodes <- replication$number_common_nodes
     mcc_frac <- common_nodes / ncol(data_val)
     row <- c(row, cross_cohort_f1=f1, cross_cohort_mcc=mcc,
              cross_cohort_mcc_frac=mcc_frac,

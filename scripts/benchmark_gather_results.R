@@ -29,20 +29,35 @@ data <- lapply(result_files, function(input_file) {
   as_tibble(readRDS(input_file))
 }) %>% bind_rows
 
-# quick overview plot of results
+# overview plot of results
+
+# define colors
+paired <- RColorBrewer::brewer.pal(4, "Paired")
+names(paired) <- c("glasso", "glasso (priors)", "bdgraph", "bdgraph (priors)")
+unpaired <- RColorBrewer::brewer.pal(7, "Dark2")[c(2,3,7)]
+names(unpaired) <- c("irafnet", "genie3", "genenet")
+graph_cols <- c(paired, unpaired)
+
+# we need slightly nicer names
+data <- mutate(data, expr=gsub("_priors"," (priors)", expr))
+
 gp <- ggplot(data,
-             aes(x = reorder(expr, -(time)), y = log10(time))) +
+             aes(x = reorder(expr, -(time)), y = log10(time), color=expr)) +
   scale_y_log10() +
   geom_boxplot() +
+  scale_color_manual(values = graph_cols) +
+  theme(axis.text.x = element_text(angle = -45, hjust = 0, vjust = 0)) +
   labs(
-    x = "model",
+    x = "",
     y = "log10(time in seconds)",
     title = paste0(
       "Benchmark results for ",
       benchmark_number_iterations,
       " iterations."
-    )
+    ),
+    color = "model"
   )
+gp
 
 save_plot(filename = snakemake@output$overview_plot, gp)
 

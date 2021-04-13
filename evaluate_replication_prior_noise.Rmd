@@ -1,0 +1,107 @@
+---
+title: "Replication performance of prior based methods (noise evaluation)."
+author: "Johann Hawe"
+date: 2021-03-30
+output:
+  html_document:
+    df_print: paged
+
+---
+
+```{r setup, echo=FALSE, warning=FALSE, message = FALSE}
+library(tidyverse)
+library(graph)
+source("scripts/validation_methods.R")
+
+knitr::opts_chunk$set(echo=FALSE)
+threads <- 4
+
+base_dir <- "results/current/biogrid_stringent/fits_tfa/_rerun/replication_prior_noise/"
+```
+
+In this document we investigate the effect of noise in prior information on replication performance.
+To successfully perform the analysis, we expect that the two snakemake rules `all_ggm` and `all_ggm_with_prior_noise` have been run and results are available under `r base_dir`.
+
+```{r load_data}
+fit_files <- list.files(base_dir, "*.rds", full.names = T)
+```
+
+We are currently looking at the results for `r length(fits)` loci.
+Let's have a look at the overall replication 'performance' in terms of MCC.
+
+```{r get_replication_performance_mcc}
+models <- c("bdgraph", "bdgraph_no_priors", "glasso", "glasso_no_priors",
+            "genenet", "genie3", "irafnet")
+
+result_table <- parallel::mclapply(fit_files, function(file) {
+  
+  file_name <- gsub(".rds", "", basename(file))
+  sentinel <- gsub("_meqtl|_eqtlgen", "", file_name)
+  locus_type <- gsub("rs.*_", "", file_name)
+  
+  fits <- readRDS(file)
+  
+  lapply(names(fits), function(noise_level) {
+    
+    fits_at_noise_level <- fits[[noise_level]]
+    
+    fits_kora <- fits_at_noise_level[["kora"]]
+    fits_lolipop <- fits_at_noise_level[["lolipop"]]
+    
+    lapply(models, function(model) {
+      fit_kora <- fits_kora[[model]]
+      fit_lolipop <- fits_lolipop[[model]]
+      
+      replication <- get_graph_replication_f1_mcc(fit_kora, fit_lolipop)
+      # replication null means that there was no overlap between graphs in terms
+      # of common nodes
+      if(is.null(replication)) {
+        replication <- list(MCC = 0, F1 = 0)
+      } 
+      
+      tibble(sentinel = sentinel, locus_type = locus_type,
+             model = model, noise_level = gsub("noise_level_", "", noise_level),
+             mcc = replication$MCC, f1 = replication$F1)
+      
+    }) %>% bind_rows()
+    
+  }) %>% bind_rows()
+  
+}, mc.cores = threads) %>% bind_rows() %>%
+  mutate(model = gsub("^glasso$", "glasso (priors)", model)) %>%
+  mutate(model = gsub("^bdgraph$", "bdgraph (priors)", model)) %>%
+  mutate(model = gsub("_no_priors", "", model))
+  
+result_table
+```
+
+We got replication performances for `r nrow(result_table)` combinations of loci, models and noise levels. Now we can plot those results.
+
+```{r plot_replication_performance}
+# define colors
+paired <- RColorBrewer::brewer.pal(4, "Paired")
+names(paired) <- c("glasso", "glasso (priors)", "bdgraph", "bdgraph (priors)")
+unpaired <- RColorBrewer::brewer.pal(7, "Dark2")[c(2,3,7)]
+names(unpaired) <- c("irafnet", "genie3", "genenet")
+graph_cols <- c(paired, unpaired)
+
+ggplot(result_table, 
+       aes(x=noise_level, y=mcc, color=reorder(model, -mcc))) + 
+  geom_boxplot() + 
+   stat_summary(
+    fun.y = median,
+    geom = "smooth",
+    position = position_dodge2(width = 0.9),
+    aes(group = reorder(model, -mcc)),
+    lwd = 0.8
+  ) + 
+  scale_color_manual(values = graph_cols) + 
+  labs(color = "method", y="MCC",
+       x = "Level of prior noise")
+  
+```
+
+```{r session_info}
+sessionInfo()
+```
+

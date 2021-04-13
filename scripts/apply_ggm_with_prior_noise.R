@@ -67,7 +67,7 @@ print("Dimensions of LOLIPOP data:")
 print(dim(data_lolipop))
 
 # we only look at replication, so we only consider the nodes present in both
-# cohorts
+# cohorts (only for 4 sentinels, there is one less node in lolipop, e.g. LINC* genes)
 common_nodes <-
   intersect(colnames(data_kora), colnames(data_lolipop))
 data_kora <- data_kora[, common_nodes]

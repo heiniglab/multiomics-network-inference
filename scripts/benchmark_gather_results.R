@@ -45,6 +45,7 @@ gp <- ggplot(data,
              aes(x = reorder(expr, -(time)), y = log10(time), color=expr)) +
   scale_y_log10() +
   geom_boxplot() +
+  facet_grid(rows = vars(sample_size), cols = vars(number_of_nodes)) + 
   scale_color_manual(values = graph_cols) +
   theme(axis.text.x = element_text(angle = -45, hjust = 0, vjust = 0)) +
   labs(
@@ -54,7 +55,8 @@ gp <- ggplot(data,
       "Benchmark results for ",
       benchmark_number_iterations,
       " iterations."
-    ),
+    ), 
+    subtitle = "Columns show number of input nodes, rows sample size",
     color = "model"
   )
 gp

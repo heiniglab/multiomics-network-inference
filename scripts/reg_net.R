@@ -268,6 +268,8 @@ graph_from_fit <- function(ggm.fit,
         nodes
       )
     
+    best_cutoff <- ifelse(is.na(best_cutoff), 0.8, best_cutoff)
+    
     if(verbose) {
       print(paste0("BDgraph best cutoff is: ", best_cutoff))
     }
@@ -286,6 +288,8 @@ graph_from_fit <- function(ggm.fit,
         nodes
       )
     
+    best_cutoff <- ifelse(is.na(best_cutoff), 0.2, best_cutoff)
+    
     g <-
       get_irafnet_graph(best_cutoff, ggm.fit$irn_out, ggm.fit$irn_perm_out,
                         nodes)
@@ -300,6 +304,9 @@ graph_from_fit <- function(ggm.fit,
         ggm.fit,
         nodes
       )
+    
+    best_cutoff <- ifelse(is.na(best_cutoff), 0.8, best_cutoff)
+    
     g <- get_genenet_graph(best_cutoff, ggm.fit, nodes)
     
   } else if (inherits(ggm.fit, "glasso")) {
@@ -377,7 +384,9 @@ get_irafnet_graph <- function(fdr_cutoff,
                          TH = fdr_cutoff)
   
   g <- graphNEL(nodes, edgemode = "undirected")
-  g <- addEdge(fit$gene1, fit$gene2, g)
+  if(nrow(fit) > 0) {
+    g <- addEdge(fit$gene1, fit$gene2, g)
+  }
   
   return(g)
 }
@@ -784,21 +793,27 @@ get_best_graph_cutoff <- function(cutoff_list,
   }, mc.cores = threads)
   
   powerlaw_fits <- do.call(rbind.data.frame, powerlaw_fits)
-  colnames(powerlaw_fits) <-
-    c("ll", "ks_p", "alpha", "beta", "r2", "mcon", "weight")
-  rownames(powerlaw_fits) <- paste0("weight=", powerlaw_fits$weight)
-  
-  # get best weight (r2>=cutoff, then highest mean connectivity)
-  fits_r2 <- subset(powerlaw_fits, r2 >= rsquare.cut)
-  if (nrow(fits_r2) < 1) {
-    # didn't find a cutoff, so we take the maximum r2
-    warning(paste0("No R^2 above ", rsquare.cut))
-    fits_r2 <- subset(powerlaw_fits, r2 == max(r2))
+  if (length(colnames(powerlaw_fits)) == 0) {
+    # case that we did not get a single plausible powerlaw fit (e.g. with irafnet
+    # this has been happening..)
+    return(NA)
+  } else {
+    colnames(powerlaw_fits) <-
+      c("ll", "ks_p", "alpha", "beta", "r2", "mcon", "weight")
+    rownames(powerlaw_fits) <- paste0("weight=", powerlaw_fits$weight)
+    
+    # get best weight (r2>=cutoff, then highest mean connectivity)
+    fits_r2 <- subset(powerlaw_fits, r2 >= rsquare.cut)
+    if (nrow(fits_r2) < 1) {
+      # didn't find a cutoff, so we take the maximum r2
+      warning(paste0("No R^2 above ", rsquare.cut))
+      fits_r2 <- subset(powerlaw_fits, r2 == max(r2))
+    }
+    fits_mcon <- subset(fits_r2, mcon == max(mcon))
+    fits_beta <- fits_mcon[which.min(-1 - fits_mcon$beta),]
+    
+    return(fits_beta$weight)
   }
-  fits_mcon <- subset(fits_r2, mcon == max(mcon))
-  fits_beta <- fits_mcon[which.min(-1 - fits_mcon$beta), ]
-  
-  return(fits_beta$weight)
 }
 
 #' -----------------------------------------------------------------------------

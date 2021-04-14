@@ -149,7 +149,7 @@ result <- lapply(noise_levels, function(noise_level) {
     infer_all_graphs(data_lolipop, priors, ranges, fcontext, ppi_db,
                      threads)
   
-  list(kora = result_kora, lolipop = result_lolipop)
+  list(kora = result_kora, lolipop = result_lolipop, priors = priors)
 })
 names(result) <- paste0("noise_level_", noise_levels)
 dev.off()

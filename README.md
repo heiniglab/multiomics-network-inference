@@ -3,6 +3,12 @@
 - [Paper on overleaf](https://www.overleaf.com/2873145782fcvqtppkhgdb)
 - [Reviewer comments on google docs](https://docs.google.com/spreadsheets/d/1rtgCK2rgXGBGJyT-Xg43TGysO_0IBbDzELT9FNgs7do/edit?usp=sharing)
 
+-----
+
+- [seal python package](https://github.com/muhanzhang/SEAL/tree/master/Python)
+- [scanpy in R](https://lazappi.id.au/project/scanpy-in-r/)
+- [reticulate R package](https://cran.r-project.org/web/packages/reticulate/index.html)
+
 ## Get the randwom_walk data:
 Currently we are relying on some precalculated information which we atm
 cannot reproduce using our workflow (TODO). Therefore in a first step

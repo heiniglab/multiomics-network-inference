@@ -17,7 +17,7 @@ library(microbenchmark)
 library(ggplot2)
 library(dplyr)
 library(cowplot)
-theme_set(theme_cowplot() + background_grid(major = "xy"))
+theme_set(theme_cowplot() + background_grid())
 
 benchmark_number_iterations <- snakemake@params$benchmark_number_iterations
 
@@ -48,6 +48,7 @@ gp <- ggplot(data,
   facet_grid(rows = vars(sample_size), cols = vars(number_of_nodes)) + 
   scale_color_manual(values = graph_cols) +
   theme(axis.text.x = element_text(angle = -45, hjust = 0, vjust = 0)) +
+  theme(panel.border = element_rect(fill = NA, size = 1, color = "lightgrey")) +
   labs(
     x = "",
     y = "log10(time in seconds)",

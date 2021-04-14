@@ -1,0 +1,612 @@
+---
+title: Replication validation based on reviewer comments
+author: Johann Hawe | johann.hawe@tum.de
+output:
+  pdf_document: 
+    toc: yes
+  html_document: default
+---
+
+```{r setup, echo = FALSE, message = FALSE, warning = FALSE}
+library(BDgraph)
+library(igraph)
+library(graph)
+library(readr)
+library(dplyr)
+library(ggplot2)
+library(parallel)
+library(reshape2)
+library(cowplot)
+theme_set(theme_cowplot() + background_grid(major="xy"))
+
+source("scripts/validation_methods.R")
+
+threads <- 4
+
+knitr::opts_chunk$set(echo = FALSE)
+
+```
+
+## Load data
+
+We load all previously generated data, including the collected priors and the
+model fits for KORA and LOLIPOP.
+
+```{r load_data}
+fpriors <- 
+  list.files("results/current/biogrid_stringent/priors/", 
+             "*.rds", full.names = T)
+fkora_fits <- 
+  list.files("results/current/biogrid_stringent/fits_tfa/_rerun/kora/", 
+             "*.rds", full.names = T)
+flolipop_fits <- 
+  list.files("results/current/biogrid_stringent/fits_tfa/_rerun/lolipop/", 
+             "*.rds", full.names = T)
+
+rename_files <- function(file_list) {
+  names(file_list) <- gsub(".rds", "", gsub(".*/", "", file_list))
+  file_list
+}
+
+fpriors <- rename_files(fpriors)
+fkora_fits <- rename_files(fkora_fits)
+flolipop_fits <- rename_files(flolipop_fits)
+
+sentinels <- names(fpriors)
+```
+
+- Number of sentinels to be processed: `r length(sentinels)`
+
+## Prior importance for replication
+
+```{r helper_definitions, echo = FALSE}
+PSEUDO_PRIOR <- 1e-7
+
+# helper to extract prior edge/non edge sets
+get_prior_edge_sets <- function(prior_matrix) {
+  
+  prior_matrix_tibble <- prior_matrix %>%
+    melt() %>% as_tibble()
+  
+  prior_edges <-  prior_matrix_tibble %>%
+    filter(value > PSEUDO_PRIOR) %>%
+    rename(edge1 = Var1, edge2 = Var2) %>%
+    mutate(edge1 = as.character(edge1), edge2 = as.character(edge2)) %>%
+    filter(edge1 != edge2) %>%
+    dplyr::select(-value)
+  
+  non_prior_edges <- prior_matrix_tibble %>%
+    filter(value == PSEUDO_PRIOR) %>%
+    rename(edge1 = Var1, edge2 = Var2) %>%
+    mutate(edge1 = as.character(edge1), edge2 = as.character(edge2)) %>%
+    filter(edge1 != edge2) %>%
+    dplyr::select(-value)
+  return(list(prior_edges = prior_edges, non_prior_edges = non_prior_edges))
+}
+
+# helper to get tibble of edges from a graph object
+get_edges_from_graph <- function(graph) {
+  graph_nodes <- nodes(graph)
+  temp <- t(graph::edgeMatrix(graph)) %>%
+    as_tibble() %>%
+    mutate(from = graph_nodes[from],
+           to = graph_nodes[to]) %>%
+    rename(edge1 = from, edge2 = to)
+  
+  # add the 'reverse' edge, too, as we investigated undirected graphs
+  bind_rows(temp, rename(temp, edge1 = edge2, edge2 = edge1))
+}
+
+# helper to enrich a set of edges over the other
+# e.g.: prior edges (set1_edges) are enriched over non_prior edges (set2_edges)
+# with respect to replicated edges (background_edges)
+# All params are data frames/tibbles with columns "edge1" and "edge2", both 
+# edge directions need to be presented
+# as we always have both 'directions' for the undirected edges in the tibbles
+# devide measures by 2
+get_enrichment_for_edgesets <- function(set1_edges, 
+                                        set2_edges,
+                                        background_edges) {
+  
+  set1_in_background <-
+    nrow(inner_join(set1_edges, background_edges,
+                    by = c("edge1", "edge2"))) / 2
+  
+  set1_not_in_background <-
+    (nrow(set1_edges) / 2) - set1_in_background
+  
+  set2_in_background <-
+    nrow(inner_join(set2_edges, background_edges,
+                    by = c("edge1", "edge2"))) / 2
+  
+  set2_not_in_background <-
+    (nrow(set2_edges) / 2) - set2_in_background
+  
+  contingency <- matrix(
+    c(
+      set1_in_background,
+      set1_not_in_background,
+      set2_in_background,
+      set2_not_in_background
+    ),
+    ncol = 2,
+    byrow = T
+  )
+  
+  return(
+    fisher.test(contingency, alternative = "greater") %>%
+      broom::tidy() %>%
+      mutate(
+        set1_in_background = set1_in_background,
+        set1_not_in_background = set1_not_in_background,
+        set2_in_background = set2_in_background,
+        set2_not_in_background = set2_not_in_background
+      )
+  )
+}
+```
+
+We investigate whether available prior information largely drives replication performance.
+In brief, we create a contingency table from all sentinels, where we check 1) whether an edge is replicated or not and 2) whether the edge has a prior assigned it or not.
+
+```{r prior_importance_replication}
+# iterate over all sentinels and gather stats
+result <- mclapply(sentinels, function(sentinel) {
+  
+  prior_matrix <- readRDS(fpriors[[sentinel]])
+  temp <- get_prior_edge_sets(prior_matrix)
+  prior_edges <- temp$prior_edges
+  non_prior_edges <- temp$non_prior_edges
+  
+  kora_fits <- readRDS(fkora_fits[[sentinel]])
+  lolipop_fits <- readRDS(flolipop_fits[[sentinel]])
+  
+  graph_models <- names(kora_fits)[!grepl("_fit", names(kora_fits))]
+  
+  lapply(graph_models, function(graph_model) {
+    kora_edges <- get_edges_from_graph(kora_fits[[graph_model]])
+    lolipop_edges <- get_edges_from_graph(lolipop_fits[[graph_model]])
+    
+    replicated_edges <- inner_join(kora_edges, lolipop_edges,
+                                   by=c("edge1", "edge2")) 
+
+    get_enrichment_for_edgesets(prior_edges, 
+                                non_prior_edges, 
+                                replicated_edges) %>%
+      mutate(graph_model = graph_model,
+             sentinel = sentinel,
+             prior_and_replicated = set1_in_background,
+             prior_not_replicated = set1_not_in_background,
+             not_prior_and_replicated = set2_in_background,
+             not_prior_not_replicated = set2_not_in_background) %>% 
+      dplyr::select(graph_model, -method, -alternative, everything())
+  }) %>% bind_rows()
+}, mc.cores = threads) %>% bind_rows() %>%
+    mutate(is_prior_based = case_when(graph_model %in% c("glasso", 
+                                                         "bdgraph", 
+                                                         "irafnet") ~ TRUE,
+                                    TRUE ~ FALSE))
+result
+
+ggplot(result %>% mutate(estimate = case_when(is.infinite(estimate) ~ 1e4, 
+                                              TRUE ~ estimate)), 
+       aes(x=log10(estimate), 
+           group=is_prior_based, 
+           color=is_prior_based)) + 
+  geom_freqpoly()
+```
+
+Above are the initial 'full' results, i.e. for ea ch graph model and sentinel,
+we see the evaluation by use of the fisher test.
+
+The plot indicates the distribution (log10) of estimates over all models and sentinels.
+`estimates` amounging to `Inf` were substituted by `10e4` and result in the 
+peaks located at the far right of the plot.
+
+Now we look at a simple summary, where we sum up all contingency tables and
+calculate a single fisher test for each of the graph models.
+
+```{r prior_importance_replication_summarized}
+summarized <- group_by(result, graph_model) %>%
+  summarize(prior_and_replicated = sum(prior_and_replicated),
+             prior_not_replicated = sum(prior_not_replicated),
+             not_prior_and_replicated = sum(not_prior_and_replicated),
+             not_prior_not_replicated = sum(not_prior_not_replicated))
+
+summarized_fishertest <- lapply(summarized$graph_model, function(current_model) {
+  current_summarized <-
+    filter(summarized, graph_model == current_model)
+  
+  contingency_summarized <-
+    matrix(
+      c(
+        current_summarized$prior_and_replicated,
+        current_summarized$prior_not_replicated,
+        current_summarized$not_prior_and_replicated,
+        current_summarized$not_prior_not_replicated
+      ),
+      ncol = 2,
+      byrow = TRUE
+    )
+  fisher.test(contingency_summarized, alternative = "greater") %>% 
+    broom::tidy() %>%
+    mutate(graph_model = current_model) %>%
+    dplyr::select(graph_model, everything())
+}) %>% bind_rows() %>%
+  left_join(summarized, by="graph_model") %>%
+  mutate(is_prior_based = case_when(graph_model %in% c("glasso", 
+                                                       "bdgraph", 
+                                                       "irafnet") ~ TRUE,
+                                    TRUE ~ FALSE))
+
+summarized_fishertest
+
+ggplot(summarized_fishertest, aes(y=log10(estimate), 
+                                  x=reorder(graph_model, log10(estimate)),
+                                  fill = is_prior_based)) + 
+  geom_bar(stat="identity") + 
+  theme(axis.text.x = element_text(angle=-45, hjust=0, vjust=0)) + 
+  labs(x="graph model")
+```
+
+## Prior importance inferred edge set
+
+Contrary to the replicated edge set above, we can also have a look at the 'inferred' edge set,
+which are defined as the union of the edge sets from KORA and LOLIPOP.
+
+```{r prior_importance_inferred_edgeset}
+PSEUDO_PRIOR <- 1e-7
+
+
+# iterate over all sentinels and gather stats
+result <- mclapply(sentinels, function(sentinel) {
+  
+  prior_matrix <- readRDS(fpriors[[sentinel]])
+  temp <- get_prior_edge_sets(prior_matrix)
+  prior_edges <- temp$prior_edges
+  non_prior_edges <- temp$non_prior_edges
+  
+  kora_fits <- readRDS(fkora_fits[[sentinel]])
+  lolipop_fits <- readRDS(flolipop_fits[[sentinel]])
+  
+  graph_models <- names(kora_fits)[!grepl("_fit", names(kora_fits))]
+  
+  lapply(graph_models, function(graph_model) {
+    kora_edges <- get_edges_from_graph(kora_fits[[graph_model]])
+    lolipop_edges <- get_edges_from_graph(lolipop_fits[[graph_model]])
+    
+    full_edge_set <- bind_rows(kora_edges, lolipop_edges) %>%
+      distinct()
+    
+    get_enrichment_for_edgesets(prior_edges, 
+                                non_prior_edges, 
+                                full_edge_set) %>%
+      mutate(graph_model = graph_model,
+             prior_and_inferred = set1_in_background,
+             prior_not_inferred = set1_not_in_background,
+             not_prior_and_inferred = set2_in_background,
+             not_prior_not_inferred = set2_not_in_background) %>% 
+      dplyr::select(graph_model, -method, -alternative, everything())
+  }) %>% bind_rows() %>%
+    mutate(sentinel = sentinel) %>%
+    dplyr::select(sentinel, everything())
+}, mc.cores = 4) %>% bind_rows() %>%
+    mutate(is_prior_based = case_when(graph_model %in% c("glasso", 
+                                                       "bdgraph", 
+                                                       "irafnet") ~ TRUE,
+                                    TRUE ~ FALSE))
+result
+
+ggplot(result %>% mutate(estimate = case_when(is.infinite(estimate) ~ 1e4, 
+                                              TRUE ~ estimate)), 
+       aes(x=log10(estimate), 
+           group=is_prior_based, 
+           color=is_prior_based)) + 
+  geom_freqpoly()
+
+```
+
+```{r prior_importance_inferred_summarized}
+summarized <- group_by(result, graph_model) %>%
+  summarize(prior_and_inferred = sum(prior_and_inferred),
+             prior_not_inferred = sum(prior_not_inferred),
+             not_prior_and_inferred = sum(not_prior_and_inferred),
+             not_prior_not_inferred = sum(not_prior_not_inferred))
+
+summarized_fishertest <- lapply(summarized$graph_model, function(current_model) {
+  current_summarized <-
+    filter(summarized, graph_model == current_model)
+  
+  contingency_summarized <-
+    matrix(
+      c(
+        current_summarized$prior_and_inferred,
+        current_summarized$prior_not_inferred,
+        current_summarized$not_prior_and_inferred,
+        current_summarized$not_prior_not_inferred
+      ),
+      ncol = 2,
+      byrow = TRUE
+    )
+  fisher.test(contingency_summarized, alternative = "greater") %>% 
+    broom::tidy() %>%
+    mutate(graph_model = current_model) %>%
+    dplyr::select(graph_model, everything())
+}) %>% bind_rows() %>%
+  left_join(summarized, by="graph_model") %>%
+  mutate(is_prior_based = case_when(graph_model %in% c("glasso", 
+                                                       "bdgraph", 
+                                                       "irafnet") ~ TRUE,
+                                    TRUE ~ FALSE))
+
+summarized_fishertest
+
+ggplot(summarized_fishertest, aes(y=log10(estimate), 
+                                  x=reorder(graph_model, log10(estimate)),
+                                  fill = is_prior_based)) + 
+  geom_bar(stat="identity") + 
+  theme(axis.text.x = element_text(angle=-45, hjust=0, vjust=0)) + 
+  labs(x="graph model")
+```
+
+## Replication with prior noise
+
+In a next step, we investigate replication performance under consideration of 
+differing levels of priors noise.
+First we have a look at the enrichment of prior edges over non-prior edges within the set of replicated edges.
+
+> NOTE: at the beginning we defined the edges sets using the ORIGINAL (not noisified) prior matrix. We now switched to using the noisified one. Naturally, this changes our previous obesrvation of decreased enrichment with increase in prior noise (we rather observed only the 'decrease in true signal in the priors' than any performance changes...)
+
+```{r load_data_prior_noise}
+
+base_dir <- "results/current/biogrid_stringent/"
+fit_files <- list.files(paste0(base_dir, "fits_tfa/_rerun/replication_prior_noise/"), 
+                        "*.rds", full.names = T)
+names(fit_files) <-  gsub(".rds","", basename(fit_files))
+
+# we need the original priors to define true/false prior edges in noisy data
+prior_files <- list.files(paste0(base_dir, "priors/"), 
+                          ".*.rds", full.names = T)
+names(prior_files) <- gsub(".rds","", basename(prior_files))
+
+models <- c("bdgraph", "bdgraph_no_priors", "glasso", "glasso_no_priors",
+            "genenet", "genie3", "irafnet")
+
+result_table <- parallel::mclapply(names(fit_files), function(locus) {
+  
+  file <- fit_files[locus]
+  sentinel <- gsub("_meqtl|_eqtlgen", "", locus)
+  locus_type <- gsub("rs.*_", "", locus)
+  
+  fits <- readRDS(file)
+  
+  lapply(names(fits), function(noise_level) {
+    
+    fits_at_noise_level <- fits[[noise_level]]
+    
+    fits_kora <- fits_at_noise_level[["kora"]]
+    fits_lolipop <- fits_at_noise_level[["lolipop"]]
+    
+    priors <- fits_at_noise_level$priors
+    
+    prior_edge_sets <- get_prior_edge_sets(priors)
+    prior_edges <- prior_edge_sets$prior_edges
+    non_prior_edges <- prior_edge_sets$non_prior_edges
+    
+    lapply(models, function(model) {
+      fit_kora <- fits_kora[[model]]
+      fit_lolipop <- fits_lolipop[[model]]
+      
+      kora_edges <- get_edges_from_graph(fit_kora)
+      lolipop_edges <- get_edges_from_graph(fit_lolipop) 
+     
+      replicated_edges <- inner_join(kora_edges, lolipop_edges,
+                                   by=c("edge1", "edge2")) 
+    
+    get_enrichment_for_edgesets(prior_edges, 
+                                non_prior_edges, 
+                                replicated_edges) %>%
+        mutate(graph_model = model, 
+               sentinel = sentinel, 
+               locus_type = locus_type,
+               noise_level = gsub("noise_level_", "", noise_level),
+               prior_and_replicated = set1_in_background,
+               prior_not_replicated = set1_not_in_background,
+               not_prior_and_replicated = set2_in_background,
+               not_prior_not_replicated = set2_not_in_background) %>% 
+        dplyr::select(sentinel, locus_type, graph_model, -method, -alternative, 
+                      everything())
+      
+    }) %>% bind_rows()
+    
+  }) %>% bind_rows()
+  
+}, mc.cores = threads) %>% bind_rows() %>%
+   mutate(is_prior_based = case_when(graph_model %in% c("glasso", 
+                                                         "bdgraph", 
+                                                         "irafnet") ~ TRUE,
+                                    TRUE ~ FALSE)) %>%
+  mutate(graph_model = gsub("^glasso$", "glasso (priors)", graph_model)) %>%
+  mutate(graph_model = gsub("^bdgraph$", "bdgraph (priors)", graph_model)) %>%
+  mutate(graph_model = gsub("_no_priors", "", graph_model))
+
+# define plot colors
+paired <- RColorBrewer::brewer.pal(4, "Paired")
+names(paired) <- c("glasso", "glasso (priors)", "bdgraph", "bdgraph (priors)")
+unpaired <- RColorBrewer::brewer.pal(7, "Dark2")[c(2,3,7)]
+names(unpaired) <- c("irafnet", "genie3", "genenet")
+graph_cols <- c(paired, unpaired)
+
+max_non_infinite_estimate <- filter(result_table, is.finite(estimate)) %>%
+  filter(estimate == max(estimate)) %>% pull(estimate)
+
+gp1 <- ggplot(
+  result_table %>%
+    mutate(
+      estimate = case_when(
+        is.infinite(estimate) ~ max_non_infinite_estimate,
+        TRUE ~ estimate
+      )
+    ),
+  aes(
+    y = log10(estimate),
+    x = noise_level,
+    color = reorder(graph_model, log10(estimate), mean)
+  )
+) +
+  geom_boxplot(outlier.shape = NA) +
+  stat_summary(
+    fun.y = median,
+    geom = "smooth",
+    position = position_dodge2(width = 0.9),
+    aes(group = reorder(graph_model, log10(estimate), mean)),
+    lwd = 0.8
+  ) +
+  geom_hline(
+    yintercept = 0,
+    color = "grey",
+    linetype = "dashed",
+    size = 1
+  ) +
+  scale_color_manual(values = graph_cols) +
+  labs(color = "model",
+       subtitle = "Enrichment of prior over non-prior edges\nin replicated edges")
+
+gp1
+
+```
+
+Now we check out the enrichment of **false prior** edges over the **true prior** edges within the set of replicated edges.
+
+```{r enrich_false_over_true_prior_edges}
+get_false_prior_edges <- function(noisy_priors, original_priors) {
+  noisy_sets <- get_prior_edge_sets(noisy_priors)
+  original_sets <- get_prior_edge_sets(original_priors)
+  
+  # false priors: priors defined in noisy set which are part of the non-prior set
+  # in the original data
+  semi_join(noisy_sets$prior_edges, original_sets$non_prior_edges,
+            by=c("edge1", "edge2"))
+}
+
+get_true_prior_edges <- function(noisy_priors, original_priors) {
+  noisy_sets <- get_prior_edge_sets(noisy_priors)
+  original_sets <- get_prior_edge_sets(original_priors)
+  
+  # true priors: priors defined in noisy set which are part of the prior set
+  # in the original data
+  semi_join(noisy_sets$prior_edges, original_sets$prior_edges,
+            by=c("edge1", "edge2"))
+}
+
+result_table <- parallel::mclapply(names(fit_files), function(locus) {
+  
+  file <- fit_files[locus]
+  sentinel <- gsub("_meqtl|_eqtlgen", "", locus)
+  locus_type <- gsub("rs.*_", "", locus)
+  
+  fits <- readRDS(file)
+  
+  priors <- readRDS(prior_files[locus])
+  
+  lapply(names(fits), function(noise_level) {
+    
+    if(noise_level == "noise_level_0") return(NULL)
+    
+    fits_at_noise_level <- fits[[noise_level]]
+    
+    fits_kora <- fits_at_noise_level[["kora"]]
+    fits_lolipop <- fits_at_noise_level[["lolipop"]]
+    
+    # the (noisy) priors used in the inference analysis
+    noisy_priors <- fits_at_noise_level$priors
+    false_prior_edges <- get_false_prior_edges(noisy_priors, priors)
+    true_prior_edges <- get_true_prior_edges(noisy_priors, priors)
+    
+    lapply(models, function(model) {
+      fit_kora <- fits_kora[[model]]
+      fit_lolipop <- fits_lolipop[[model]]
+      
+      kora_edges <- get_edges_from_graph(fit_kora)
+      lolipop_edges <- get_edges_from_graph(fit_lolipop) 
+     
+      replicated_edges <- inner_join(kora_edges, lolipop_edges,
+                                   by=c("edge1", "edge2")) 
+    
+      false_over_true_prior <-
+        get_enrichment_for_edgesets(false_prior_edges,
+                                    true_prior_edges,
+                                    replicated_edges) %>%
+        mutate(
+          graph_model = model,
+          sentinel = sentinel,
+          locus_type = locus_type,
+          noise_level = gsub("noise_level_", "", noise_level)) %>%
+        dplyr::select(sentinel,
+                      locus_type,
+                      graph_model,-method,-alternative,
+                      everything())
+      
+      false_over_true_prior
+      
+    }) %>% bind_rows()
+    
+  }) %>% bind_rows()
+  
+}, mc.cores = threads) %>% bind_rows() %>%
+   mutate(is_prior_based = case_when(graph_model %in% c("glasso", 
+                                                         "bdgraph", 
+                                                         "irafnet") ~ TRUE,
+                                    TRUE ~ FALSE)) %>%
+  mutate(graph_model = gsub("^glasso$", "glasso (priors)", graph_model)) %>%
+  mutate(graph_model = gsub("^bdgraph$", "bdgraph (priors)", graph_model)) %>%
+  mutate(graph_model = gsub("_no_priors", "", graph_model))
+
+max_non_infinite_estimate <- filter(result_table, is.finite(estimate)) %>%
+  filter(estimate == max(estimate)) %>% pull(estimate) %>% unique
+
+result_table <- result_table %>%
+  mutate(estimate = case_when(
+    is.infinite(estimate) ~ max_non_infinite_estimate,
+    TRUE ~ estimate
+  ))
+
+
+gp2 <- ggplot(result_table,
+              aes(
+                y = log10(estimate),
+                x = noise_level,
+                color = reorder(graph_model, log10(estimate), mean)
+              )) +
+  geom_boxplot(outlier.shape = NA) +
+  stat_summary(
+    fun.y = median,
+    geom = "smooth",
+    position = position_dodge2(width = 0.9),
+    aes(group = reorder(graph_model, log10(estimate), mean)),
+    lwd = 0.8
+  ) +
+  geom_hline(
+    yintercept = 0,
+    color = "grey",
+    linetype = "dashed",
+    size = 1
+  ) +
+  scale_color_manual(values = graph_cols) +
+  labs(color = "model",
+       subtitle = "Enrichment of false priors over true priors\nin replicated edges.")
+
+ggpubr::ggarrange(
+  gp1,
+  gp2,
+  ncol = 2,
+  labels = "AUTO",
+  common.legend = T,
+  legend = "bottom"
+)
+```
+
+## Session Info
+```{r session_info}
+devtools::session_info()
+```

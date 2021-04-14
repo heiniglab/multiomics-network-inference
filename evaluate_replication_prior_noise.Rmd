@@ -87,7 +87,7 @@ graph_cols <- c(paired, unpaired)
 
 ggplot(result_table, 
        aes(x=noise_level, y=mcc, color=reorder(model, -mcc))) + 
-  geom_boxplot() + 
+  geom_boxplot(outlier.shape = NA) + 
    stat_summary(
     fun.y = median,
     geom = "smooth",

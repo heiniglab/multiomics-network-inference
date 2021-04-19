@@ -62,7 +62,8 @@ gp <- ggplot(data,
   )
 gp
 
-save_plot(filename = snakemake@output$overview_plot, gp)
+save_plot(filename = snakemake@output$overview_plot, gp, 
+          ncol = 2 , nrow = 2)
 
 # ------------------------------------------------------------------------------
 print("SessionInfo:")

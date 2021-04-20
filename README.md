@@ -1,7 +1,8 @@
 ## Relevant links to online resources:
 
 - [Paper on overleaf](https://www.overleaf.com/2873145782fcvqtppkhgdb)
-- [Reviewer comments on google docs](https://docs.google.com/spreadsheets/d/1rtgCK2rgXGBGJyT-Xg43TGysO_0IBbDzELT9FNgs7do/edit?usp=sharing)
+- [Reviewer comments on google sheets](https://docs.google.com/spreadsheets/d/1rtgCK2rgXGBGJyT-Xg43TGysO_0IBbDzELT9FNgs7do/edit?usp=sharing)
+- [Response to reviewer comments on google docs](https://docs.google.com/document/d/1x9KLl1AKVdHe64g4aDI2arbfn_9Jjp2zWgFmfdooiMs/edit?usp=sharing)
 
 -----
 

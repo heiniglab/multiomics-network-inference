@@ -1,4 +1,4 @@
 cores: 4
-use-conda: True
+use-conda: False
 keep-going: True
 printshellcmds: True

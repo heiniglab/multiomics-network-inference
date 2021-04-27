@@ -1,0 +1,6 @@
+{
+    "SBATCH_DEFAULTS": "nice=10000 partition=cpu_p",
+    "CLUSTER_NAME": "",
+    "CLUSTER_CONFIG": "",
+    "ADVANCED_ARGUMENT_CONVERSION": "no"
+}

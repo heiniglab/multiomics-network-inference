@@ -18,7 +18,7 @@ rule simulate_data:
                 DSIM_DATA + "{sentinel}.RData"
         threads: 10
         resources:
-                mem_mb=1500
+                mem_mb=15000
         params:
                 sentinel="{sentinel}",
                 runs=RUNS,
@@ -53,7 +53,7 @@ rule apply_ggm_simulation:
         wildcard_constraints:
                 subset = "all|[0-9]+0*"
         resources:
-                mem_mb=2000
+                mem_mb=32000
         conda:
                 "../envs/bioR.yaml"
         log:
@@ -153,7 +153,7 @@ rule summarize_snp_gene_recovery:
 		"benchmarks/simulation/snp_gene_recovery/{sentinel}.bmk"
 	threads: 6
 	resources:
-		mem_mb = 1000
+		mem_mb = 6000
 	script:
 		"../scripts/simulation/summarize_snp_gene_recovery.R"
 

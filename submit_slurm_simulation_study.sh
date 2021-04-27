@@ -13,7 +13,7 @@ echo "Executing snakemake ---------------------------------"
 target=all_simulation
 logFile=./${target}.log
 
-nohup nice snakemake -n --profile=./profiles/slurm \
+nohup nice snakemake --profile=./profiles/slurm \
   ${target} &> ${logFile} &
 
 echo "Snakemake running -----------------------------------"

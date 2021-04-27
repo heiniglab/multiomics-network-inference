@@ -97,6 +97,16 @@ get_edges_from_graph <- function(graph) {
   bind_rows(temp, rename(temp, edge1 = edge2, edge2 = edge1))
 }
 
+# helper to determine the set of replicated (common) edges between two graphs (e.g.
+# from KORA and LOLIPOP)
+get_replicated_edges <- function(graph1, graph2) {
+  graph1_edges <- get_edges_from_graph(graph1)
+  graph2_edges <- get_edges_from_graph(graph2)
+  
+  replicated_edges <- inner_join(graph1_edges, graph2_edges,
+                                 by = c("edge1", "edge2"))
+}
+
 # helper to enrich a set of edges over the other
 # e.g.: prior edges (set1_edges) are enriched over non_prior edges (set2_edges)
 # with respect to replicated edges (background_edges)
@@ -164,12 +174,10 @@ result <- mclapply(sentinels, function(sentinel) {
   graph_models <- names(kora_fits)[!grepl("_fit", names(kora_fits))]
   
   lapply(graph_models, function(graph_model) {
-    kora_edges <- get_edges_from_graph(kora_fits[[graph_model]])
-    lolipop_edges <- get_edges_from_graph(lolipop_fits[[graph_model]])
     
-    replicated_edges <- inner_join(kora_edges, lolipop_edges,
-                                   by=c("edge1", "edge2")) 
-
+    replicated_edges <- get_replicated_edges(kora_fits[[graph_model]],
+                                             lolipop_fits[[graph_model]])
+    
     get_enrichment_for_edgesets(prior_edges, 
                                 non_prior_edges, 
                                 replicated_edges) %>%
@@ -397,11 +405,7 @@ result_table <- parallel::mclapply(names(fit_files), function(locus) {
       fit_kora <- fits_kora[[model]]
       fit_lolipop <- fits_lolipop[[model]]
       
-      kora_edges <- get_edges_from_graph(fit_kora)
-      lolipop_edges <- get_edges_from_graph(fit_lolipop) 
-     
-      replicated_edges <- inner_join(kora_edges, lolipop_edges,
-                                   by=c("edge1", "edge2")) 
+      replicated_edges <- get_replicated_edges(fit_kora, fit_lolipop)
     
     get_enrichment_for_edgesets(prior_edges, 
                                 non_prior_edges, 
@@ -527,11 +531,7 @@ result_table <- parallel::mclapply(names(fit_files), function(locus) {
       fit_kora <- fits_kora[[model]]
       fit_lolipop <- fits_lolipop[[model]]
       
-      kora_edges <- get_edges_from_graph(fit_kora)
-      lolipop_edges <- get_edges_from_graph(fit_lolipop) 
-     
-      replicated_edges <- inner_join(kora_edges, lolipop_edges,
-                                   by=c("edge1", "edge2")) 
+      replicated_edges <- get_replicated_edges(fit_kora, fit_lolipop)
     
       false_over_true_prior <-
         get_enrichment_for_edgesets(false_prior_edges,
@@ -604,6 +604,110 @@ ggpubr::ggarrange(
   common.legend = T,
   legend = "bottom"
 )
+```
+
+Above plot shows that edges (false/true) are treated the same of different scenarios (?).
+
+```{r}
+
+result_table <- parallel::mclapply(names(fit_files), function(locus) {
+  
+  file <- fit_files[locus]
+  sentinel <- gsub("_meqtl|_eqtlgen", "", locus)
+  locus_type <- gsub("rs.*_", "", locus)
+  
+  fits <- readRDS(file)
+  
+  priors <- readRDS(prior_files[locus])
+  
+  lapply(names(fits), function(noise_level) {
+    
+    if(noise_level == "noise_level_0") return(NULL)
+    
+    fits_at_noise_level <- fits[[noise_level]]
+    
+    fits_kora <- fits_at_noise_level[["kora"]]
+    fits_lolipop <- fits_at_noise_level[["lolipop"]]
+    
+    # the (noisy) priors used in the inference analysis
+    noisy_priors <- fits_at_noise_level$priors
+    false_prior_edges <- get_false_prior_edges(noisy_priors, priors)
+    
+    prior_edge_sets <- get_prior_edge_sets(priors)
+    original_prior_edges <- prior_edge_sets$prior_edges
+    
+    noisy_edge_sets <- get_prior_edge_sets(noisy_priors)
+    noisy_prior_edges <- noisy_edge_sets$prior_edges
+    
+    lapply(models, function(model) {
+      fit_kora <- fits_kora[[model]]
+      fit_lolipop <- fits_lolipop[[model]]
+      
+      replicated_edges <- get_replicated_edges(fit_kora, fit_lolipop)
+    
+      false_over_true_prior <-
+        get_enrichment_for_edgesets(original_prior_edges,
+                                    noisy_prior_edges,
+                                    replicated_edges) %>%
+        mutate(
+          graph_model = model,
+          sentinel = sentinel,
+          locus_type = locus_type,
+          noise_level = gsub("noise_level_", "", noise_level)) %>%
+        dplyr::select(sentinel,
+                      locus_type,
+                      graph_model,-method,-alternative,
+                      everything())
+      
+      false_over_true_prior
+      
+    }) %>% bind_rows()
+    
+  }) %>% bind_rows()
+  
+}, mc.cores = threads) %>% bind_rows() %>%
+   mutate(is_prior_based = case_when(graph_model %in% c("glasso", 
+                                                         "bdgraph", 
+                                                         "irafnet") ~ TRUE,
+                                    TRUE ~ FALSE)) %>%
+  mutate(graph_model = gsub("^glasso$", "glasso (priors)", graph_model)) %>%
+  mutate(graph_model = gsub("^bdgraph$", "bdgraph (priors)", graph_model)) %>%
+  mutate(graph_model = gsub("_no_priors", "", graph_model))
+
+max_non_infinite_estimate <- filter(result_table, is.finite(estimate)) %>%
+  filter(estimate == max(estimate)) %>% pull(estimate) %>% unique
+
+result_table <- result_table %>%
+  mutate(estimate = case_when(
+    is.infinite(estimate) ~ max_non_infinite_estimate,
+    TRUE ~ estimate
+  ))
+
+gp3 <- ggplot(result_table,
+              aes(
+                y = log10(estimate),
+                x = noise_level,
+                color = reorder(graph_model, log10(estimate), mean)
+              )) +
+  geom_boxplot(outlier.shape = NA) +
+  stat_summary(
+    fun.y = median,
+    geom = "smooth",
+    position = position_dodge2(width = 0.9),
+    aes(group = reorder(graph_model, log10(estimate), mean)),
+    lwd = 0.8
+  ) +
+  geom_hline(
+    yintercept = 0,
+    color = "grey",
+    linetype = "dashed",
+    size = 1
+  ) +
+  scale_color_manual(values = graph_cols) +
+  labs(color = "model",
+       subtitle = "Enrichment of original priors over false priors\nin replicated edges.")
+
+
 ```
 
 ## Session Info

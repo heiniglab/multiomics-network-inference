@@ -2,6 +2,7 @@
 *.RData
 *.html
 *.gz
+*.log
 rework/results/current/*
 rework/logs/
 .snakemake*

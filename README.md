@@ -158,7 +158,7 @@ The complete benchmark can be run using the following call:
 ./submit_slurm_benchmark.sh
 ```
 
-The above script implicetely calls snakemake with the `gather_benchmark_results` rule and submits all SLURM jobs to the same compute node (currently: `icb-neu-001`) to achieve comparable performance estimates.
+The above script implicetely calls snakemake with the `all_benchmark` rule and submits all SLURM jobs to the same compute node (currently: `icb-neu-001`) to achieve comparable performance estimates.
 Results are summarized under `results/current/benchmark/summary.pdf`.
 
 ### Simulation study

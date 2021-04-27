@@ -50,12 +50,12 @@ snakemake --profile default -s workflows/1_extract_hotspots.sm all
 
 ### Snakemake profiles
 
-We use profiles to handle local and cluster execution.
+We use profiles to handle local and cluster execution (saved under [./profiles/](./profiles)).
 
-- `default` profile: available under `./profiles/default`, use by supplying `--profile profiles/default` to snakemake
-- `slurm` profile: available under `./profiles/slurm/`, use by supplying `--profile profiles/slurm` to snakemake
+- `default` profile: available under `./profiles/default/`, use `--profile profiles/default` for snakemake
+- `slurm` profile: available under `./profiles/slurm/`, use `--profile profiles/slurm` for snakemake
 
-Both profiles specify some default snakemake parameters. The SLURM profile also specifies necessary SLURM parameters specific to the ICB queue. The SLURM profile was installed using cookiecutter (compare [this link](https://github.com/Snakemake-Profiles/slurm)):
+Both profiles specify some default snakemake parameters. The SLURM profile also specifies necessary SLURM parameters specific to the ICB queue. The SLURM profile was installed using cookiecutter (compare [this link](https://github.com/Snakemake-Profiles/slurm)) then modified to fit our queue:
 
 ```
 # install cookiecutter if not yet available
@@ -95,7 +95,7 @@ parameter in the snakemake call (done by default in the `./profiles/default` sna
 
 ### Meta target rules
 
-There are some 'meta' targets which can be used to run only parts of the pipeline, but for all hotspots.
+There are some 'meta' targets which can be used to run only parts of the pipeline for all hotspots.
 
 #### Generate ranges overview
 
@@ -103,7 +103,7 @@ The call below creates all hotspots networks as 'ranges' objects/files and gener
 a summary plot.
 
 ```{bash}
-nohup nice snakemake -j 10 -k all_ranges &
+snakemake --profile=./profiles/default all_ranges
 ```
 
 #### Generate data overview
@@ -112,27 +112,37 @@ This call collects and normalized all cohort data for the created ranges objects
 generates an overview plot.
 
 ```{bash}
-nohup nice snakemake -j 10 -k all_data &
+snakemake --profile=./profiles/default all_data
 ```
 
 #### Generate overview on GGM fits
 
-This generates all ranges and data collections and fits different GGMs to the data
+This generates all ranges and data collections and fits different GGMs to the data. Note that we use the SLURM profile, as running this locally is not entirely sensible.
 
 ```{bash}
-nohup nice snakemake -j 10 --res mem_mb=80000 -k all_ggm &
+snakemake --profile=./profiles/slurm/ all_ggm &
 ```
 
 ### Cohort data pipeline
 
-The below code can be used to run the full network inference pipeline on our SLURM cluster.
-Cohort and simulation study can be run separately by using either the 
-*all_cohort* or *all_simulation* rule/commands (see below), respectively.
+The below code can be used to run the full network inference pipeline on our SLURM cluster on the cohort data.
 
-To directly execute the cohort study using the SLURM cluster (using the `./profiles/slurm` profile), call:
+> NOTE: Cohort and simulation study can be run separately by using either the 
+*all_cohort* or *all_simulation* (see below) rule/commands, respectively.
+
+To execute the cohort study using the SLURM cluster (using the `./profiles/slurm` profile), call:
 
 ```{bash}
 ./submit_slurm_cohort_study.sh
+```
+
+#### Replication analysis with prior noise
+
+Based on cohort replication, we also investigate the effect of noisy priors.
+To run all needed model fits including systematic creation of noise priors, simply call:
+
+```{bash}
+./submit_slurm_cohort_replication_prior_noise.sh
 ```
 
 ### Method benchmarking
@@ -144,12 +154,12 @@ The complete benchmark can be run using the following call:
 ./submit_slurm_benchmark.sh
 ```
 
-The above script implicetely calls snakemake with the `gather_benchmark_results` rule.
+The above script implicetely calls snakemake with the `gather_benchmark_results` rule and submits all SLURM jobs to the same compute node (currently: `icb-neu-001`) to achieve comparable performance estimates.
 Results are summarized under `results/current/benchmark/summary.pdf`.
 
 ### Simulation study
 
-We implemented a simulation study, were we generate ground truth graphs as well
+We implemented a simulation study, where we generate ground truth graphs as well
 as noisy priors in order to compare inference methods with respect to 1) their 
 general performance to recover the ground truth network 2) how much they are 
 influenced by the exisiting prior information and noise therein (in addition to their computational complexity, see above). 
@@ -159,7 +169,7 @@ The target rule for this simulation study is `all_simulation` and is implicetely
 ./submit_slurm_simulation.sh
 ```
 
-The above comment will execute the simulation study using the SLURM cluster.
+The above command will execute the simulation study using the SLURM cluster.
 
 ## DEPRECATED: LRZ specific submit (simulations)
 

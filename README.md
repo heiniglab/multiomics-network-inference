@@ -145,6 +145,10 @@ To run all needed model fits including systematic creation of noise priors, simp
 ./submit_slurm_cohort_replication_prior_noise.sh
 ```
 
+To investigate the results, you can have a look at the Rmarkdown document under [validation_reviewer_comments.Rmd](validation_reviewer_comments.Rmd).
+
+> The markdown is not yet implemented in the snakemake workflow but should ultimately be automatically generated once everything is in place.
+
 ### Method benchmarking
 
 We implemented a benchmarking procedure to formally test runtimes for all applied models.

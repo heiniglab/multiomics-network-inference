@@ -67,7 +67,7 @@ rule apply_ggm:
         params:
                 time="2-00:00:00"
         resources:
-                mem_mb=2000
+                mem_mb=40000
         conda:
                 "../envs/bioR.yaml"
         benchmark:
@@ -98,7 +98,7 @@ rule apply_ggm_noisy_priors:
         params:
                 time="3-00:00:00"
         resources:
-                mem_mb=2000
+                mem_mb=40000
         conda:
                 "../envs/bioR.yaml"
         benchmark:
@@ -158,7 +158,7 @@ rule validate_ggm:
                 time="7:00:00"
         threads: 7
         resources:
-                mem_mb=2500
+                mem_mb=18000
         conda:
                 "../envs/bioR.yaml"
         log:
@@ -231,7 +231,7 @@ rule add_gwas_information:
 	params:
 		time = "10:00:00"
 	resources:
-		mem_mb=5000
+		mem_mb=30000
 	threads: 6
 	log:
 		"logs/add_gwas_information_{seed}.log"

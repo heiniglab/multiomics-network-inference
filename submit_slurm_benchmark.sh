@@ -1,8 +1,8 @@
 #!/bin/bash
 
 # default call for SLURM submit with snakemake
-target=gather_benchmark_results
-log=gather_benchmark_results.log
+target=all_benchmark
+logFile=${target}.log
 
 # submit using snakemake -> check for command
 command -v snakemake >/dev/null 2>&1 || { echo "snakemake not available, exiting." ; exit 1 ; }

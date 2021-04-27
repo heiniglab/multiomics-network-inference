@@ -194,7 +194,7 @@ rule benchmark_model:
 		"../scripts/benchmark.R"
 
 MODELS = ["glasso", "genenet", "bdgraph", "genie3", "irafnet"]
-rule gather_benchmark_results:
+rule all_benchmark:
 	input: 
 		expand("results/current/benchmark/result_table_{model}_N{sample_size}_P{number_nodes}.rds", model = MODELS, sample_size = BENCHMARK_SAMPLE_SIZES, number_nodes = BENCHMARK_NUMBER_OF_NODES)
 	output:
@@ -206,7 +206,7 @@ rule gather_benchmark_results:
 		mem_mb = 1000
 	threads: 1
 	log:
-		"logs/benchmark/summary.log"
+		"logs/benchmark/all_benchmark.log"
 	script:
 		"../scripts/benchmark_gather_results.R"
 

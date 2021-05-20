@@ -43,6 +43,10 @@ priors <- priors[colnames(data), colnames(data)]
 RhpcBLASctl::omp_set_num_threads(1)
 RhpcBLASctl::blas_set_num_threads(1)
 
+print("testing correlation graph")
+correlation_result <- reg_net(data, NULL, model="correlation", threads=threads)
+plot(correlation_result$graph)
+
 print("testing genenet")
 genenet_result <- reg_net(data, NULL, model = "genenet", threads=threads)
 plot(genenet_result$graph)

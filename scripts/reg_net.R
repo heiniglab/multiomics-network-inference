@@ -24,7 +24,8 @@ require(reshape2)
 
 # define the available models for network inference
 reg_net.models <- function() {
-  return(c("genenet", "bdgraph", "irafnet", "glasso", "genie3" , "custom"))
+  return(c("genenet", "bdgraph", "irafnet", "glasso", 
+           "genie3" , "correlation", "custom"))
 }
 
 # ------------------------------------------------------------------------------
@@ -213,6 +214,9 @@ reg_net <- function(data,
     fit <- genie3(data_no_nas, 
                   threads = threads, verbose = verbose)
     class(fit) <- c(class(fit), "genie3")
+  } else if ("correlation" %in% model) {
+    fit <- create_correlation_fit(data)
+    class(fit) <- c(class(fit), "correlation")
   } else if ("custom" %in% model) {
     stop("Sorry, custom model is not yet implemented.")
   }
@@ -333,6 +337,19 @@ graph_from_fit <- function(ggm.fit,
     g <- get_genie3_graph(ggm.fit$best_weight,
                           nodes,
                           ggm.fit$linklist)
+  } else if(inherits(ggm.fit, "correlation")) {
+    best_corr_cutoff <-
+      get_best_graph_cutoff(
+        seq(0.01, 0.4, by = 0.01),
+        get_correlation_graph,
+        threads = 1,
+        rsquare.cut = 0.8,
+        ggm.fit
+      )
+    
+    best_corr_cutoff <- ifelse(is.na(best_corr_cutoff), 0.2, best_corr_cutoff)
+    
+    g <- get_correlation_graph(best_corr_cutoff, ggm.fit)
   }
   
   if (annotate) {
@@ -405,6 +422,69 @@ get_genenet_graph <- function(prob_cutoff, model_fit, nodes) {
     g <- addEdge(net$node1, net$node2, g)
   }
   return(g)
+}
+
+# ------------------------------------------------------------------------------
+#' Gets a graph from a correlation based fit based on a correlation and pvalue
+#' cutoff. Assumes 'edgeData' has 4 columns: node1, node2, corr and pval
+#'
+#' @author Johann Hawe 
+# ------------------------------------------------------------------------------
+get_correlation_graph <- function(cor.cutoff, edgeData, p.cutoff=0.05) {
+  
+  require(graph)
+  
+  edgeData <- subset(edgeData, abs(corr) > cor.cutoff & pval < p.cutoff)
+  
+  graph <- graphNEL(union(edgeData[,1], edgeData[,2]), edgemode = "undirected")
+  graph <- addEdge(edgeData[,1], edgeData[,2],
+                   graph)
+  return(graph)
+}
+
+# ------------------------------------------------------------------------------
+#' Creates a correlation graph form a data matrix and given correlation cutoffs
+#'
+#' @param data The data matrix to be used, variables in the columns
+#' @param scale.data Whether to scale the data matrix prior to calculations (i.e.
+#' apply `scale()` method). Default: TRUE
+#' @return A Matrix with columns node1, node2, corr and pval
+#'
+#' @author Johann Hawe
+#'
+# ------------------------------------------------------------------------------
+create_correlation_fit <-  function(data, scale.data = TRUE) {
+  
+  if(scale.data) {
+    data <- scale(data)
+  }
+  
+  N <- ncol(data)
+  variables <- colnames(data)
+  
+  edgeData <- matrix(ncol=4, nrow=0)
+  colnames(edgeData) <- c("node1", "node2", "corr", "pval")
+  
+  for(i in 1:(ncol(data)-1)){
+    for(j in (i+1):ncol(data)){
+      
+      test.result <- cor.test(data[,i], data[,j], na.rm=T)
+      
+      edgeData <- rbind(edgeData,
+                        c(
+                          variables[i],
+                          variables[j],
+                          test.result$estimate,
+                          test.result$p.value
+                        ))
+    }
+  }
+  
+  df <- as.data.frame(edgeData, stringsAsFactors=FALSE)
+  df$corr <- as.numeric(df$corr)
+  df$pval <- as.numeric(df$pval)
+  
+  return(df)
 }
 
 # ------------------------------------------------------------------------------

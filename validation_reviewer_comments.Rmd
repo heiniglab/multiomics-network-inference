@@ -20,6 +20,7 @@ library(cowplot)
 theme_set(theme_cowplot() + background_grid(major="xy"))
 
 source("scripts/validation_methods.R")
+source("scripts/lib.R")
 
 threads <- 4
 
@@ -36,6 +37,12 @@ model fits for KORA and LOLIPOP.
 fpriors <- 
   list.files("results/current/biogrid_stringent/priors/", 
              "*.rds", full.names = T)
+fkora_data <- 
+  list.files("results/current/biogrid_stringent/cohort_data_tfa/kora/", 
+             "*.rds", full.names = T)
+flolipop_data <- 
+  list.files("results/current/biogrid_stringent/cohort_data_tfa/lolipop/", 
+             "*.rds", full.names = T)
 fkora_fits <- 
   list.files("results/current/biogrid_stringent/fits_tfa/_rerun/kora/", 
              "*.rds", full.names = T)
@@ -49,6 +56,8 @@ rename_files <- function(file_list) {
 }
 
 fpriors <- rename_files(fpriors)
+fkora_data <- rename_files(fkora_data)
+flolipop_data <- rename_files(flolipop_data)
 fkora_fits <- rename_files(fkora_fits)
 flolipop_fits <- rename_files(flolipop_fits)
 
@@ -70,14 +79,14 @@ get_prior_edge_sets <- function(prior_matrix) {
   
   prior_edges <-  prior_matrix_tibble %>%
     filter(value > PSEUDO_PRIOR) %>%
-    rename(edge1 = Var1, edge2 = Var2) %>%
+    dplyr::rename(edge1 = Var1, edge2 = Var2) %>%
     mutate(edge1 = as.character(edge1), edge2 = as.character(edge2)) %>%
     filter(edge1 != edge2) %>%
     dplyr::select(-value)
   
   non_prior_edges <- prior_matrix_tibble %>%
     filter(value == PSEUDO_PRIOR) %>%
-    rename(edge1 = Var1, edge2 = Var2) %>%
+    dplyr::rename(edge1 = Var1, edge2 = Var2) %>%
     mutate(edge1 = as.character(edge1), edge2 = as.character(edge2)) %>%
     filter(edge1 != edge2) %>%
     dplyr::select(-value)
@@ -91,10 +100,10 @@ get_edges_from_graph <- function(graph) {
     as_tibble() %>%
     mutate(from = graph_nodes[from],
            to = graph_nodes[to]) %>%
-    rename(edge1 = from, edge2 = to)
+    dplyr::rename(edge1 = from, edge2 = to)
   
   # add the 'reverse' edge, too, as we investigated undirected graphs
-  bind_rows(temp, rename(temp, edge1 = edge2, edge2 = edge1))
+  bind_rows(temp, dplyr::rename(temp, edge1 = edge2, edge2 = edge1))
 }
 
 # helper to determine the set of replicated (common) edges between two graphs (e.g.
@@ -257,6 +266,89 @@ ggplot(summarized_fishertest, aes(y=log10(estimate),
   labs(x="graph model")
 ```
 
+Now we also have a look at a different 'replication': We compare the inferred
+network in one cohort to a simple correlation network retrieved from the respective
+other cohort. Any replication we see is then not due to any prior information, but rather
+solely based on the observed data/likelihoods.
+
+```{r evaluate_correlation_graphs}
+fcorrelation_graphs <- 
+  list.files("results/current/biogrid_stringent/correlation_graphs_tfa/_rerun/", 
+             "*.rds", full.names = T)
+
+fcorrelation_graphs <- rename_files(fcorrelation_graphs)
+
+result_table <- mclapply(sentinels, function(sentinel) {
+  
+  print(sentinel)
+  
+  correlation_graphs <- readRDS(fcorrelation_graphs[sentinel])
+  correlation_graph_kora <- correlation_graphs[["kora"]]$graph
+  correlation_graph_lolipop <- correlation_graphs[["lolipop"]]$graph
+  
+  fit_kora <- readRDS(fkora_fits[sentinel])
+  fit_lolipop <- readRDS(flolipop_fits[sentinel])
+  
+  graph_models <- names(fit_kora)[!grepl("_fit", names(fit_kora))]
+  
+  lapply(graph_models, function(model) {
+    inferred_graph_kora <- fit_kora[[model]]
+    inferred_graph_lolipop <- fit_lolipop[[model]]
+    
+    common_nodes_kora <-
+      intersect(nodes(correlation_graph_kora),
+                nodes(inferred_graph_kora))
+    common_nodes_lolipop <-
+      intersect(nodes(correlation_graph_lolipop),
+                nodes(inferred_graph_lolipop))
+    
+    correlation_graph_kora <- subGraph(common_nodes_kora,
+                                       correlation_graph_kora)
+    correlation_graph_lolipop <- subGraph(common_nodes_lolipop,
+                                          correlation_graph_lolipop)
+    inferred_graph_kora <- subGraph(common_nodes_kora,
+                                    inferred_graph_kora)
+    inferred_graph_lolipop <- subGraph(common_nodes_lolipop,
+                                       inferred_graph_lolipop)
+    
+    mcc_kora <- 
+      BDgraph::compare(as(inferred_graph_kora, "matrix"),
+                       as(correlation_graph_kora, "matrix"))["MCC", "estimate1"]
+    
+    mcc_lolipop <-
+      BDgraph::compare(as(inferred_graph_lolipop, "matrix"),
+                       as(correlation_graph_lolipop, "matrix"))["MCC", "estimate1"]
+    
+    tibble(
+      sentinel = sentinel,
+      graph_model = model,
+      MCC = c(mcc_kora, mcc_lolipop)
+    )
+    
+  }) %>% bind_rows()
+}, mc.cores = threads) %>% bind_rows()
+
+
+result_table %>%
+  ggplot(aes(x=reorder(graph_model, -MCC, FUN=median),
+             y=MCC)) +
+  geom_boxplot(outlier.shape = NA) + 
+  geom_point(position=position_jitter(width = 0.15),
+             alpha=0.1) +
+  ggpubr::stat_compare_means() +
+  labs(title="",
+       y="MCC",
+       x="method") + 
+  theme(plot.title = element_text(hjust = 0.5),
+        axis.title.x = element_blank(),
+        axis.text.x = element_text(hjust=0, vjust=0.5, angle=-45, size=12),
+        legend.position = "bottom",
+        legend.text = element_text(size=14),
+        legend.title = element_text(size=15))
+
+  
+```
+
 ## Prior importance inferred edge set
 
 Contrary to the replicated edge set above, we can also have a look at the 'inferred' edge set,
@@ -368,7 +460,7 @@ First we have a look at the enrichment of prior edges over non-prior edges withi
 ```{r load_data_prior_noise}
 
 base_dir <- "results/current/biogrid_stringent/"
-fit_files <- list.files(paste0(base_dir, "fits_tfa/_rerun/replication_prior_noise/"), 
+fit_files <- list.files(paste0(base_dir, "fits_tfa/replication_prior_noise/"), 
                         "*.rds", full.names = T)
 names(fit_files) <-  gsub(".rds","", basename(fit_files))
 
@@ -631,13 +723,11 @@ result_table <- parallel::mclapply(names(fit_files), function(locus) {
     
     # the (noisy) priors used in the inference analysis
     noisy_priors <- fits_at_noise_level$priors
+    
     false_prior_edges <- get_false_prior_edges(noisy_priors, priors)
     
-    prior_edge_sets <- get_prior_edge_sets(priors)
-    original_prior_edges <- prior_edge_sets$prior_edges
-    
     noisy_edge_sets <- get_prior_edge_sets(noisy_priors)
-    noisy_prior_edges <- noisy_edge_sets$prior_edges
+    noisy_non_prior_edges <- noisy_edge_sets$non_prior_edges
     
     lapply(models, function(model) {
       fit_kora <- fits_kora[[model]]
@@ -645,9 +735,9 @@ result_table <- parallel::mclapply(names(fit_files), function(locus) {
       
       replicated_edges <- get_replicated_edges(fit_kora, fit_lolipop)
     
-      false_over_true_prior <-
-        get_enrichment_for_edgesets(original_prior_edges,
-                                    noisy_prior_edges,
+      false_over_non_prior <-
+        get_enrichment_for_edgesets(false_prior_edges,
+                                    noisy_non_prior_edges,
                                     replicated_edges) %>%
         mutate(
           graph_model = model,
@@ -659,7 +749,7 @@ result_table <- parallel::mclapply(names(fit_files), function(locus) {
                       graph_model,-method,-alternative,
                       everything())
       
-      false_over_true_prior
+      false_over_non_prior
       
     }) %>% bind_rows()
     
@@ -705,7 +795,7 @@ gp3 <- ggplot(result_table,
   ) +
   scale_color_manual(values = graph_cols) +
   labs(color = "model",
-       subtitle = "Enrichment of original priors over false priors\nin replicated edges.")
+       subtitle = "Enrichment of false priors over non priors\nin replicated edges.")
 
 
 ```

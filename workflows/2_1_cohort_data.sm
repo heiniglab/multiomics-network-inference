@@ -365,3 +365,25 @@ rule plot_relevant_graphs:
 		DGRAPH_PLOTS + "rs9859077_meqtl/all.pdf",
 		DGRAPH_PLOTS + "rs79755767_eqtlgen/all.pdf",
 		DGRAPH_PLOTS + "rs79755767_meqtl/all.pdf"
+
+
+rule create_correlation_networks:
+	input:
+		kora = DCOHORT_DATA + "kora/{sentinel}_{seed}.rds",
+		lolipop = DCOHORT_DATA + "lolipop/{sentinel}_{seed}.rds"
+	output:
+		result = DCOHORT_CORRELATION_GRAPHS + "{sentinel}_{seed}.rds"
+	log:
+		"logs/correlation_networks/{sentinel}_{seed}.log"
+	threads: 1
+	params:
+		time = "04:00:00"
+	resources:
+		mem_mb = 5000
+	script:
+		"../scripts/create_correlation_networks.R"
+
+rule all_create_correlation_networks:
+	input:
+		expand(DCOHORT_CORRELATION_GRAPHS + "{sentinel}_meqtl.rds", sentinel=MEQTL.sentinel),
+		expand(DCOHORT_CORRELATION_GRAPHS + "{sentinel}_eqtlgen.rds", sentinel=EQTLGEN.sentinel)

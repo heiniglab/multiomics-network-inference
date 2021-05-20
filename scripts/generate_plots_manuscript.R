@@ -27,7 +27,7 @@ library(BSgenome.Hsapiens.UCSC.hg19)
 hg19info <- seqinfo(BSgenome.Hsapiens.UCSC.hg19)
 
 # set up theme and colors
-theme_set(theme_cowplot() + background_grid(major="xy"))
+theme_set(theme_cowplot() + background_grid())
 theme_update(legend.text = element_text(size=11), 
              legend.title=element_text(size=12),
              axis.text.x = element_text(size=10),

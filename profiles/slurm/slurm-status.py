@@ -16,19 +16,6 @@ jobid = sys.argv[1]
 cluster = CookieCutter.get_cluster_option()
 
 for i in range(STATUS_ATTEMPTS):
-    try:
-        sacct_res = sp.check_output(shlex.split(f"sacct {cluster} -P -b -j {jobid} -n"))
-        res = {
-            x.split("|")[0]: x.split("|")[1]
-            for x in sacct_res.decode().strip().split("\n")
-        }
-        break
-    except sp.CalledProcessError as e:
-        logger.error("sacct process error")
-        logger.error(e)
-    except IndexError as e:
-        logger.error(e)
-        pass
     # Try getting job with scontrol instead in case sacct is misconfigured
     try:
         sctrl_res = sp.check_output(
@@ -45,6 +32,19 @@ for i in range(STATUS_ATTEMPTS):
             exit(0)
         else:
             time.sleep(1)
+    try:
+        sacct_res = sp.check_output(shlex.split(f"sacct {cluster} -P -b -j {jobid} -n"))
+        res = {
+            x.split("|")[0]: x.split("|")[1]
+            for x in sacct_res.decode().strip().split("\n")
+        }
+        break
+    except sp.CalledProcessError as e:
+        logger.error("sacct process error")
+        logger.error(e)
+    except IndexError as e:
+        logger.error(e)
+        pass
 
 status = res[jobid]
 

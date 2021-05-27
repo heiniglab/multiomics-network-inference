@@ -461,7 +461,7 @@ create_correlation_fit <-  function(data, scale.data = TRUE) {
   
   N <- ncol(data)
   variables <- colnames(data)
-  
+        
   edgeData <- matrix(ncol=4, nrow=0)
   colnames(edgeData) <- c("node1", "node2", "corr", "pval")
   
@@ -909,7 +909,7 @@ get_best_graph_cutoff <- function(cutoff_list,
 get_powerlaw_fit <- function(graph, nbreaks = 20) {
   ds <- graph::degree(graph)
   
-  if (var(ds) == 0)
+  if (length(ds) == 0 || var(ds) == 0)
     return(NULL)
   
   ds1 <- ds + 1

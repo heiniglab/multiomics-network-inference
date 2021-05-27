@@ -79,47 +79,54 @@ get_prior_edge_sets <- function(prior_matrix) {
   
   prior_edges <-  prior_matrix_tibble %>%
     filter(value > PSEUDO_PRIOR) %>%
-    dplyr::rename(edge1 = Var1, edge2 = Var2) %>%
-    mutate(edge1 = as.character(edge1), edge2 = as.character(edge2)) %>%
-    filter(edge1 != edge2) %>%
+    dplyr::rename(node1 = Var1, node2 = Var2) %>%
+    mutate(node1 = as.character(node1), node2 = as.character(node2)) %>%
+    filter(node1 != node2) %>%
     dplyr::select(-value)
   
   non_prior_edges <- prior_matrix_tibble %>%
     filter(value == PSEUDO_PRIOR) %>%
-    dplyr::rename(edge1 = Var1, edge2 = Var2) %>%
-    mutate(edge1 = as.character(edge1), edge2 = as.character(edge2)) %>%
-    filter(edge1 != edge2) %>%
+    dplyr::rename(node1 = Var1, node2 = Var2) %>%
+    mutate(node1 = as.character(node1), node2 = as.character(node2)) %>%
+    filter(node1 != node2) %>%
     dplyr::select(-value)
   return(list(prior_edges = prior_edges, non_prior_edges = non_prior_edges))
 }
 
 # helper to get tibble of edges from a graph object
-get_edges_from_graph <- function(graph) {
+get_edges_from_graph <- function(graph, type = "undirected") {
   graph_nodes <- nodes(graph)
   temp <- t(graph::edgeMatrix(graph)) %>%
     as_tibble() %>%
     mutate(from = graph_nodes[from],
            to = graph_nodes[to]) %>%
-    dplyr::rename(edge1 = from, edge2 = to)
+    dplyr::rename(node1 = from, node2 = to)
   
-  # add the 'reverse' edge, too, as we investigated undirected graphs
-  bind_rows(temp, dplyr::rename(temp, edge1 = edge2, edge2 = edge1))
+  if (type %in% "undirected") {
+    # add the 'reverse' edge, too, as we investigated undirected graphs
+    bind_rows(temp, dplyr::rename(temp, node1 = node2, node2 = node1))
+  } else if(type %in% "directed") {
+    sort_nodes(temp)
+  } else {
+    warning("type not supported.")
+  }
 }
 
 # helper to determine the set of replicated (common) edges between two graphs (e.g.
 # from KORA and LOLIPOP)
-get_replicated_edges <- function(graph1, graph2) {
-  graph1_edges <- get_edges_from_graph(graph1)
-  graph2_edges <- get_edges_from_graph(graph2)
+get_replicated_edges <- function(graph1, graph2, type = "undirected") {
+  graph1_edges <- get_edges_from_graph(graph1, type)
+  graph2_edges <- get_edges_from_graph(graph2, type)
   
   replicated_edges <- inner_join(graph1_edges, graph2_edges,
-                                 by = c("edge1", "edge2"))
+                                 by = c("node1", "node2"))
+  replicated_edges
 }
 
 # helper to enrich a set of edges over the other
 # e.g.: prior edges (set1_edges) are enriched over non_prior edges (set2_edges)
 # with respect to replicated edges (background_edges)
-# All params are data frames/tibbles with columns "edge1" and "edge2", both 
+# All params are data frames/tibbles with columns "node1" and "node2", both 
 # edge directions need to be presented
 # as we always have both 'directions' for the undirected edges in the tibbles
 # devide measures by 2
@@ -129,14 +136,14 @@ get_enrichment_for_edgesets <- function(set1_edges,
   
   set1_in_background <-
     nrow(inner_join(set1_edges, background_edges,
-                    by = c("edge1", "edge2"))) / 2
+                    by = c("node1", "node2"))) / 2
   
   set1_not_in_background <-
     (nrow(set1_edges) / 2) - set1_in_background
   
   set2_in_background <-
     nrow(inner_join(set2_edges, background_edges,
-                    by = c("edge1", "edge2"))) / 2
+                    by = c("node1", "node2"))) / 2
   
   set2_not_in_background <-
     (nrow(set2_edges) / 2) - set2_in_background
@@ -163,6 +170,36 @@ get_enrichment_for_edgesets <- function(set1_edges,
       )
   )
 }
+
+# helper to sort nodes in the node columns (node1, node2) so that the lexicographically
+# smaller node name is saved in node1 and vice versa
+sort_nodes <- function(node_data) {
+  node_data %>%
+    rowwise() %>%
+    mutate(temp1 = sort(c(node1, node2))[1], temp2 =  sort(c(node1, node2))[2],
+           node1=temp1, node2=temp2) %>%
+    select(-temp1, -temp2)
+}
+
+get_edge_tibble <- function(graph, threads=1) {
+ edges <- graph::edges(graph)
+ if(length(unlist(edges)) > 0) {
+ parallel::mclapply(names(edges), function(node1) {
+   targets <- edges[[node1]]
+   
+   # ensure sorted by nodename -> enables to remove 'duplicate' edges easily
+   lapply(targets, function(node2) {
+       nodes <- sort(c(node1, node2))
+       tibble(node1=nodes[1], node2=nodes[2])
+   }) %>% bind_rows()
+   
+ }, mc.cores = threads) %>% bind_rows() %>% 
+   distinct()
+ } else {
+   tibble(node1=NA_character_, node2=NA_character_) %>% drop_na()
+ }
+}
+
 ```
 
 We investigate whether available prior information largely drives replication performance.
@@ -278,10 +315,10 @@ fcorrelation_graphs <-
 
 fcorrelation_graphs <- rename_files(fcorrelation_graphs)
 
-result_table <- mclapply(sentinels, function(sentinel) {
+result_table <- lapply(sentinels, function(sentinel) {
   
   print(sentinel)
-  
+ 
   correlation_graphs <- readRDS(fcorrelation_graphs[sentinel])
   correlation_graph_kora <- correlation_graphs[["kora"]]$graph
   correlation_graph_lolipop <- correlation_graphs[["lolipop"]]$graph
@@ -296,15 +333,15 @@ result_table <- mclapply(sentinels, function(sentinel) {
     inferred_graph_lolipop <- fit_lolipop[[model]]
     
     common_nodes_kora <-
-      intersect(nodes(correlation_graph_kora),
+      intersect(nodes(correlation_graph_lolipop),
                 nodes(inferred_graph_kora))
     common_nodes_lolipop <-
-      intersect(nodes(correlation_graph_lolipop),
+      intersect(nodes(correlation_graph_kora),
                 nodes(inferred_graph_lolipop))
     
-    correlation_graph_kora <- subGraph(common_nodes_kora,
+    correlation_graph_kora <- subGraph(common_nodes_lolipop,
                                        correlation_graph_kora)
-    correlation_graph_lolipop <- subGraph(common_nodes_lolipop,
+    correlation_graph_lolipop <- subGraph(common_nodes_kora,
                                           correlation_graph_lolipop)
     inferred_graph_kora <- subGraph(common_nodes_kora,
                                     inferred_graph_kora)
@@ -313,11 +350,11 @@ result_table <- mclapply(sentinels, function(sentinel) {
     
     mcc_kora <- 
       BDgraph::compare(as(inferred_graph_kora, "matrix"),
-                       as(correlation_graph_kora, "matrix"))["MCC", "estimate1"]
+                       as(correlation_graph_lolipop, "matrix"))["MCC", "estimate1"]
     
     mcc_lolipop <-
       BDgraph::compare(as(inferred_graph_lolipop, "matrix"),
-                       as(correlation_graph_lolipop, "matrix"))["MCC", "estimate1"]
+                       as(correlation_graph_kora, "matrix"))["MCC", "estimate1"]
     
     tibble(
       sentinel = sentinel,
@@ -326,7 +363,7 @@ result_table <- mclapply(sentinels, function(sentinel) {
     )
     
   }) %>% bind_rows()
-}, mc.cores = threads) %>% bind_rows()
+}) %>% bind_rows()
 
 
 result_table %>%
@@ -335,7 +372,7 @@ result_table %>%
   geom_boxplot(outlier.shape = NA) + 
   geom_point(position=position_jitter(width = 0.15),
              alpha=0.1) +
-  ggpubr::stat_compare_means() +
+  #ggpubr::stat_compare_means() +
   labs(title="",
        y="MCC",
        x="method") + 
@@ -347,6 +384,88 @@ result_table %>%
         legend.title = element_text(size=15))
 
   
+```
+
+```{r evaluate_correlations}
+# takes about 15min with 20 threads available
+#sink("temp_sentinels.log")
+result_table <- mclapply(sentinels, function(sentinel) {
+  
+  print(sentinel)
+ 
+  correlations <- readRDS(fcorrelation_graphs[sentinel])
+  correlations_kora <- sort_nodes(correlations[["kora"]]$fit)
+  correlations_lolipop <- sort_nodes(correlations[["lolipop"]]$fit)
+  
+  fit_kora <- readRDS(fkora_fits[sentinel])
+  fit_lolipop <- readRDS(flolipop_fits[sentinel])
+  
+  prior_matrix <- readRDS(fpriors[[sentinel]])
+  temp <- get_prior_edge_sets(prior_matrix)
+  prior_edges <- temp$prior_edges %>%
+    mutate(is_prior = TRUE)
+  
+  graph_models <- names(fit_kora)[!grepl("_fit", names(fit_kora))]
+  
+  lapply(graph_models, function(model) {
+    inferred_graph_kora <- fit_kora[[model]]
+    inferred_graph_lolipop <- fit_lolipop[[model]]
+    
+    replicated_edges <- get_replicated_edges(inferred_graph_kora,
+                                            inferred_graph_lolipop,
+                                            type = "directed") %>%
+      mutate(is_replicated = TRUE)
+    
+    edges_kora <- get_edge_tibble(inferred_graph_kora, 1) %>%
+      left_join(y=replicated_edges, by=c("node1" = "node1", "node2" = "node2")) %>%
+      left_join(y=prior_edges, by=c("node1" = "node1", "node2" = "node2"))
+    edges_lolipop <- get_edge_tibble(inferred_graph_lolipop, 1) %>%
+      left_join(y=replicated_edges, by=c("node1" = "node1", "node2" = "node2")) %>%
+      left_join(y=prior_edges, by=c("node1" = "node1", "node2" = "node2"))
+      
+    bind_rows(
+      left_join(edges_kora, 
+                correlations_kora,
+                by = c("node1" = "node1", "node2" = "node2")
+      ),
+      left_join(edges_lolipop,
+                correlations_lolipop,
+                by = c("node1", "node2"))
+    ) %>%
+      mutate(sentinel = sentinel, graph_model = model) %>%
+      mutate(is_replicated = case_when(is.na(is_replicated) ~ FALSE,
+                                     TRUE ~ TRUE)) %>%
+      mutate(is_prior = case_when(is.na(is_prior) ~ FALSE,
+                                     TRUE ~ TRUE)) %>%
+      mutate(prior_replicated = case_when(is_replicated & is_prior ~ "prior_and_replicated",
+                                          is_prior & !is_replicated ~ "only_prior",
+                                          is_replicated & !is_prior ~ "only_replicated",
+                                          TRUE ~ "none" ))
+      
+  }) %>% bind_rows()
+}, mc.cores = threads) %>% bind_rows()
+
+
+gp <- result_table %>%
+  ggplot(aes(x=reorder(graph_model, -abs(corr), FUN=median),
+             y=abs(corr), fill=prior_replicated)) +
+  geom_boxplot(outlier.shape = NA) + 
+  #geom_violin(draw_quantiles = c(0.25,0.5,0.75)) + 
+  #geom_point(position=position_jitter(width = 0.15),
+  #           alpha=0.1) +
+  #ggpubr::stat_compare_means() +
+  scale_fill_brewer() +
+  labs(title="",
+       y="correlation",
+       x="method") + 
+  theme(plot.title = element_text(hjust = 0.5),
+        axis.title.x = element_blank(),
+        axis.text.x = element_text(hjust=0, vjust=0.5, angle=-45, size=12),
+        legend.position = "bottom",
+        legend.text = element_text(size=14),
+        legend.title = element_text(size=15))
+
+
 ```
 
 ## Prior importance inferred edge set
@@ -582,7 +701,7 @@ get_false_prior_edges <- function(noisy_priors, original_priors) {
   # false priors: priors defined in noisy set which are part of the non-prior set
   # in the original data
   semi_join(noisy_sets$prior_edges, original_sets$non_prior_edges,
-            by=c("edge1", "edge2"))
+            by=c("node1", "node2"))
 }
 
 get_true_prior_edges <- function(noisy_priors, original_priors) {
@@ -592,7 +711,7 @@ get_true_prior_edges <- function(noisy_priors, original_priors) {
   # true priors: priors defined in noisy set which are part of the prior set
   # in the original data
   semi_join(noisy_sets$prior_edges, original_sets$prior_edges,
-            by=c("edge1", "edge2"))
+            by=c("node1", "node2"))
 }
 
 result_table <- parallel::mclapply(names(fit_files), function(locus) {

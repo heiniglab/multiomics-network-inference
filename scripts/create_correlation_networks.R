@@ -46,12 +46,12 @@ data_lolipop <- remove_all_na(readRDS(fdata_lolipop))
 print("Get KORA correlation graph...")
 correlation_fit_kora <-
   reg_net(data_kora, NULL, "correlation")
-print(correlation_graph_kora)
+print(correlation_fit_kora$graph)
 
 print("Done.\nGet LOLIPOP correlation graph...")
 correlation_fit_lolipop <-
   reg_net(data_lolipop, NULL, "correlation")
-print(correlation_graph_lolipop)
+print(correlation_fit_lolipop$graph)
 print("Done.")
 
 result <- list(kora = correlation_fit_kora,

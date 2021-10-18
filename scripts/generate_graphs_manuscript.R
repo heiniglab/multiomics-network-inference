@@ -41,7 +41,7 @@ parse_dot <- function(dot_file) {
 
 # load our graphs
 ggm <- sapply(loci, function(l) {
-  parse_dot(paste0("results/current/biogrid_stringent/graph_plots_expr/",
+  parse_dot(paste0("results/current/biogrid_stringent/graph_plots_tfa/",
                    l,
                    "_meqtl/glasso_combined.dot"))
 })
@@ -143,7 +143,7 @@ plot_graph <- function(g, pdf_file, dot_file, ranges) {
   
   label = n
   names(label) = n
-  label[grep("^cg", n)] = ""
+#  label[grep("^cg", n)] = ""
   
   style <- rep("filled", numNodes(g))
   names(style) <- n
@@ -216,7 +216,7 @@ plot_graph <- function(g, pdf_file, dot_file, ranges) {
   toDot(g, dot_file, nodeAttrs=nAttrs, edgeAttrs=eAttrs, attrs=attrs)
 }
 
-plot_graph(merged[[1]], "rs730775_expr_based.pdf", "rs730775_expr_based.dot", ranges[[1]])
+plot_graph(merged[[1]], "rs730775_tfa.pdf", "rs730775_tfa.dot", ranges[[1]])
 #plot_graph(merged[[2]], "test2.pdf", "test2.dot", ranges[[2]])
 #plot_graph(merged[[3]], "test3.pdf", "test3.dot", ranges[[3]])
 

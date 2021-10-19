@@ -21,6 +21,7 @@ print("Get snakemake params.")
 # ------------------------------------------------------------------------------
 fstring <- snakemake@input$stringdb
 fbiogrid <- snakemake@input$biogrid
+fhuri <- snakemake@input$huri
 
 fgene_annot <- snakemake@input$gene_annot
 
@@ -34,6 +35,13 @@ ppi_name <- snakemake@params$ppi_name
 # ------------------------------------------------------------------------------
 print(paste0("Loading PPI database: ", ppi_name))
 # ------------------------------------------------------------------------------
+
+ga <- load_gene_annotation(fgene_annot)
+
+ga_tibble <- ga %>% as.data.frame %>% as_tibble(rownames = "ENSG") %>%
+  mutate(ENSG_gene = gsub("\\..*", "", ENSG)) %>%
+  select(ENSG_gene, SYMBOL)
+
 if(ppi_name == "string") {
   string.all <- fread(fstring,
                       data.table=F, header=T, stringsAsFactors=F)
@@ -45,8 +53,8 @@ if(ppi_name == "string") {
   ppi_db <- addEdge(string.inter[,1],
                     string.inter[,2],
                     ppi_db)
-} else {
-  # boigrid database
+} else if (grepl("biogrid", ppi_name)) {
+  # biogrid database
   biogrid <- fread(fbiogrid, stringsAsFactors=F)
   if(grepl("stringent", ppi_name)) {
     print("Making PPIs more stringent.")
@@ -65,6 +73,17 @@ if(ppi_name == "string") {
   ppi_db <- addEdge(biogrid$`Official Symbol Interactor A`,
                     biogrid$`Official Symbol Interactor B`,
                     ppi_db)
+} else if (ppi_name == "huri"){
+  huri <- readr::read_tsv(fhuri, col_names = c("gene1", "gene2")) %>% 
+    left_join(ga_tibble, by=c("gene1" = "ENSG_gene")) %>% 
+    left_join(ga_tibble, by = c("gene2" = "ENSG_gene")) %>% 
+    select(gene1 = SYMBOL.x, gene2 = SYMBOL.y) %>% 
+    tidyr::drop_na()
+  nodes <- unique(c(pull(huri, gene1), pull(huri, gene2)))
+  ppi_db <- graphNEL(nodes = nodes)
+  ppi_db <- addEdge(huri$gene1, huri$gene2, ppi_db)
+} else {
+  stop(paste0("PPI db not supported:", ppi_name))
 }
 
 # ------------------------------------------------------------------------------
@@ -72,7 +91,6 @@ print("Filtering PPI for expressed genes.")
 # ------------------------------------------------------------------------------
 expr <- fread(fgtex, stringsAsFactors=F)
 expressed <- unlist(expr[`Whole Blood` > 0.1,"Name"])
-ga <- load_gene_annotation(fgene_annot)
 expressed.symbols <- ga[intersect(expressed, names(ga))]$SYMBOL
 
 nodes_to_keep = intersect(nodes(ppi_db), c(expressed.symbols))

@@ -172,10 +172,14 @@ rule create_ppi_db:
 	input:
 		string="data/current/string/human_gene_hgnc_symbol.links.detailed.v9.0.txt",
 		biogrid="data/current/biogrid/3.5.166/by_organism/BIOGRID-ORGANISM-Homo_sapiens-3.5.166.tab2.txt",
+		huri="data/current/interactome_atlas_huri/HuRI.tsv",
 		gtex="data/current/gtex/GTEx_Analysis_v6_RNA-seq_RNA-SeQCv1.1.8_gene_median_rpkm.gct",
 		gene_annot = GENE_ANNOT
 	output:
 		PPI_DB
+	threads: 1
+	resources:
+		mem_mb = 10000
 	params:
 		ppi_name = config["ppi_db"]
 	conda:

@@ -1,6 +1,6 @@
 {
 	"hots_thres" : "5",
-	"ppi_db" : "biogrid_stringent",
+	"ppi_db" : "huri",
 	"suffix_tfa_expr" : "tfa",
 	"eqtl_prior_type" : "eqtlgen"
 }

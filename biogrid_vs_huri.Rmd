@@ -1,0 +1,22 @@
+---
+title: "HURI VS Biogrid stringent"
+author: "Johann Hawe <johann.hawe@tum.de"
+output: 
+  html_notebook:
+      toc: True
+---
+
+```{r setup}
+library(tidyverse)
+library(graph)
+```
+
+
+## Compare PPI dbs
+```{r compare_ppi_db}
+biogrid_stringent <- readRDS("results/current/ppi_biogrid_stringent.rds")
+biogrid_stringent
+huri <- readRDS("results/current/ppi_huri.rds")
+huri
+```
+

@@ -127,6 +127,26 @@ tab %>%
   xtable(caption="Same as ST~\\ref{stab:method_performance_simulation_mcc}, but showing mean F1 scores instead of MCC. Highest mean F1 for each scenario is indicated in bold.",
          label="stab:method_performance_simulation_f1")
 
+# Sensitivity table
+tab %>% 
+  #filter(subset == "all") %>% 
+  group_by(method, R) %>% 
+  summarise(n=mean(`sensitivity`)) %>% 
+  spread(R, n) %>% 
+  arrange(desc(`R=0`)) %>%
+  xtable(caption="Same as ST~\\ref{stab:method_performance_simulation_mcc}, but showing mean sensitivity instead of MCC. Highest mean sensitivity for each scenario is indicated in bold.",
+         label="stab:method_performance_simulation_sens")
+
+# Specificity table
+tab %>% 
+  #filter(subset == "all") %>% 
+  group_by(method, R) %>% 
+  summarise(n=mean(`specificity`)) %>% 
+  spread(R, n) %>% 
+  arrange(desc(`R=0`)) %>%
+  xtable(caption="Same as ST~\\ref{stab:method_performance_simulation_mcc}, but showing mean specificity scores instead of MCC. Highest mean specificity for each scenario is indicated in bold.",
+         label="stab:method_performance_simulation_spec")
+
 # also create tables for the sample size simulation
 finput <- file.path(RESULT_PATH, "simulation_rerun/validation-subsets.tsv")
 
@@ -156,6 +176,24 @@ tab %>%
   arrange(desc(`subset 50`)) %>%
   xtable(caption="Table showing an overview over the performance (mean F1) in the simulation study for each method for different sub samplings of simulated data (increasing from left to right), sorted by first column. Highest mean F1 for each scenario is indicated in bold.", 
          label="stab:method_performance_simulation_subsample_f1")
+
+# Sensitivity table
+tab %>% 
+  group_by(method, subset) %>% 
+  summarise(n=mean(`sensitivity`)) %>% 
+  spread(subset, n, sep=" ") %>% 
+  arrange(desc(`subset 50`)) %>%
+  xtable(caption="Table showing an overview over the performance (mean sensitivity) in the simulation study for each method for different sub samplings of simulated data (increasing from left to right), sorted by first column. Highest mean sensitivity for each scenario is indicated in bold.", 
+         label="stab:method_performance_simulation_subsample_sens")
+
+# Specificity table
+tab %>% 
+  group_by(method, subset) %>% 
+  summarise(n=mean(`specificity`)) %>% 
+  spread(subset, n, sep=" ") %>% 
+  arrange(desc(`subset 50`)) %>%
+  xtable(caption="Table showing an overview over the performance (mean specificity) in the simulation study for each method for different sub samplings of simulated data (increasing from left to right), sorted by first column. Highest mean specificity for each scenario is indicated in bold.", 
+         label="stab:method_performance_simulation_subsample_spec")
 
 # ------------------------------------------------------------------------------
 # Overview table on cohort results

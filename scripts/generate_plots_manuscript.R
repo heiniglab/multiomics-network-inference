@@ -685,7 +685,9 @@ p1 <- ggplot(toplot_glasso_bdgraph,
   theme(axis.text.x = element_blank())
 
 # compare overall prior VS non prior (should we do this?)
-p2 <- ggplot(toplot_filtered,
+p2 <- ggplot(toplot_filtered %>%
+               mutate(is_prior_based = as.factor(case_when(!is_prior_based ~ "no priors",
+                                                           is_prior_based ~ "prior based"))),
              aes(
                y = MCC,
                x = is_prior_based,
@@ -696,11 +698,21 @@ p2 <- ggplot(toplot_filtered,
   geom_boxplot() +
   ggpubr::stat_compare_means(method.args = list(alternative = "less"),
                              comparisons = list(base = c(1, 2))) +
-  scb_graphs
+  scb_graphs + 
+  theme(axis.title.x = element_blank())
 
-ggarrange(p2, p1, 
+ga <- ggarrange(p2, p1, 
           ncol = 2, labels = c("AUTO"), 
           common.legend = T, legend = "right")
+
+save_plot("results/current/revisions/figures/prior_vs_non_prior_stat_sign.pdf",
+          ga, ncol = 1.5)
+
+# simple linear model to check effect 
+summary(lm(MCC ~ is_prior_based, 
+           data = toplot_filtered %>%
+             mutate(is_prior_based = as.character(is_prior_based),
+                    method = as.character(method)))) %>% broom::tidy()
 
 # ------------------------------------------------------------------------------
 print("Sample size simulation plot")

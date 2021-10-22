@@ -19,6 +19,7 @@ PPI_DB = PPI_PREFIX + PPI_NAME + ".rds"
 
 # -----------------------------------------------------------------------------
 # output directories
+
 DHOTSPOTS = "results/current/hotspots/"
 
 # TODO use this suffix for all TFA/expr related outputs
@@ -37,6 +38,7 @@ DFASTENLOC = "results/current/" + PPI_NAME + "/fastENLOC_" + suffix
 
 # -----------------------------------------------------------------------------
 # simulation study specific output directories
+
 DSIM = "results/current/" + PPI_NAME + "/simulation/"
 DSIM_DATA = DSIM + "data/"
 DSIM_VALIDATION = DSIM + "validation/"

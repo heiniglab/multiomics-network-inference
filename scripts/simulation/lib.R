@@ -661,10 +661,10 @@ get_validation_table <- function(result, iteration) {
 # ------------------------------------------------------------------------------
 run_ggm <- function(simulated_data, priors, ranges, 
                     fcpg_context, ppi_db, 
-                    subset = c("all", seq(50,700,by=50)),
+                    subset = c("all", "minimal", seq(50,700,by=50)),
                     threads = 1) {
   
-  # check subset. by default we use all data. in case a subset is
+  # check subset. by default we use all data. in case a numeric subset is
   # specifified, we only run the inference for the non-noisy prior model.
   subset <- match.arg(subset)
   
@@ -675,8 +675,14 @@ run_ggm <- function(simulated_data, priors, ranges,
   # in case subset != all, we only process the non-noisy prior
   sims <- names(simulated_data)
   if(subset != "all") {
-    sims <- sims[grepl("rd0$", sims)]
-    subset <- as.numeric(subset)
+    
+    # special case: subset + iterate over all noise levels
+    if(subset == minimal) {
+      subset <- as.numeric(snakemake@params$minimal_subset_size)     
+    } else {
+      sims <- sims[grepl("rd0$", sims)]
+      subset <- as.numeric(subset)
+    }
   }
   
   result <- lapply(sims, function(n) {

@@ -48,10 +48,11 @@ rule apply_ggm_simulation:
                 DSIM_FITS + "{sentinel}-iter{iteration}-subset{subset}.RData"
         params:
                 iteration="{iteration}",
-                time="2-00:00:00"
+                time="2-00:00:00",
+		minimal_subset_size = 70
         threads: 16
         wildcard_constraints:
-                subset = "all|[0-9]+0*"
+                subset = "all|minimal|[0-9]+0*"
         resources:
                 mem_mb=32000
         conda:
@@ -84,7 +85,8 @@ MEQTL_SIM.remove("rs60626639")
 
 rule apply_ggm_simulation_iterations:
 	input:
-		expand(DSIM_FITS + "{sentinel}-iter{iter}-subsetall.RData", iter=ITERATIONS, sentinel=MEQTL_SIM)
+		expand(DSIM_FITS + "{sentinel}-iter{iter}-subsetall.RData", iter=ITERATIONS, sentinel=MEQTL_SIM),
+		expand(DSIM_FITS + "{sentinel}-iter{iter}-subsetminimal.RData", iter=ITERATIONS, sentinel=MEQTL_SIM)
 
 #------------------------------------------------------------------------------
 # Validate a simulation run for the 'all' subset
@@ -96,7 +98,7 @@ rule validate_ggm_simulation:
                 DSIM_VALIDATION + "{sentinel}-subset{subset}.txt"
         threads: 1
         wildcard_constraints:
-                subset = "all|[0-9]+0*"
+                subset = "all|minimal|[0-9]+0*"
         resources:
                 mem_mb=400
         params:
@@ -109,12 +111,25 @@ rule validate_ggm_simulation:
                 "../scripts/simulation/validate.R"
 
 #------------------------------------------------------------------------------
-# Target rule to validate all simulation runs
+# 3 Target rule to validate all simulation runs: all, minimal and subsets
 #------------------------------------------------------------------------------
 rule validate_all:
 	input: expand(DSIM_VALIDATION + "{sentinel}-subsetall.txt", sentinel=MEQTL.sentinel)
 	output:
 		DSIM + "validation-subsetall.txt"		
+	resources:
+		mem_mb = 1000
+	threads: 1
+	log: ""
+	shell:
+		"""
+		sort -r {input} | uniq > {output}
+		"""
+
+rule validate_minimal:
+	input: expand(DSIM_VALIDATION + "{sentinel}-subsetminimal.txt", sentinel=MEQTL.sentinel)
+	output:
+		DSIM + "validation-subsetminimal.txt"
 	resources:
 		mem_mb = 1000
 	threads: 1
@@ -138,9 +153,8 @@ rule validate_all_subsets:
 		"""
 
 #------------------------------------------------------------------------------
-# Check recovery of mixed edges (SNP-gene)
+# 2 rules to check recovery of mixed edges (SNP-gene)
 #------------------------------------------------------------------------------
-
 rule summarize_snp_gene_recovery:
 	output:
 		summary = DSIM_VALIDATION + "snp_gene_recovery/{sentinel}.tsv"
@@ -167,12 +181,19 @@ rule all_summarize_snp_gene_recovery:
 		cat {input} | sort -r | uniq > {output}
 		"""
 
+# -----------------------------------------------------------------------------
+# Overall target rule to run everything regarding loci based simulation
+# -----------------------------------------------------------------------------
 rule all_simulation:
 	input:
 		DSIM_VALIDATION + "snp_gene_recovery/all.tsv",
 		DSIM + "validation-subsets.txt",
 		DSIM + "validation-subsetall.txt"
+		DSIM + "validation-subsetminimal.txt"
 
+# -----------------------------------------------------------------------------
+# Runtime benchmarking using simulated data
+# -----------------------------------------------------------------------------
 BENCHMARK_ITERATIONS = 50
 BENCHMARK_SAMPLE_SIZES = [200, 400, 600]
 BENCHMARK_NUMBER_OF_NODES = [30, 60, 90, 120]

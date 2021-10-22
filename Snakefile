@@ -219,7 +219,7 @@ rule collect_ranges:
 	resources:
 		mem_mb=3000
 	params:
-		time="02:00:00"
+		time="04:00:00"
 	conda:
 		"envs/bioR.yaml"
 	log: 
@@ -246,7 +246,7 @@ rule collect_ranges_eqtlgen:
         resources:
                 mem_mb=3000
         params:
-                time="02:00:00"
+                time="04:00:00"
         conda:
                 "envs/bioR.yaml"
         log:
@@ -331,11 +331,11 @@ rule collect_data:
 		DCOHORT_DATA + "{cohort}/{sentinel}_raw_{seed}.rds"
 	threads: 1
 	resources:
-		mem_mb=25000
+		mem_mb=30000
 	conda:
 		"envs/bioR.yaml"
 	params:
-		time="01:00:00",
+		time="04:00:00",
 		tfa_or_expr=config["suffix_tfa_expr"]
 	log:
 		"logs/collect_data/{cohort}/{sentinel}_{seed}.log"

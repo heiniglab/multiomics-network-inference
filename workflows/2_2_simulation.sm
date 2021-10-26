@@ -188,7 +188,7 @@ rule all_simulation:
 	input:
 		DSIM_VALIDATION + "snp_gene_recovery/all.tsv",
 		DSIM + "validation-subsets.txt",
-		DSIM + "validation-subsetall.txt"
+		DSIM + "validation-subsetall.txt",
 		DSIM + "validation-subsetminimal.txt"
 
 # -----------------------------------------------------------------------------

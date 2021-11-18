@@ -178,7 +178,7 @@ sort_nodes <- function(node_data) {
     rowwise() %>%
     mutate(temp1 = sort(c(node1, node2))[1], temp2 =  sort(c(node1, node2))[2],
            node1=temp1, node2=temp2) %>%
-    select(-temp1, -temp2)
+    dplyr::select(-temp1, -temp2)
 }
 
 get_edge_tibble <- function(graph, threads=1) {
@@ -388,7 +388,7 @@ result_table %>%
 
 ```{r evaluate_correlations}
 # takes about 15min with 20 threads available
-#sink("temp_sentinels.log")
+sink("temp_sentinels.log")
 result_table <- mclapply(sentinels, function(sentinel) {
   
   print(sentinel)
@@ -445,16 +445,33 @@ result_table <- mclapply(sentinels, function(sentinel) {
   }) %>% bind_rows()
 }, mc.cores = threads) %>% bind_rows()
 
+result_table <- filter(result_table, 
+                       
+                       graph_model %in% c("glasso", "glasso_no_priors",
+                                          "bdgraph", "bdgraph_no_priors"))
+
+summary_table <- group_by(result_table, graph_model, prior_replicated) %>%
+  dplyr::summarize(total_edges = n(),
+                   cor_upper_quart = quantile(abs(corr), 0.75))
+
+colors <- RColorBrewer::brewer.pal(4, "Paired")
+
+# discuss
+category_colors <- c("prior_and_replicated" = colors[2],
+                     "only_replicated" = colors[4],
+                     "only_prior" = colors[1],
+                     "none" = colors[3])
 
 gp <- result_table %>%
-  ggplot(aes(x=reorder(graph_model, -abs(corr), FUN=median),
+  ggplot(aes(x=graph_model,
              y=abs(corr), fill=prior_replicated)) +
   geom_boxplot(outlier.shape = NA) + 
-  #geom_violin(draw_quantiles = c(0.25,0.5,0.75)) + 
-  #geom_point(position=position_jitter(width = 0.15),
-  #           alpha=0.1) +
-  #ggpubr::stat_compare_means() +
-  scale_fill_brewer() +
+  geom_label(data=summary_table,
+             position=position_dodge(1),
+             aes(label=total_edges, 
+                 y=cor_upper_quart+0.1, 
+                 x=graph_model, group=prior_replicated)) +
+  scale_fill_manual(values = category_colors) +
   labs(title="",
        y="correlation",
        x="method") + 
@@ -464,7 +481,7 @@ gp <- result_table %>%
         legend.position = "bottom",
         legend.text = element_text(size=14),
         legend.title = element_text(size=15))
-
+gp
 
 ```
 

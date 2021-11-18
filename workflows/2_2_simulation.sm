@@ -100,7 +100,7 @@ rule validate_ggm_simulation:
         wildcard_constraints:
                 subset = "all|minimal|[0-9]+0*"
         resources:
-                mem_mb=400
+                mem_mb=1000
         params:
                 time="00:10:00"
         conda:

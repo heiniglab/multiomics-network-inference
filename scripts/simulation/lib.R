@@ -677,7 +677,7 @@ run_ggm <- function(simulated_data, priors, ranges,
   if(subset != "all") {
     
     # special case: subset + iterate over all noise levels
-    if(subset == minimal) {
+    if(subset == "minimal") {
       subset <- as.numeric(snakemake@params$minimal_subset_size)     
     } else {
       sims <- sims[grepl("rd0$", sims)]

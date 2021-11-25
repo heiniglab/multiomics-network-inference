@@ -1,4 +1,5 @@
-localrules: all_simulate_data, all_apply_ggm_simulation, all_simulation, all_simulation2, all_simulation3
+localrules: all_simulate_data, all_apply_ggm_simulation, all_simulation, all_simulation2, all_simulation3,
+            validate_all, validate_minimal, validate_all_subsets
 
 #------------------------------------------------------------------------------
 # Simulate ground truth and data for simulation study
@@ -119,11 +120,11 @@ rule validate_all:
 		DSIM + "validation-subsetall.txt"		
 	resources:
 		mem_mb = 1000
-	threads: 1
-	log: ""
+	threads: 16
+	log: "logs/validate_subsetall.log"
 	shell:
 		"""
-		sort -r {input} | uniq > {output}
+		sort --parallel={threads} -r {input} | uniq > {output}
 		"""
 
 rule validate_minimal:
@@ -132,11 +133,11 @@ rule validate_minimal:
 		DSIM + "validation-subsetminimal.txt"
 	resources:
 		mem_mb = 1000
-	threads: 1
-	log: ""
+	threads: 16
+	log: "logs/validate_subsetminimal.log"
 	shell:
 		"""
-		sort -r {input} | uniq > {output}
+		sort --parallel={threads} -r {input} | uniq > {output}
 		"""
 
 rule validate_all_subsets:
@@ -145,11 +146,11 @@ rule validate_all_subsets:
 		DSIM + "validation-subsets.txt"		
 	resources:
 		mem_mb = 1000
-	threads: 1
-	log: ""
+	threads: 16
+	log: "logs/validate_subsets.log"
 	shell:
 		"""
-		sort -r {input} | uniq > {output}
+		sort --parallel={threads} -r {input} | uniq > {output}
 		"""
 
 #------------------------------------------------------------------------------

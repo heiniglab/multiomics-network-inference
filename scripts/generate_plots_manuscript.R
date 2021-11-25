@@ -585,7 +585,7 @@ print("Figure 2 - Panel A")
 # ------------------------------------------------------------------------------
 # input directory containing individual simulation validation
 # for the meQTL analysis
-finput <- paste0(RESULT_PATH, "simulation_rerun/validation-subsetall.txt")
+finput <- paste0(RESULT_PATH, "simulation/validation-subsetall.txt")
 
 # create data-matrix
 print("Reading simulation validation results...")
@@ -715,9 +715,62 @@ summary(lm(MCC ~ is_prior_based,
                     method = as.character(method)))) %>% broom::tidy()
 
 # ------------------------------------------------------------------------------
+# check now the same as above, but progress over prior noise
+toplot_filtered <- filter(toplot, R!="R=rbinom")
+
+# compare prior vs non_prior for glasso and bdgraph
+toplot_glasso_bdgraph <- filter(toplot_filtered,
+                                grepl("glasso|bdgraph", method)) %>%
+  mutate(method_group = case_when(grepl("glasso", method) ~ "glasso",
+                                  TRUE ~ "bdgraph"))
+p1 <- ggplot(toplot_glasso_bdgraph,
+             aes(
+               y = MCC,
+               x = method,
+               color = method,
+               group = method
+             )) +
+  #  geom_violin(draw_quantiles = c(0.5)) +
+  geom_boxplot() +
+  facet_wrap(R~., strip.position = "left") +
+  ggpubr::stat_compare_means(
+    method.args = list(alternative = "less"),
+    comparisons = list(bdgraph = c(1, 2),
+                       glasso = c(3, 4))
+  ) +
+  scb_graphs +
+  theme(axis.text.x = element_blank())
+
+# compare overall prior VS non prior (should we do this?)
+p2 <- ggplot(toplot_filtered %>%
+               mutate(is_prior_based = as.factor(case_when(!is_prior_based ~ "no priors",
+                                                           is_prior_based ~ "prior based"))),
+             aes(
+               y = MCC,
+               x = is_prior_based,
+               color = method,
+               group = reorder(method, (-MCC))
+             )) +
+  #  geom_violin(draw_quantiles = c(0.5)) +
+  geom_boxplot() +
+  facet_wrap(.~R) +
+  ggpubr::stat_compare_means(method.args = list(alternative = "less"),
+                             comparisons = list(base = c(1, 2))) +
+  scb_graphs + 
+  theme(axis.title.x = element_blank())
+
+# we only use p1 for now as it is quite big
+#ga <- ggarrange(p1, p1, 
+#                nrow = 2, labels = c("AUTO"), 
+#                common.legend = T, legend = "right")
+
+save_plot("results/current/revisions/figures/prior_vs_non_prior_stat_sign_all_noise.pdf",
+          p1, ncol=2, nrow = 2.5)
+
+# ------------------------------------------------------------------------------
 print("Sample size simulation plot")
 
-finput <- file.path(RESULT_PATH, "simulation_rerun/validation-subsets.tsv")
+finput <- file.path(RESULT_PATH, "simulation/validation-subsets.txt")
 
 tab <- read_tsv(finput) %>% 
   mutate(comparison = gsub("bdgraph$", "bdgraph (priors)", comparison),
@@ -726,6 +779,8 @@ tab <- read_tsv(finput) %>%
          comparison = gsub("bdgraph_no_priors_full$", "bdgraph (full)", comparison),
          comparison = gsub("glasso_no_priors","glasso", comparison)) %>%
   dplyr::rename(method=comparison) %>%
+  separate(iteration, into=c("iteration", "subset"), sep = "-") %>%
+  mutate(subset = gsub("subset([0-9]+).RData", "\\1", subset)) %>%
   mutate(subset = factor(subset, level=c(seq(50,600,by=50)), ordered = T))
 
 toplot <- tab %>%
@@ -745,7 +800,7 @@ toplot <- tab %>%
     )
   ))
 
-simulation_sample_size_mcc <- ggplot(toplot %>% filter(rdegree==0),
+simulation_sample_size_mcc <- ggplot(toplot,
                       aes(y = MCC,
                           x = subset,
                           color = method)) +

@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 ## Table of Contents
 
 [[_TOC_]]
@@ -16,19 +17,11 @@
 
 ## Getting the randwom_walk data:
 
-Currently we are relying on some precalculated information which we atm
-cannot reproduce using our workflow (TODO). Therefore in a first step
-we just link the needed data to our working directory.
-
-```{bash}
-d="data/current/networks/"
-mkdir $d
-cd $d
-for i in /storage/groups/groups_epigenereg/analyses/meQTLs/results/20170517/networks/random_walk/rw_string_v9_ld_wb_plots/*.RData ; do 
-  ln -s $i ; 
-done
-cd $WDIR
-```
+Currently we are using some precalculated information which we at the moment
+cannot reproduce in full using this specific workflow (as the data originate from the original meQTL
+project from which we obtained the trans-meQTL hotspots). While this is not strictly
+necessary, we use these data to be 100% in line with the previous study.
+the data is contained [this file](rw_string_v9_ld_wb_prioritize_full_with_empirical_p_lte_0.05.txt)
 
 ## Snakemake pipeline: cohort study, simulation and benchmark
 
@@ -81,6 +74,12 @@ calls in a `ch-run` call with our specific charliecloud container. This is not i
 very portable, but allows as to have a simple software container in place which we can use on 
 other systems, too (such as MARCC from JHU).
 
+The [Dockerfile](Dockerfile) for this container is provided in this repository.
+Generally, if e.g. Docker or Singularity is available on the system the workflow is executed, a standard 
+installation of *Snakemake* can be used to exeucted the workflow in the respective environment.
+Otherwise, one needs to modify the *script.py* script of *Snakemake* to execute all scripts within the
+provided container.
+
 In addition, a general conda environment is defined in *envs/bioR.yaml". This environment
 has been linked to all rules which are based on R scripts. In principle, this conda env could be
 used instead of the charliecloud image, but it is **deprecated** now.
@@ -93,14 +92,34 @@ parameter in the snakemake call (done by default in the `./profiles/default` sna
 > NOTE 2: Be aware that if you set any repository paths on startup of R 
 > you might want to adjust that for usage with the conda environment
 
+
+### Configuration
+
+There are few configuration options for the workflow. These can be adjusted 
+in the (configs/workflow.json)[configs/workflow.json] file. 
+Here is the list of options:
+
+* hots_thres - Threshold for the number of trans entities to define a hotspot
+* ppi_db - Either 'string', 'biogrid' or 'biogrid_stringent'
+* suffix_tfa_expr - Whether to use expression or TF activities for TFs
+* eqtl_prior_type - eQTL prior to be used, either 'eqtlgen' or 'gtex'
+
 ### Meta target rules
 
-There are some 'meta' targets which can be used to run only parts of the pipeline for all hotspots.
+There are several meta targets in the workflow to obtain intermediate results.
+Call `snakemake <target-name>` to execute the specific part of the workflow.
+
+* all_ranges - The call below creates all hotspots networks as 'ranges' objects/files and generates
+a summary plot.
+* all_data - This call collects and normalized all cohort data for the created ranges objects and
+* all_ggm - This generates all ranges and data collections and fits different network models to the data.
+* plot_relevant_graphs - Generates *dot* based plots for some of the networks with desireable properties.
+* all_cohort - Run the full cohort data analysis.
+* all_simulation - Run full simulation study (see also below)
 
 #### Generate ranges overview
 
-The call below creates all hotspots networks as 'ranges' objects/files and generates
-a summary plot.
+Create all 'ranges' (hotspot entitiy) collections:
 
 ```{bash}
 snakemake --profile=./profiles/default all_ranges
@@ -163,11 +182,15 @@ Results are summarized under `results/current/benchmark/summary.pdf`.
 
 ### Simulation study
 
-We implemented a simulation study, where we generate ground truth graphs as well
+We implemented a simulation study, were we generate ground truth graphs as well
 as noisy priors in order to compare inference methods with respect to 1) their 
 general performance to recover the ground truth network 2) how much they are 
-influenced by the exisiting prior information and noise therein (in addition to their computational complexity, see above). 
-The target rule for this simulation study is `all_simulation` and is implicetely used when calling:
+influenced by the exisiting prior information and noise therein and 3) the effect of
+sample size on inference performance. 
+As we simulate data such that they match the properties of the original data (genotype frequencies,
+sample size and number of nodes per locus), this is coupled to the original data 
+workflow. Simulation specific rules can be found under [workflows/2_2_simulation.sm](workflows/2_2_simulation.sm) 
+in the repository. The target rule for this simulation study is `all_simulation`.
 
 ```{bash}
 ./submit_slurm_simulation.sh
@@ -185,4 +208,3 @@ nohup nice snakemake --use-conda -u configs/slurm.json --jobs=1000 --local-cores
   "sbatch --time=24:00:00 --ntasks 1 --clusters=mpp2 -c {cluster.cpu} --mem-per-cpu={cluster.mem} \
       -o {cluster.log} -e {cluster.log}" all_simulation &> all_simulation.out &
 ```
-

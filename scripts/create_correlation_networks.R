@@ -15,6 +15,7 @@ print("Load libraries and source scripts")
 # ------------------------------------------------------------------------------
 source("scripts/lib.R")
 source("scripts/reg_net.R")
+source("scripts/reg_net_utils.R")
 
 # ------------------------------------------------------------------------------
 print("Get snakemake params.")

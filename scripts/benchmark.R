@@ -19,6 +19,7 @@ library(BDgraph)
 
 source("scripts/lib.R")
 source("scripts/reg_net.R")
+source("scripts/reg_net_utils.R")
 source("scripts/benchmark_methods.R")
 
 threads <- snakemake@threads

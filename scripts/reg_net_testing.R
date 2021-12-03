@@ -17,6 +17,7 @@ library(cowplot)
 theme_set(theme_cowplot() + background_grid(major="xy"))
 
 source("scripts/reg_net.R")
+source("scripts/reg_net_utils.R")
 source("scripts/lib.R")
 
 threads <- 4

@@ -18,6 +18,7 @@ library(graph)
 library(igraph)
 source("scripts/reg_net.R")
 source("scripts/lib.R")
+source("scripts/reg_net_utils.R")
 
 #------------------------------------------------------------------------------
 print("Getting snakemake params.")

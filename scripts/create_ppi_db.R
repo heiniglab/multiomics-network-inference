@@ -89,20 +89,12 @@ if(ppi_name == "string") {
 # ------------------------------------------------------------------------------
 print("Filtering PPI for expressed genes.")
 # ------------------------------------------------------------------------------
-expr <- fread(fgtex, stringsAsFactors=F)
-expressed <- unlist(expr[`Whole Blood` > 0.1,"Name"])
-expressed.symbols <- ga[intersect(expressed, names(ga))]$SYMBOL
-
-nodes_to_keep = intersect(nodes(ppi_db), c(expressed.symbols))
-ppi_db_expr = subGraph(nodes_to_keep, ppi_db)
+ppi_db_expr <- filter_expression(fgtex, ga, ppi_db)
 
 # ------------------------------------------------------------------------------
 print("Getting largest connected component.")
 # ------------------------------------------------------------------------------
-ig = graph_from_graphnel(ppi_db_expr)
-cl = clusters(ig)
-keep = nodes(ppi_db_expr)[cl$membership == which.max(cl$csize)]
-ppi_db_final = subGraph(keep, ppi_db_expr)
+ppi_db_final <- get_largest_cc(ppi_db_expr)
 
 
 print("Largest CC in PPI_DB filtered for blood expressed genes:")

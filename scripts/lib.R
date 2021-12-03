@@ -1309,8 +1309,7 @@ get_largest_cc <- function(g) {
   cl = clusters(ig)
   keep <- cl$membership==which.max(cl$csize)
   keep <- names(cl$membership[keep])
-  g2 <- graph::subGraph(keep, g)
-  return(g2)
+  return(graph::subGraph(keep, g))
 }
 
 # ------------------------------------------------------------------------------
@@ -1523,7 +1522,7 @@ annotate_snps_with_traits <- function(snps, fgwas, drop.nas=TRUE) {
 }
 
 # ------------------------------------------------------------------------------
-# Convert a graphNEL object to a table
+#' Convert a graphNEL object to a table
 # ------------------------------------------------------------------------------
 graph2table <- function(g) {
   require(dplyr)
@@ -1531,4 +1530,17 @@ graph2table <- function(g) {
   em <- t(edgeMatrix(g))
   em <- tibble(n1 = n[em[,1]], n2 = n[em[,2]])
   em
+}
+
+# ------------------------------------------------------------------------------
+#' Filters a graph for nodes expressed in gtex whole blood
+# ------------------------------------------------------------------------------
+filter_expression <- function(fgtex, gene_annotation, graph) {
+  expr <- fread(fgtex, stringsAsFactors=F)
+  expressed <- unlist(expr[`Whole Blood` > 0.1,"Name"])
+  expressed.symbols <- ga[intersect(expressed, names(gene_annotation))]$SYMBOL
+  
+  nodes_to_keep = intersect(nodes(graph), c(expressed.symbols))
+  
+  return(subGraph(nodes_to_keep, graph))
 }

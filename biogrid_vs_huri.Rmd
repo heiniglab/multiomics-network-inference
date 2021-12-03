@@ -1,5 +1,5 @@
 ---
-title: "HURI VS Biogrid stringent"
+title: "HURI VS Biogrid stringent VS BioPlex networks"
 author: "Johann Hawe <johann.hawe@tum.de"
 output: 
   html_notebook:
@@ -9,14 +9,155 @@ output:
 ```{r setup}
 library(tidyverse)
 library(graph)
+source("scripts/lib.R")
+source("scripts/reg_net_utils.R")
 ```
 
 
-## Compare PPI dbs
-```{r compare_ppi_db}
-biogrid_stringent <- readRDS("results/current/ppi_biogrid_stringent.rds")
-biogrid_stringent
-huri <- readRDS("results/current/ppi_huri.rds")
-huri
+## Load PPI dbs
+
+We load different PPI networks:
+
+- HURI: Human Reference Interactome
+- Bioplex: two different networks, one for HEL293T cells and one for HCT116 cells
+- Biogrid stringent: Our prior network
+
+```{r load_ppi_dbs}
+fannot <- "data/current/gencode_annotations/gencode.v19.annotation.gene.gtf"
+ga <- load_gene_annotation(fannot)
+
+ga_tibble <- ga %>% as.data.frame %>% as_tibble(rownames = "ENSG") %>%
+  mutate(ENSG_gene = gsub("\\..*", "", ENSG)) %>%
+  dplyr::select(ENSG_gene, SYMBOL)
+
+
+biogrid_stringent_graph <- readRDS("results/current/ppi_biogrid_stringent.rds")
+biogrid_stringent <- graph2table(biogrid_stringent_graph) %>%
+  dplyr::rename(gene1 = n1, gene2 = n2)
+
+bioplex_hek <- read_tsv("data/current/interactome_bioplex/HEK293T_interactome.tsv") %>%
+  dplyr::select(gene1 = SymbolA, gene2 = SymbolB)
+bioplex_hek_graph <- graphNEL(unique(c(bioplex_hek$gene1, bioplex_hek$gene2)), 
+                          edgemode = "undirected")
+bioplex_hek_graph <- addEdge(bioplex_hek$gene1, bioplex_hek$gene2, bioplex_hek_graph)
+
+bioplex_hct <- read_tsv("data/current/interactome_bioplex/HCT116_interactome.tsv") %>%
+  dplyr::select(gene1 = SymbolA, gene2 = SymbolB)
+bioplex_hct_graph <- graphNEL(unique(c(bioplex_hct$gene1, bioplex_hct$gene2)), 
+                          edgemode = "undirected")
+bioplex_hct_graph <- addEdge(bioplex_hct$gene1, bioplex_hct$gene2, bioplex_hct_graph)
+
+huri <- read_tsv("data/current/interactome_atlas_huri/HuRI.tsv", 
+                 col_names = c("gene1", "gene2")) %>%
+    left_join(ga_tibble, by=c("gene1" = "ENSG_gene")) %>% 
+    left_join(ga_tibble, by = c("gene2" = "ENSG_gene")) %>% 
+    dplyr::select(gene1 = SYMBOL.x, gene2 = SYMBOL.y) %>% 
+    tidyr::drop_na()
+huri_graph <- graphNEL(unique(c(huri$gene1, huri$gene2)), 
+                          edgemode = "undirected")
+huri_graph <- addEdge(huri$gene1, huri$gene2, huri_graph)
+
+
+# filter all networks for expression in whole blood and get largest CC
+# (same processing as for priors)
+make_prior_network <- function(network) {
+  fgtex <- "data/current/gtex/GTEx_Analysis_v6_RNA-seq_RNA-SeQCv1.1.8_gene_median_rpkm.gct"
+  filtered <- filter_expression(fgtex, ga, network)
+  filtered_largest_cc <- get_largest_cc(filtered)
+  return(filtered_largest_cc)
+}
+
+huri_graph
+bioplex_hct_graph
+bioplex_hek_graph
+
+huri_graph <- make_prior_network(huri_graph)
+bioplex_hct_graph <- make_prior_network(bioplex_hct_graph)
+bioplex_hek_graph <- make_prior_network(bioplex_hek_graph)
+
+huri_graph
+bioplex_hct_graph
+bioplex_hek_graph
+
+```
+
+## Compare PPI DBs
+
+Check general overlaps
+
+```{r overlap_networks}
+hg <- huri_graph_expressed_in_blood
+pg <- biogrid_stringent_graph
+
+print("HURI graph:")
+hg
+
+print("Prior graph:")
+pg
+
+print("possible edges huri:")
+n <- numNodes(hg)
+((n*(n-1))/2)
+
+print("possible edges biogrid:")
+n <- numNodes(pg)
+((n*(n-1))/2)
+
+print("common nodes:")
+length(intersect(nodes(hg), nodes(pg)))
+
+print("intersected graph (keep only common edges):")
+cg <- combine_graphs(hg, pg)
+cg
+
+print("edges in huri but not biogrid:")
+numEdges(hg) - numEdges(cg)
+
+print("edges in biogrid but not huri:")
+numEdges(pg) - numEdges(cg)
+
+```
+
+For each possible comparison, we now investigate the overalapping edges in terms of 
+
+- number of false positives
+- number of false negatives
+- MCC
+
+We always set one network as the ground truth
+
+```{r compare_networks}
+require(BDgraph)
+
+networks <- list(huri_graph, biogrid_stringent_graph, bioplex_hct_graph, bioplex_hek_graph)
+names(networks) <- c("huri", "biogrid", "bioplex_hct", "bioplex_hek")
+
+result <- lapply(names(networks), function(n) {
+  truth <- networks[[n]]
+  comparison <- networks[!grepl(n, names(networks))]
+  
+  lapply(names(comparison), function(comp) {
+    
+    a <- as(truth, "matrix")
+    b <- as(comparison[[comp]], "matrix")
+    
+    common_nodes <- intersect(colnames(a), colnames(b))
+    a <- a[common_nodes, common_nodes]
+    b <- b[common_nodes, common_nodes]
+    
+    t(BDgraph::compare(a,b)) %>% 
+      as_tibble() %>%
+      mutate(truth = n, comparison = comp) %>%
+      tail(1)
+  }) %>% bind_rows()
+}) %>% bind_rows()
+result
+
+```
+
+## SessionInfo
+
+```{r session_info}
+devtools::session_info()
 ```
 

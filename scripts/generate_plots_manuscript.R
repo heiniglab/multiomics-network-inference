@@ -667,25 +667,9 @@ toplot_glasso_bdgraph <- filter(toplot_filtered,
                                 grepl("glasso|bdgraph", method)) %>%
   mutate(method_group = case_when(grepl("glasso", method) ~ "glasso",
                                   TRUE ~ "bdgraph"))
-p1 <- ggplot(toplot_glasso_bdgraph,
-             aes(
-               y = MCC,
-               x = method,
-               color = method,
-               group = method
-             )) +
-  #  geom_violin(draw_quantiles = c(0.5)) +
-  geom_boxplot() +
-  ggpubr::stat_compare_means(
-    method.args = list(alternative = "less"),
-    comparisons = list(bdgraph = c(1, 2),
-                       glasso = c(3, 4))
-  ) +
-  scb_graphs +
-  theme(axis.text.x = element_blank())
 
 # compare overall prior VS non prior (should we do this?)
-p2 <- ggplot(toplot_filtered %>%
+p1 <- ggplot(toplot_filtered %>%
                mutate(is_prior_based = as.factor(case_when(!is_prior_based ~ "no priors",
                                                            is_prior_based ~ "prior based"))),
              aes(
@@ -701,18 +685,7 @@ p2 <- ggplot(toplot_filtered %>%
   scb_graphs + 
   theme(axis.title.x = element_blank())
 
-ga <- ggarrange(p2, p1, 
-          ncol = 2, labels = c("AUTO"), 
-          common.legend = T, legend = "right")
-
-save_plot("results/current/revisions/figures/prior_vs_non_prior_stat_sign.pdf",
-          ga, ncol = 1.5)
-
-# simple linear model to check effect 
-summary(lm(MCC ~ is_prior_based, 
-           data = toplot_filtered %>%
-             mutate(is_prior_based = as.character(is_prior_based),
-                    method = as.character(method)))) %>% broom::tidy()
+p1
 
 # ------------------------------------------------------------------------------
 # check now the same as above, but progress over prior noise
@@ -723,7 +696,7 @@ toplot_glasso_bdgraph <- filter(toplot_filtered,
                                 grepl("glasso|bdgraph", method)) %>%
   mutate(method_group = case_when(grepl("glasso", method) ~ "glasso",
                                   TRUE ~ "bdgraph"))
-p1 <- ggplot(toplot_glasso_bdgraph,
+p2 <- ggplot(toplot_glasso_bdgraph,
              aes(
                y = MCC,
                x = method,
@@ -734,38 +707,21 @@ p1 <- ggplot(toplot_glasso_bdgraph,
   geom_boxplot() +
   facet_wrap(R~., strip.position = "left") +
   ggpubr::stat_compare_means(
-    method.args = list(alternative = "less"),
+    method.args = list(alternative = "two"),
     comparisons = list(bdgraph = c(1, 2),
                        glasso = c(3, 4))
   ) +
   scb_graphs +
   theme(axis.text.x = element_blank())
 
-# compare overall prior VS non prior (should we do this?)
-p2 <- ggplot(toplot_filtered %>%
-               mutate(is_prior_based = as.factor(case_when(!is_prior_based ~ "no priors",
-                                                           is_prior_based ~ "prior based"))),
-             aes(
-               y = MCC,
-               x = is_prior_based,
-               color = method,
-               group = reorder(method, (-MCC))
-             )) +
-  #  geom_violin(draw_quantiles = c(0.5)) +
-  geom_boxplot() +
-  facet_wrap(.~R) +
-  ggpubr::stat_compare_means(method.args = list(alternative = "less"),
-                             comparisons = list(base = c(1, 2))) +
-  scb_graphs + 
-  theme(axis.title.x = element_blank())
-
-# we only use p1 for now as it is quite big
-#ga <- ggarrange(p1, p1, 
-#                nrow = 2, labels = c("AUTO"), 
-#                common.legend = T, legend = "right")
+ga <- ggarrange(p2, ggarrange(p1, nullGrob(), ncol=2),  heights=c(0.7,0.3),
+                nrow=2, labels = "AUTO", common.legend = F)
+ga
 
 save_plot("results/current/revisions/figures/prior_vs_non_prior_stat_sign_all_noise.pdf",
-          p1, ncol=2, nrow = 2.5)
+          ga, ncol=2, nrow = 3.3)
+save_plot("results/current/revisions/figures/prior_vs_non_prior_stat_sign_all_noise.png",
+          ga, ncol=2, nrow = 3.3)
 
 # ------------------------------------------------------------------------------
 print("Sample size simulation plot")

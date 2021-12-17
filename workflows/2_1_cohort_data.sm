@@ -269,9 +269,9 @@ rule generate_dot:
 	params:
 		time = "00:30:00"
 	resources:
-		mem_mb=200
+		mem_mb=2000
 	threads: 1
- 	log:
+	log:
 		"logs/generate_dot/{sentinel}_{seed}/{cohort}_{graph_type}.log"
 	script:
 		"../scripts/generate_dot.R"
@@ -291,7 +291,7 @@ rule generate_dot_combined:
 	params:
 		time = "00:30:00"
 	resources:
-		mem_mb=200
+		mem_mb=2000
 	threads: 1
 	output:
 		dot = DGRAPH_PLOTS + "{sentinel}_{seed}/{graph_type}_combined.dot",
@@ -316,7 +316,7 @@ rule plot_graphs:
 		odir=DGRAPH_PLOTS + "{sentinel}_{seed}/",
 		time = "00:30:00"
 	resources:
-		mem_mb=200
+		mem_mb=2000
 	threads: 1
 	log:
 		"logs/plot_graphs/{sentinel}_{seed}.log"
@@ -336,36 +336,10 @@ rule plot_graphs:
 #------------------------------------------------------------------------------
 rule plot_relevant_graphs:
 	input:
-		DGRAPH_PLOTS + "rs8049417_meqtl/all.pdf",
-		DGRAPH_PLOTS + "rs13256023_meqtl/all.pdf",
-		DGRAPH_PLOTS + "rs1364109_meqtl/all.pdf",
-		DGRAPH_PLOTS + "rs3171692_meqtl/all.pdf",
-		DGRAPH_PLOTS + "rs7500738_meqtl/all.pdf",
-		DGRAPH_PLOTS + "rs7246657_meqtl/all.pdf",
-		DGRAPH_PLOTS + "rs7146643_meqtl/all.pdf",
-		DGRAPH_PLOTS + "rs578868_meqtl/all.pdf",
-		DGRAPH_PLOTS + "rs11671654_meqtl/all.pdf",
-		DGRAPH_PLOTS + "rs10248490_meqtl/all.pdf",
-		DGRAPH_PLOTS + "rs6141779_meqtl/all.pdf",
-		DGRAPH_PLOTS + "rs378112_meqtl/all.pdf",
-		DGRAPH_PLOTS + "rs17081933_meqtl/all.pdf",
-		DGRAPH_PLOTS + "rs4235404_meqtl/all.pdf",
-		DGRAPH_PLOTS + "rs3809627_meqtl/all.pdf",
-		DGRAPH_PLOTS + "rs3091338_eqtlgen/all.pdf",
-		DGRAPH_PLOTS + "rs2143950_eqtlgen/all.pdf",
-		DGRAPH_PLOTS + "rs2038255_eqtlgen/all.pdf",
-		DGRAPH_PLOTS + "rs6890853_eqtlgen/all.pdf",
 		DGRAPH_PLOTS + "rs9274623_eqtlgen/all.pdf",
-		DGRAPH_PLOTS + "rs140522_eqtlgen/all.pdf",
-		DGRAPH_PLOTS + "rs9274623_eqtlgen/all.pdf",
-		DGRAPH_PLOTS + "rs28383314_eqtlgen/all.pdf",
-		DGRAPH_PLOTS + "rs372883_eqtlgen/all.pdf",
-		DGRAPH_PLOTS + "rs730775_eqtlgen/all.pdf",
+		DGRAPH_PLOTS + "rs7783715_meqtl/all.pdf",
 		DGRAPH_PLOTS + "rs730775_meqtl/all.pdf",
-		DGRAPH_PLOTS + "rs9859077_meqtl/all.pdf",
-		DGRAPH_PLOTS + "rs79755767_eqtlgen/all.pdf",
-		DGRAPH_PLOTS + "rs79755767_meqtl/all.pdf"
-
+		DGRAPH_PLOTS + "rs9859077_meqtl/all.pdf"
 
 rule create_correlation_networks:
 	input:

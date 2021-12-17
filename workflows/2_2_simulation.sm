@@ -55,7 +55,7 @@ rule apply_ggm_simulation:
         wildcard_constraints:
                 subset = "all|minimal|[0-9]+0*"
         resources:
-                mem_mb=32000
+                mem_mb=40000
         conda:
                 "../envs/bioR.yaml"
         log:

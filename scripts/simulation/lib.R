@@ -667,7 +667,7 @@ run_ggm <- function(simulated_data, priors, ranges,
   # check subset. by default we use all data. in case a numeric subset is
   # specifified, we only run the inference for the non-noisy prior model.
   subset <- match.arg(subset)
-  
+
   print("Subset is:")
   print(subset)
   
@@ -680,7 +680,7 @@ run_ggm <- function(simulated_data, priors, ranges,
     if(subset == "minimal") {
       subset <- as.numeric(snakemake@params$minimal_subset_size)     
     } else {
-      sims <- sims[grepl("rd0$", sims)]
+      sims <- sims[grepl("rd0$|rd0.8$", sims)]
       subset <- as.numeric(subset)
     }
   }

@@ -1,0 +1,133 @@
+---
+title: "Lambda progression"
+author: "Johann Hawe"
+date: "3 12 2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+library(tidyverse)
+library(cowplot)
+
+theme_set(theme_cowplot())
+
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r load_data}
+# load simulation results
+fprior_noise_results <- list.files("results/current/biogrid_stringent/simulation/fits/",
+                                  ".*subsetall.RData", full.names = T)
+
+prior_noise_results <- lapply(fprior_noise_results, function(f) {
+  load(f)
+  iter <- gsub(".*(iter[0-9]+).*", "\\1", f)
+  lapply(result, function(res) {
+    rdegree <- as.character(res$rdegree)
+    rho_best_priors <- res$fits$glasso_fit$rho_best
+    rho_best <- res$fits$glasso_no_priors_fit$rho_best
+    tibble(rdegree, rho_best, rho_best_priors)
+  }) %>% bind_rows()
+}) %>% bind_rows()
+
+write_tsv(path="results/current/prior_noise_rho_summary.tsv", prior_noise_results)
+
+fsubset_results <- list.files("results/current/biogrid_stringent/simulation/fits/",
+                                  ".*subset[0-9]+.RData", full.names = T)
+
+i <- 0
+subset_progression_results <- mclapply(fsubset_results, function(f) {
+  i <<- i+1
+  if(i %% 1000 == 0) {
+    print(i)
+    gc(full=T)
+  }
+  
+  load(f)
+  
+  if(length(result) > 0) {
+    
+    res <- result[[1]]
+  
+    rho_best_priors <- res$fits$glasso_fit$rho_best
+    rho_best <- res$fits$glasso_no_priors_fit$rho_best
+    
+    tibble(subset, rho_best, rho_best_priors)
+    
+  } else {
+    NULL
+  }
+}, mc.cores = 4) %>% bind_rows()
+
+write_tsv(path="results/current/subset_progression_rho_summary.tsv", 
+          subset_progression_results)
+
+```
+
+```{r define_plot_function}
+plot_progression <- function(data, id_name = "rdegree") {
+  toplot <- melt(data, id.vars = id_name)
+  ggplot(toplot, aes(
+    x = factor(as.character(get(id_name)), 
+               levels = unique(pull(toplot, !!id_name)),
+               ordered = T),
+    y = value,
+    col = variable
+  )) +
+    stat_boxplot(geom = "errorbar", width = .75) +
+    geom_boxplot(
+      outlier.size = 0,
+      alpha = 0.5,
+      coef = 0,
+      outlier.shape = NA,
+      
+    ) +
+    stat_summary(
+      fun.y = median,
+      geom = "smooth",
+      position = position_dodge(0.75),
+      aes(group = variable),
+      lwd = 0.8
+    ) +
+    scale_color_brewer(type = "qual") +
+    background_grid(major = "x") +
+    #geom_vline(
+    #  xintercept = 11.5,
+    #  size = 1.5,
+    #  color = "black",
+    #  linetype = "dashed"
+    #) +
+    labs(x = id_name,
+         y = "Rho",
+         fill = "") +
+    theme(
+      legend.position = "right",
+      legend.text = element_text(size = 12),
+      legend.title = element_text(size = 14),
+      axis.text.x = element_text(
+        hjust = 0,
+        vjust = 0.5,
+        angle = -45,
+        size = 12
+      ),
+      axis.title.x = element_text(size = 14,
+                                  margin = margin(-1, 0, 0, 0, unit = "lines")),
+      plot.margin = margin(0.2, 1, 0.2, 0.2, "cm")
+    )
+}
+```
+
+
+```{r plot_results}
+gp1 <- plot_progression(prior_noise_results)
+
+gp2 <- plot_progression(mutate(subset_progression_results,
+                        subset = as.numeric(subset)) %>%
+                   arrange(subset), 
+                 id_name = "subset")
+ga <- ggarrange(gp1, gp2, nrow = 2, common.legend = T,
+                legend = "bottom", labels = "AUTO")
+```
+
+

@@ -9,3 +9,4 @@ latency-wait: 60
 jobs: 200
 keep-going: True
 printshellcmds: True
+show-failed-logs: True

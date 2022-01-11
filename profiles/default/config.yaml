@@ -1,4 +1,6 @@
-cores: 4
+cores: 48
 use-conda: False
 keep-going: True
 printshellcmds: True
+resources: "mem_mb=200000"
+show-failed-logs: True

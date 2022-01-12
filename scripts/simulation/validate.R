@@ -37,7 +37,13 @@ tab <- lapply(ffits, function(f) {
   print(paste0("Processing ", basename(f), "."))
   load(f)
   iteration <- gsub(".RData|.txt","", gsub(".*iter", "", f))
-  get_validation_table(result, iteration)
+  
+  if(any(grepl("prior_completeness", f))) {
+    get_validation_table_prior_completeness(result, iteration)
+  } else {
+    get_validation_table(result, iteration)  
+  }
+  
 }) %>% bind_rows()
 
 # ------------------------------------------------------------------------------

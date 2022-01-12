@@ -771,7 +771,7 @@ run_ggm_prior_completeness <- function(simulated_data, priors, ranges,
   names(results) <- paste0("fraction", fractions)
   sim$fits <- results
   
-  return(results)
+  return(sim)
 }
 
 #' -----------------------------------------------------------------------------

@@ -718,3 +718,95 @@ run_ggm <- function(simulated_data, priors, ranges,
   
   return(result)
 }
+
+
+# ------------------------------------------------------------------------------
+#' Run the GGM inference for all models on simulated data for different 'levels'
+#' of prior completeness (based on quantiles)
+#' 
+#' @param simulated_data The main simulation object containing all simulated
+#' data and graphs for differing prior noise degrees
+#' @param priors The prior matrix. Will not be used for the rbinom prior which
+#' is provided in the respected simulation object
+#' @param ranges The original ranges collection for the related locus
+#' @param fcpg_context The TF-cpg annotation context (for graph annotation)
+#' @param ppi_db The underlying PPI network (for graph annotation)
+#' @param threads The number of threads which can be used, Default: 1
+#' 
+#' @author Johann Hawe <johann.hawe@tum.de>
+#' 
+# ------------------------------------------------------------------------------
+run_ggm_prior_completeness <- function(simulated_data, priors, ranges, 
+                                       fcpg_context, ppi_db, threads = 1) {
+ 
+  # use only the 'zero' noise level data
+  sims <- names(simulated_data)
+  sim <- simulated_data[[sims[grepl("rd0$", sims)]]]
+  
+  fractions <- seq(0.1,0.9, by=0.1)
+  
+  result <- lapply(fractions, function(fraction_to_keep) {
+    
+    print(paste0("Current fraction: ", fraction_to_keep))
+    
+    # sentinel name and simulated data -----------------------------------------
+    s <- sim$snp
+    d <- sim$data.sim$data
+    
+    # Drop/adjust priors -------------------------------------------------------
+    pseudo_prior <- min(priors)
+    total_prior_edges <- sum(priors[upper.tri(priors)] > pseudo_prior)
+    priors <- drop_prior_edges(priors, fraction_to_keep, pseudo_prior)
+    print("Fraction of priors remaining:")
+    print(sum(priors[upper.tri(priors)] > pseudo_prior) / total_prior_edges)
+     
+    # --------------------------------------------------------------------------
+    print("Infer regulatory networks.")
+    
+    result <-
+      infer_all_graphs(d, priors, ranges, fcpg_context, ppi_db, threads)
+    sim$fits <- result
+    
+    sim
+  })
+  names(result) <- paste0("fraction", fractions)
+  
+  return(result)
+}
+
+#' -----------------------------------------------------------------------------
+#' Drops a certain fraction of prior edges from a prior matrix. Edges are set
+#' to the provided pseudo_prior
+#' 
+#' @param priors The prior matrix
+#' @param fraction_to_keep The fraction of prior edges to keep (e.g. 0.2)
+#' @param pseudo_prior Value of the pseudo prior to set for 'dropped' edges (e.g. 1e-7)
+#' -----------------------------------------------------------------------------
+drop_prior_edges <- function(priors,
+                             fraction_to_keep, 
+                             pseudo_prior) {
+  
+  # temp save priors for melting
+  p <- priors
+  p[upper.tri(p, TRUE)] <- NA
+  p <- melt(p, na.rm = T)
+  
+  idxs <- which(p$value > pseudo_prior)
+  total_priors <- length(idxs)
+  total_to_keep <- ceiling(total_priors * fraction_to_keep)
+  total_to_drop <- total_priors - total_to_keep
+  
+  set.seed(42)
+  
+  idxs_to_drop <- idxs[!sample(c(rep(TRUE, total_to_keep),
+                                 rep(FALSE, total_to_drop)))]
+  
+  # set pseudo prior for all entries
+  for (i in idxs_to_drop) {
+    n1 <- as.character(p[i, "Var1"])
+    n2 <- as.character(p[i, "Var2"])
+    priors[n1, n2] <- priors[n2, n1] <- pseudo_prior
+  }
+  
+  return(priors)
+}

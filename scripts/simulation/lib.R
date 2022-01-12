@@ -745,7 +745,7 @@ run_ggm_prior_completeness <- function(simulated_data, priors, ranges,
   
   fractions <- seq(0.1,0.9, by=0.1)
   
-  result <- lapply(fractions, function(fraction_to_keep) {
+  results <- lapply(fractions, function(fraction_to_keep) {
     
     print(paste0("Current fraction: ", fraction_to_keep))
     
@@ -765,13 +765,13 @@ run_ggm_prior_completeness <- function(simulated_data, priors, ranges,
     
     result <-
       infer_all_graphs(d, priors, ranges, fcpg_context, ppi_db, threads)
-    sim$fits <- result
-    
-    sim
+
+    result
   })
-  names(result) <- paste0("fraction", fractions)
+  names(results) <- paste0("fraction", fractions)
+  sim$fits <- results
   
-  return(result)
+  return(results)
 }
 
 #' -----------------------------------------------------------------------------

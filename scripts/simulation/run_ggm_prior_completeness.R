@@ -48,8 +48,8 @@ ppi_db <- readRDS(fppi_db)
 
 # apply over the different runs/iterations
 run <- simulations[[sim_iter]]
-result <- run_ggm_priorcompleteness(run, priors, ranges, 
-                                    fcpg_context, ppi_db, threads)
+result <- run_ggm_prior_completeness(run, priors, ranges, 
+                                     fcpg_context, ppi_db, threads)
 
 print("Saving results.")
 save(file=fout, result)

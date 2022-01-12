@@ -179,6 +179,23 @@ rule validate_ggm_simulation:
         script:
                 "../scripts/simulation/validate.R"
 
+rule validate_ggm_simulation_prior_completeness:
+        input:
+                fits=expand(DSIM_FITS + "prior_completeness/{{sentinel}}-iter{iteration}.RData", iteration=ITERATIONS_TEST)
+        output:
+                DSIM_VALIDATION + "prior_completeness/{sentinel}.txt"
+        threads: 1
+        resources:
+                mem_mb=1000
+        params:
+                time="00:10:00"
+        conda:
+                "../envs/bioR.yaml"
+        log:
+                "logs/simulation/validate_ggm/prior_completeness/{sentinel}.log"
+        script:
+                "../scripts/simulation/validate.R"
+
 #------------------------------------------------------------------------------
 # 3 Target rule to validate all simulation runs: all, minimal and subsets
 #------------------------------------------------------------------------------

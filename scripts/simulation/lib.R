@@ -648,7 +648,7 @@ get_performance_table <- function(graph_list, data_sim) {
     perf <- t(BDgraph::compare(data_sim, as(graph_list[[g]], "matrix")))
     comparisons <- c("True", g)
     perf <- as.data.frame(perf)
-    rownames(perf) <- paste(n, comparisons, sep = "_")
+    rownames(perf) <- paste(g, comparisons, sep = "_")
     perf <- perf[!grepl("True", rownames(perf)), ]
     
     # annotate density for comparison

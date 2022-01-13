@@ -27,8 +27,6 @@ ffits <- snakemake@input$fits
 # outputs
 foutput <- snakemake@output[[1]]
 
-print(paste0("Processing file: ", ffits, "."))
-
 # ------------------------------------------------------------------------------
 # Perform validation
 
@@ -38,6 +36,7 @@ tab <- lapply(ffits, function(f) {
   load(f)
   iteration <- gsub(".RData|.txt","", gsub(".*iter", "", f))
   
+  # quick hack to not have to redo output file definitions of other sim parts
   if(any(grepl("prior_completeness", f))) {
     get_validation_table_prior_completeness(result, iteration)
   } else {

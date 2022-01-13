@@ -599,7 +599,8 @@ simulate_data <- function(graphs, sentinel, data, nodes, threads = 1) {
 get_validation_table <- function(result, iteration) {
   
   require(dplyr)
- 
+  require(igraph)
+  
   # check each individual simulated result
   tab <- lapply(names(result), function(n) {
     # get validation data
@@ -610,24 +611,7 @@ get_validation_table <- function(result, iteration) {
     # Get all fitted graphs, remove the corresponding 'fit' objects
     gs <- r$fits[!grepl("_fit", names(r$fits))]
    
-    # --------------------------------------------------------------------------
-    # use the bdgraph internal method to get spec/sens, f1 and MCC. Use the
-    # original simulation object containing the ground truth graph
-    
-    perf <- lapply(names(gs), function(g) {
-      # we need the adjacency matrix for comparison
-      perf <- t(BDgraph::compare(d, as(gs[[g]], "matrix")))
-      comparisons <- c("True", g)
-      perf <- as.data.frame(perf)
-      rownames(perf) <- paste(n, comparisons, sep = "_")
-      perf <- perf[!grepl("True", rownames(perf)), ]
-      
-      # annotate density for comparison
-      ig <- igraph::igraph.from.graphNEL(gs[[g]])
-      dens <- edge_density(ig)
-      perf$density_model <- dens
-      perf
-    }) %>% bind_rows() # lapply over different graph models --------------------
+    perf <- get_performance_table(gs, d)
     
     # remember for easy plotting
     perf <- mutate(
@@ -641,9 +625,42 @@ get_validation_table <- function(result, iteration) {
     )
     perf
   }) %>% bind_rows() # lapply over simulations ---------------------------------
+  
+  return(tab)
 }
 
-
+#'------------------------------------------------------------------------------
+#' Use the bdgraph internal method to get spec/sens, f1 and MCC. Uses the
+#' original simulation object containing the ground truth graph
+#' 
+#' @param graph_list Named list of graph objects
+#' @param data_sim BDgraph data simulation object from which graphs have been 
+#' inferred
+#' 
+get_performance_table <- function(graph_list, data_sim) {
+  
+  require(dplyr)
+  require(igraph)
+  
+  perf <- lapply(names(graph_list), function(g) {
+    
+    # we need the adjacency matrix for comparison
+    perf <- t(BDgraph::compare(data_sim, as(graph_list[[g]], "matrix")))
+    comparisons <- c("True", g)
+    perf <- as.data.frame(perf)
+    rownames(perf) <- paste(n, comparisons, sep = "_")
+    perf <- perf[!grepl("True", rownames(perf)), ]
+    
+    # annotate density for comparison
+    ig <- igraph::igraph.from.graphNEL(graph_list[[g]])
+    dens <- edge_density(ig)
+    perf$density_model <- dens
+    perf
+    
+  }) %>% bind_rows()
+  
+  return(perf)
+}
 # ------------------------------------------------------------------------------
 #' Generate the validation table for all simul results contained in the provided
 #' data object.
@@ -654,40 +671,22 @@ get_validation_table <- function(result, iteration) {
 get_validation_table_prior_completeness <- function(result, iteration) {
   
   require(dplyr)
-  
-  # TODO: test!
+  require(igraph)
   
   results <- result$fits
   d <- result$data.sim
   
   # check each individual simulated result
   tab <- lapply(names(results), function(n) {
+    
     r <- results[[n]]
     
-    # --------------------------------------------------------------------------
-    # Get all fitted graphs, remove the corresponding 'fit' objects
+    # Retain only the graph objects
     gs <- r[!grepl("_fit", names(r))]
     
-    # --------------------------------------------------------------------------
-    # use the bdgraph internal method to get spec/sens, f1 and MCC. Use the
-    # original simulation object containing the ground truth graph
+    perf <- get_performance_table(gs, d)
     
-    perf <- lapply(names(gs), function(g) {
-      # we need the adjacency matrix for comparison
-      perf <- t(BDgraph::compare(d, as(gs[[g]], "matrix")))
-      comparisons <- c("True", g)
-      perf <- as.data.frame(perf)
-      rownames(perf) <- paste(n, comparisons, sep = "_")
-      perf <- perf[!grepl("True", rownames(perf)), ]
-      
-      # annotate density for comparison
-      ig <- igraph::igraph.from.graphNEL(gs[[g]])
-      dens <- edge_density(ig)
-      perf$density_model <- dens
-      perf
-    }) %>% bind_rows() # lapply over different graph models --------------------
-    
-    # remember for easy plotting
+    # remember more information for easier plotting
     perf <- mutate(
       perf,
       fraction_to_keep = n,
@@ -698,7 +697,9 @@ get_validation_table_prior_completeness <- function(result, iteration) {
         edge_density(igraph.from.graphNEL(result$graph.observed))
     )
     perf
-  }) %>% bind_rows() # lapply over simulations ---------------------------------
+  }) %>% bind_rows() # lapply over different fractions
+  
+  return(tab)
 }
 
 # ------------------------------------------------------------------------------

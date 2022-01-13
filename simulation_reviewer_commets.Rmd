@@ -1,0 +1,215 @@
+---
+title: "Additional simulation analysis based on reviewer comments"
+output: 
+ html_notebook:
+    toc: TRUE
+---
+
+```{r setup}
+library(dplyr)
+library(readr)
+library(grid)
+library(ggplot2)
+library(cowplot)
+library(RColorBrewer)
+library(ggpubr)
+library(scales)
+library(reshape2)
+library(circlize)
+library(ggbio)
+library(xtable)
+
+# get the hg19 chromosome definitions
+library(BSgenome.Hsapiens.UCSC.hg19)
+hg19info <- seqinfo(BSgenome.Hsapiens.UCSC.hg19)
+
+# set up theme and colors
+theme_set(theme_cowplot() + background_grid())
+theme_update(legend.text = element_text(size=11), 
+             legend.title=element_text(size=12),
+             axis.text.x = element_text(size=10),
+             axis.text.y = element_text(size=10))
+
+# manually define the colors for the different methods (to get paired ones for
+# prior/non prior versions)
+paired <- brewer.pal(4, "Paired")
+names(paired) <- c("glasso", "glasso (priors)", "bdgraph", "bdgraph (priors)")
+#paired <- c(paired, "#66D35F")
+#names(paired) <- c("glasso", "glasso (priors)", 
+#                   "bdgraph (empty)", "bdgraph (priors)", "bdgraph (full)")
+unpaired <- brewer.pal(7, "Dark2")[c(2,3,7)]
+names(unpaired) <- c("irafnet", "genie3", "genenet")
+graph_cols <- c(paired, unpaired)
+
+sfb_graphs <- scale_fill_manual(values=graph_cols)
+#sfb_graphs <- scale_fill_brewer(palette="Set2")
+#scb_graphs <- scale_color_brewer(palette="Set2")
+scb_graphs <- scale_color_manual(values=graph_cols)
+sfb_binary <- scale_fill_brewer(palette = "Accent")
+scb_binary <- scale_color_brewer(palette = "Accent")
+scb_priors <- scale_color_brewer(palette = "Dark2")
+
+bgm <- background_grid(major = "xy")
+group_cols <- brewer.pal("Set2", n=3)
+COLORS <- list(MEQTL = group_cols[1],
+               EQTL = group_cols[2])
+
+```
+
+```{r}
+
+```
+
+```{r minimal_subset}
+# minimal subset size, prior noise progression
+res <- read_tsv("temp") %>%
+  mutate(R = paste0("R=", rdegree))
+
+# create nicer method names
+tab <- res %>% 
+  mutate(comparison = gsub("bdgraph$", "bdgraph (priors)", comparison),
+         comparison = gsub("glasso$", "glasso (priors)", comparison),
+         comparison = gsub("bdgraph_no_priors$", "bdgraph (empty)", comparison),
+         comparison = gsub("bdgraph_no_priors_full$", "bdgraph (full)", comparison),
+         comparison = gsub("glasso_no_priors","glasso", comparison)) %>%
+  filter(comparison != "bdgraph (full)") %>%
+  dplyr::rename(method=comparison) %>%
+  mutate(method = gsub("bdgraph \\(empty\\)", "bdgraph", method)) %>%
+  mutate(method = factor(
+    method,
+    ordered = T,
+    levels = c(
+      "bdgraph",
+      "bdgraph (priors)",
+      "glasso",
+      "glasso (priors)",
+      "irafnet",
+      "genie3",
+      "genenet"
+    )
+  ))
+
+# get the MCC plot
+simulation_mcc <- ggplot(tab,
+                         aes(y = MCC,
+                             x = R,
+                             color = method)) +
+  stat_boxplot(geom = "errorbar", width = .75) +
+  geom_boxplot(
+    outlier.size = 0,
+    alpha = 0.5,
+    coef = 0,
+    outlier.shape = NA,
+    
+  ) +
+  stat_summary(
+    fun.y = median,
+    geom = "smooth",
+    position = position_dodge(0.75),
+    aes(group = method),
+    lwd = 0.8
+  ) +
+  scb_graphs +
+  background_grid("none") +
+  geom_vline(
+    xintercept = 11.5,
+    size = 1.5,
+    color = "black",
+    linetype = "dashed"
+  ) +
+  labs(x = "prior error",
+       y = "MCC",
+       fill = "") +
+  theme(
+    legend.position = "right",
+    legend.text = element_text(size = 12),
+    legend.title = element_text(size = 14),
+    axis.text.x = element_text(
+      hjust = 0,
+      vjust = 0.5,
+      angle = -45,
+      size = 12
+    ),
+    axis.title.x = element_text(size = 14,
+                                margin = margin(-1, 0, 0, 0, unit = "lines")),
+    plot.margin = margin(0.2, 1, 0.2, 0.2, "cm")
+  )
+simulation_mcc
+```
+
+## Prior completeness
+
+TODO: update once all results/iterations are done.
+
+```{r prior_completeness}
+# minimal subset size, prior noise progression
+res <- read_tsv("test_result_prior_completeness.txt") %>%
+  mutate(fraction = paste0("F=", gsub("fraction", "", fraction_to_keep)))
+
+# create nicer method names
+tab <- res %>% 
+  mutate(comparison = gsub("bdgraph$", "bdgraph (priors)", comparison),
+         comparison = gsub("glasso$", "glasso (priors)", comparison),
+         comparison = gsub("bdgraph_no_priors$", "bdgraph (empty)", comparison),
+         comparison = gsub("bdgraph_no_priors_full$", "bdgraph (full)", comparison),
+         comparison = gsub("glasso_no_priors","glasso", comparison)) %>%
+  filter(comparison != "bdgraph (full)") %>%
+  dplyr::rename(method=comparison) %>%
+  mutate(method = gsub("bdgraph \\(empty\\)", "bdgraph", method)) %>%
+  mutate(method = factor(
+    method,
+    ordered = T,
+    levels = c(
+      "bdgraph",
+      "bdgraph (priors)",
+      "glasso",
+      "glasso (priors)",
+      "irafnet",
+      "genie3",
+      "genenet"
+    )
+  ))
+
+# get the MCC plot
+simulation_mcc <- ggplot(tab,
+                         aes(y = MCC,
+                             x = fraction,
+                             color = method)) +
+  stat_boxplot(geom = "errorbar", width = .75) +
+  geom_boxplot(
+    outlier.size = 0,
+    alpha = 0.5,
+    coef = 0,
+    outlier.shape = NA,
+    
+  ) +
+  stat_summary(
+    fun.y = median,
+    geom = "smooth",
+    position = position_dodge(0.75),
+    aes(group = method),
+    lwd = 0.8
+  ) +
+  scb_graphs +
+  background_grid("none") +
+  labs(x = "fraction of prior information kept",
+       y = "MCC",
+       fill = "") +
+  theme(
+    legend.position = "right",
+    legend.text = element_text(size = 12),
+    legend.title = element_text(size = 14),
+    axis.text.x = element_text(
+      hjust = 0,
+      vjust = 0.5,
+      angle = -45,
+      size = 12
+    ),
+    plot.margin = margin(0.2, 1, 0.2, 0.2, "cm")
+  )
+simulation_mcc
+```
+Caption: Analysis of the effect of 'prior completeness' on inference performance.
+Y-axis shows the MCC of inferred graphs VS the simulated ground truth, x-axis indicates the fraction
+of prior information retained for inference, increasing from left to right. Colors indicate the different models. Boxplots show medians (horizontal line) and first and third quartiles (lower/upper box borders). Whiskers show 1.5*IQR (inter-quartile range).
+

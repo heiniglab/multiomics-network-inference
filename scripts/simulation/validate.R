@@ -33,7 +33,9 @@ foutput <- snakemake@output[[1]]
 # load data and get the validation results
 tab <- lapply(ffits, function(f) {
   print(paste0("Processing ", basename(f), "."))
+
   load(f)
+
   iteration <- gsub(".RData|.txt","", gsub(".*iter", "", f))
   
   # quick hack to not have to redo output file definitions of other sim parts

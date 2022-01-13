@@ -56,9 +56,12 @@ COLORS <- list(MEQTL = group_cols[1],
 
 ```
 
-```{r}
+## Minimal subset analyis
 
-```
+Here we plot the progression of performance for increasing noise in the priors
+for the 'minimal subset' of data, i.e. for a total of only 70 samples.
+
+TODO: update once all runs are finished.
 
 ```{r minimal_subset}
 # minimal subset size, prior noise progression
@@ -138,6 +141,8 @@ simulation_mcc
 ```
 
 ## Prior completeness
+
+Here we plot the progression of method performance for dropping an increasing amount of information from the prior matrix (10%, 20%,... 90%).
 
 TODO: update once all results/iterations are done.
 

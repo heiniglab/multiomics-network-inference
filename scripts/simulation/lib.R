@@ -570,16 +570,23 @@ simulate_data <- function(graphs, sentinel, data, nodes, threads = 1) {
       # genotype data
       gd <- table(round(as.numeric(data[,s])))
       gd <- sort(gd/sum(gd))
-      # define needed intervals
-      gdi <- c(gd[1], gd[1]+gd[2], 1)
+      if(length(gd) == 3) {
+        # define needed intervals
+        gdi <- c(gd[1], gd[1] + gd[2], 1)
+        labels <- c("2", "1", "0")
+      } else {
+        # define needed intervals
+        gdi <- c(gd[1], gd[1] + gd[2])
+        labels <- names(gd)
+      }
       
       # transform data into genotypes
       temp <- data.sim$data[,s]
       qs <- (quantile(temp, gdi))
       names(qs) <- names(gd)
-      data.sim$data[,s] <- as.numeric(as.character(cut(temp,c(min(temp), qs),
+      data.sim$data[,s] <- as.numeric(as.character(cut(temp, c(min(temp), qs),
                                                        right = T,
-                                                       labels=c("2","1","0"),
+                                                       labels=labels,
                                                        include.lowest = T)))
     }
     g$data.sim <- data.sim

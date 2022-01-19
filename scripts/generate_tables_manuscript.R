@@ -37,7 +37,7 @@ parse_dot <- function(dot_file) {
 
 # load our graphs
 g1 <- sapply(loci, function(l) {
-  parse_dot(paste0("results/current/biogrid_stringent/graph_plots_tfa/",
+  parse_dot(paste0("results/current/biogrid_stringent/graph_plots_tfa/_rerun/",
                    l,
                    "_meqtl/glasso_combined.dot"))
 })

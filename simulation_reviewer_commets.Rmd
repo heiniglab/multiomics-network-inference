@@ -148,7 +148,7 @@ TODO: update once all results/iterations are done.
 
 ```{r prior_completeness}
 # minimal subset size, prior noise progression
-res <- read_tsv("test_result_prior_completeness.txt") %>%
+res <- read_tsv("results/current/biogrid_stringent/simulation/validation-prior-completeness.txt") %>%
   mutate(fraction = paste0("F=", gsub("fraction", "", fraction_to_keep)))
 
 # create nicer method names

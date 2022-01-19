@@ -6,10 +6,16 @@ localrules: all_simulate_data, all_apply_ggm_simulation, all_simulation, all_sim
 #------------------------------------------------------------------------------
 RUNS = 100
 ITERATIONS = range(1,RUNS+1)
-ITERATIONS_TEST = range(1,2)
+ITERATIONS_TEST = range(1,51)
 SUBSETS = [str(n) for n in range(50,650,50)]
 #SUBSETS = [str(n) for n in range(10,210,10)]
 #SUBSETS.append("all")
+
+# for the rs60626639 sentinel, simulation seems to take too long at the moment, so we should recalculate
+# on a specialiced run (e.g. more runtime or threads)
+# This is only an issue for the "all" subset, as we do 11 inference cycles (for each noisey matrix).
+MEQTL_SIM = MEQTL.sentinel
+MEQTL_SIM.remove("rs60626639")
 
 rule simulate_data:
         input:
@@ -125,13 +131,7 @@ rule all_apply_ggm_simulation_subsets:
 
 rule all_apply_ggm_simulation_prior_completeness:
 	input:
-		expand(DSIM_FITS + "prior_completeness/{sentinel}-iter{iter}.RData", sentinel=MEQTL.sentinel, iter=ITERATIONS_TEST)
-
-# for the rs60626639 sentinel, simulation seems to take too long at the moment, so we should recalculate
-# on a specialiced run (e.g. more runtime or threads)
-# This is only an issue for the "all" subset, as we do 11 inference cycles (for each noisey matrix).
-MEQTL_SIM = MEQTL.sentinel
-MEQTL_SIM.remove("rs60626639")
+		expand(DSIM_FITS + "prior_completeness/{sentinel}-iter{iter}.RData", sentinel=MEQTL_SIM, iter=ITERATIONS_TEST)
 
 rule apply_ggm_simulation_iterations:
 	input:
@@ -233,6 +233,19 @@ rule validate_all_subsets:
 		mem_mb = 1000
 	threads: 16
 	log: "logs/validate_subsets.log"
+	shell:
+		"""
+		sort --parallel={threads} -r {input} | uniq > {output}
+		"""
+
+rule validate_all_prior_completeness:
+	input: expand(DSIM_VALIDATION + "prior_completeness/{sentinel}.txt", sentinel=MEQTL_SIM)
+	output:
+		DSIM + "validation-prior-completeness.txt"
+	resources:
+		mem_mb = 2000
+	threads: 16
+	log: "logs/validate_prior_completeness.log"
 	shell:
 		"""
 		sort --parallel={threads} -r {input} | uniq > {output}

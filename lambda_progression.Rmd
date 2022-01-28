@@ -16,58 +16,82 @@ knitr::opts_chunk$set(echo = TRUE)
 
 
 ```{r load_data}
-# load simulation results
-fprior_noise_results <- list.files("results/current/biogrid_stringent/simulation/fits/",
-                                  ".*subsetall.RData", full.names = T)
+fparsed_results <- "results/current/prior_noise_rho_summary.tsv"
 
-prior_noise_results <- lapply(fprior_noise_results, function(f) {
-  load(f)
-  iter <- gsub(".*(iter[0-9]+).*", "\\1", f)
-  lapply(result, function(res) {
-    rdegree <- as.character(res$rdegree)
-    rho_best_priors <- res$fits$glasso_fit$rho_best
-    rho_best <- res$fits$glasso_no_priors_fit$rho_best
-    tibble(rdegree, rho_best, rho_best_priors)
+if (!file.exists(fparsed_results)) {
+  # load simulation results
+  fprior_noise_results <-
+    list.files(
+      "results/current/biogrid_stringent/simulation/fits/",
+      ".*subsetall.RData",
+      full.names = T
+    )
+  
+  prior_noise_results <- lapply(fprior_noise_results, function(f) {
+    load(f)
+    iter <- gsub(".*(iter[0-9]+).*", "\\1", f)
+    lapply(result, function(res) {
+      rdegree <- as.character(res$rdegree)
+      rho_best_priors <- res$fits$glasso_fit$rho_best
+      rho_best <- res$fits$glasso_no_priors_fit$rho_best
+      tibble(rdegree, rho_best, rho_best_priors)
+    }) %>% bind_rows()
   }) %>% bind_rows()
-}) %>% bind_rows()
-
-write_tsv(path="results/current/prior_noise_rho_summary.tsv", prior_noise_results)
-
-fsubset_results <- list.files("results/current/biogrid_stringent/simulation/fits/",
-                                  ".*subset[0-9]+.RData", full.names = T)
-
-i <- 0
-subset_progression_results <- mclapply(fsubset_results, function(f) {
-  i <<- i+1
-  if(i %% 1000 == 0) {
-    print(i)
-    gc(full=T)
-  }
   
-  load(f)
-  
-  if(length(result) > 0) {
-    
-    res <- result[[1]]
-  
-    rho_best_priors <- res$fits$glasso_fit$rho_best
-    rho_best <- res$fits$glasso_no_priors_fit$rho_best
-    
-    tibble(subset, rho_best, rho_best_priors)
-    
-  } else {
-    NULL
-  }
-}, mc.cores = 4) %>% bind_rows()
+  write_tsv(path = fparsed_results, prior_noise_results)
+} else {
+  prior_noise_results <- read_tsv(fparsed_results)
+}
 
-write_tsv(path="results/current/subset_progression_rho_summary.tsv", 
-          subset_progression_results)
-
+fparsed_results <-
+  "results/current/subset_progression_rho_summary.tsv"
+if (!file.exists(fparsed_results)) {
+  fsubset_results <-
+    list.files(
+      "results/current/biogrid_stringent/simulation/fits/",
+      ".*subset[0-9]+.RData",
+      full.names = T
+    )
+  
+  i <- 0
+  subset_progression_results <-
+    mclapply(fsubset_results, function(f) {
+      i <<- i + 1
+      if (i %% 1000 == 0) {
+        print(i)
+        gc(full = T)
+      }
+      
+      load(f)
+      
+      if (length(result) > 0) {
+        res <- result[[1]]
+        
+        rho_best_priors <- res$fits$glasso_fit$rho_best
+        rho_best <- res$fits$glasso_no_priors_fit$rho_best
+        
+        tibble(subset, rho_best, rho_best_priors)
+        
+      } else {
+        NULL
+      }
+    }, mc.cores = 4) %>% bind_rows()
+  
+  write_tsv(path = fparsed_results,
+            subset_progression_results)
+} else {
+  subset_progression_results <- read_tsv(fparsed_results)
+}
 ```
 
 ```{r define_plot_function}
-plot_progression <- function(data, id_name = "rdegree") {
-  toplot <- melt(data, id.vars = id_name)
+plot_progression <- function(data, 
+                             id_name = "rdegree", 
+                             x_label = "prior error") {
+  toplot <- melt(data, id.vars = id_name) %>%
+    mutate(variable = gsub("rho_best_priors", "prior based", variable)) %>%
+    mutate(variable = gsub("rho_best", "without priors", variable))
+  
   ggplot(toplot, aes(
     x = factor(as.character(get(id_name)), 
                levels = unique(pull(toplot, !!id_name)),
@@ -98,9 +122,10 @@ plot_progression <- function(data, id_name = "rdegree") {
     #  color = "black",
     #  linetype = "dashed"
     #) +
-    labs(x = id_name,
+    labs(x = x_label,
          y = "Rho",
-         fill = "") +
+         fill = "",
+         color = "type") +
     theme(
       legend.position = "right",
       legend.text = element_text(size = 12),
@@ -111,8 +136,7 @@ plot_progression <- function(data, id_name = "rdegree") {
         angle = -45,
         size = 12
       ),
-      axis.title.x = element_text(size = 14,
-                                  margin = margin(-1, 0, 0, 0, unit = "lines")),
+      axis.title.x = element_text(size = 14),
       plot.margin = margin(0.2, 1, 0.2, 0.2, "cm")
     )
 }
@@ -120,14 +144,19 @@ plot_progression <- function(data, id_name = "rdegree") {
 
 
 ```{r plot_results}
-gp1 <- plot_progression(prior_noise_results)
+gp1 <- plot_progression(prior_noise_results, x_label = "prior error")
 
 gp2 <- plot_progression(mutate(subset_progression_results,
                         subset = as.numeric(subset)) %>%
                    arrange(subset), 
-                 id_name = "subset")
-ga <- ggarrange(gp1, gp2, nrow = 2, common.legend = T,
+                 id_name = "subset", x_label = "subset size")
+ga <- ggarrange(gp1, gp2, nrow = 1, ncol = 2, common.legend = T,
                 legend = "bottom", labels = "AUTO")
+
+save_plot("results/current/figures/simulation_rho_progression.pdf",
+          ga, ncol = 2, nrow = 1)
+
+ga
 ```
 
 

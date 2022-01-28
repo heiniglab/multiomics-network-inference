@@ -6,14 +6,14 @@ localrules: all_simulate_data, all_apply_ggm_simulation, all_simulation, all_sim
 #------------------------------------------------------------------------------
 RUNS = 100
 ITERATIONS = range(1,RUNS+1)
-ITERATIONS_TEST = range(1,51)
+ITERATIONS_TEST = range(1,31)
 SUBSETS = [str(n) for n in range(50,650,50)]
 #SUBSETS = [str(n) for n in range(10,210,10)]
 #SUBSETS.append("all")
 
 # for the rs60626639 sentinel, simulation seems to take too long at the moment, so we should recalculate
 # on a specialiced run (e.g. more runtime or threads)
-# This is only an issue for the "all" subset, as we do 11 inference cycles (for each noisey matrix).
+# This is mostly an issue for the "all" subset, as we do 11 inference cycles (for each noisey matrix).
 MEQTL_SIM = MEQTL.sentinel
 MEQTL_SIM.remove("rs60626639")
 
@@ -122,12 +122,11 @@ rule apply_ggm_simulation_prior_completeness:
 
 rule all_apply_ggm_simulation:
 	input:
-		expand(DSIM_FITS + "{sentinel}-iter{iteration}-subset{subset}.RData", sentinel=MEQTL.sentinel,
-		iteration=ITERATIONS, subset=SUBSETS)
+		expand(DSIM_FITS + "{sentinel}-iter{iteration}-subset{subset}.RData", sentinel=MEQTL.sentinel, iteration=ITERATIONS, subset=SUBSETS)
 
 rule all_apply_ggm_simulation_subsets:
 	input:
-		expand(DSIM_FITS + "{sentinel}-iter{iter}-subset{subset}.RData", sentinel=MEQTL.sentinel, iter=ITERATIONS, subset=SUBSETS)
+		expand(DSIM_FITS + "subset{subset}/{sentinel}-iter{iter}.RData", sentinel=MEQTL_SIM, iter=ITERATIONS_TEST, subset=SUBSETS)
 
 rule all_apply_ggm_simulation_prior_completeness:
 	input:
@@ -143,7 +142,7 @@ rule apply_ggm_simulation_iterations:
 #------------------------------------------------------------------------------
 rule validate_ggm_simulation_subsets:
         input:
-                fits=expand(DSIM_FITS + "subset{{subset}}/{{sentinel}}-iter{iteration}.RData", iteration=ITERATIONS)
+                fits=expand(DSIM_FITS + "subset{{subset}}/{{sentinel}}-iter{iteration}.RData", iteration=ITERATIONS_TEST)
         output:
                 DSIM_VALIDATION + "{sentinel}-subset{subset}.txt"
         threads: 1
@@ -200,7 +199,7 @@ rule validate_ggm_simulation_prior_completeness:
 # 3 Target rule to validate all simulation runs: all, minimal and subsets
 #------------------------------------------------------------------------------
 rule validate_all:
-	input: expand(DSIM_VALIDATION + "{sentinel}-subsetall.txt", sentinel=MEQTL.sentinel)
+	input: expand(DSIM_VALIDATION + "{sentinel}-subsetall.txt", sentinel=MEQTL_SIM)
 	output:
 		DSIM + "validation-subsetall.txt"		
 	resources:
@@ -213,7 +212,7 @@ rule validate_all:
 		"""
 
 rule validate_minimal:
-	input: expand(DSIM_VALIDATION + "{sentinel}-subsetminimal.txt", sentinel=MEQTL.sentinel)
+	input: expand(DSIM_VALIDATION + "{sentinel}-subsetminimal.txt", sentinel=MEQTL_SIM)
 	output:
 		DSIM + "validation-subsetminimal.txt"
 	resources:
@@ -226,7 +225,7 @@ rule validate_minimal:
 		"""
 
 rule validate_all_subsets:
-	input: expand(DSIM_VALIDATION + "{sentinel}-subset{subset}.txt", sentinel=MEQTL.sentinel, subset=SUBSETS)
+	input: expand(DSIM_VALIDATION + "{sentinel}-subset{subset}.txt", sentinel=MEQTL_SIM, subset=SUBSETS)
 	output:
 		DSIM + "validation-subsets.txt"		
 	resources:

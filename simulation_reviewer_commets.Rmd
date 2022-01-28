@@ -212,9 +212,34 @@ simulation_mcc <- ggplot(tab,
     ),
     plot.margin = margin(0.2, 1, 0.2, 0.2, "cm")
   )
+
 simulation_mcc
 ```
 Caption: Analysis of the effect of 'prior completeness' on inference performance.
 Y-axis shows the MCC of inferred graphs VS the simulated ground truth, x-axis indicates the fraction
 of prior information retained for inference, increasing from left to right. Colors indicate the different models. Boxplots show medians (horizontal line) and first and third quartiles (lower/upper box borders). Whiskers show 1.5*IQR (inter-quartile range).
+
+```{r prior_completeness_stat}
+#' method: e.g. "glasso" or "bdgraph"
+#' fraction: e.g. "F=0.1"
+compare_wilcoxon <- function(method, fraction) {
+  print(paste0("Results for method '", method, 
+               "' and fraction '", fraction, "':"))
+  
+  tab_for_stat <- tab %>%
+    filter(grepl(!!method, method)) %>%
+    filter(fraction %in% !!fraction) %>% 
+    select(method, MCC) %>%
+    reshape2::melt()
+  
+  print("Models in comparison:")
+  print(paste0(unique(tab_for_stat$method), collapse = ","))
+  print("Results for wilcoxon test:")
+  print(wilcox.test(value ~ method, data = tab_for_stat, 
+                    alternative = "two.sided"))
+}
+
+compare_wilcoxon("glasso", "F=0.1")
+compare_wilcoxon("bdgraph", "F=0.1")
+```
 

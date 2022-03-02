@@ -6,7 +6,7 @@ localrules: all_simulate_data, all_apply_ggm_simulation, all_simulation, all_sim
 #------------------------------------------------------------------------------
 RUNS = 100
 ITERATIONS = range(1,RUNS+1)
-ITERATIONS_TEST = range(1,31)
+ITERATIONS_TEST = range(1,51)
 SUBSETS = [str(n) for n in range(50,650,50)]
 #SUBSETS = [str(n) for n in range(10,210,10)]
 #SUBSETS.append("all")
@@ -120,13 +120,17 @@ rule apply_ggm_simulation_prior_completeness:
                 "../scripts/simulation/run_ggm_prior_completeness.R"
 
 
-rule all_apply_ggm_simulation:
+rule all_apply_ggm_simulation_subsetall:
 	input:
-		expand(DSIM_FITS + "{sentinel}-iter{iteration}-subset{subset}.RData", sentinel=MEQTL.sentinel, iteration=ITERATIONS, subset=SUBSETS)
+		expand(DSIM_FITS + "{sentinel}-iter{iteration}-subsetall.RData", sentinel=MEQTL_SIM, iteration=ITERATIONS)
 
 rule all_apply_ggm_simulation_subsets:
 	input:
 		expand(DSIM_FITS + "subset{subset}/{sentinel}-iter{iter}.RData", sentinel=MEQTL_SIM, iter=ITERATIONS_TEST, subset=SUBSETS)
+
+rule all_apply_ggm_simulation_subsetminimal:
+	input:
+		expand(DSIM_FITS + "{sentinel}-iter{iter}-subsetminimal.RData", sentinel=MEQTL_SIM, iter=ITERATIONS,)
 
 rule all_apply_ggm_simulation_prior_completeness:
 	input:
@@ -144,7 +148,7 @@ rule validate_ggm_simulation_subsets:
         input:
                 fits=expand(DSIM_FITS + "subset{{subset}}/{{sentinel}}-iter{iteration}.RData", iteration=ITERATIONS_TEST)
         output:
-                DSIM_VALIDATION + "{sentinel}-subset{subset}.txt"
+                DSIM_VALIDATION + "subset{subset}/{sentinel}.txt"
         threads: 1
         wildcard_constraints:
                 subset = "[0-9]+0*"
@@ -212,30 +216,28 @@ rule validate_all:
 		"""
 
 rule validate_minimal:
-	input: expand(DSIM_VALIDATION + "{sentinel}-subsetminimal.txt", sentinel=MEQTL_SIM)
+	input: 
+		results = expand(DSIM_VALIDATION + "{sentinel}-subsetminimal.txt", sentinel=MEQTL_SIM)
 	output:
-		DSIM + "validation-subsetminimal.txt"
+		combined = DSIM + "validation-subsetminimal.txt"
 	resources:
 		mem_mb = 1000
-	threads: 16
+	threads: 1
 	log: "logs/validate_subsetminimal.log"
-	shell:
-		"""
-		sort --parallel={threads} -r {input} | uniq > {output}
-		"""
+	script:
+		"../scripts/simulation/reorder_columns.R"
 
 rule validate_all_subsets:
-	input: expand(DSIM_VALIDATION + "{sentinel}-subset{subset}.txt", sentinel=MEQTL_SIM, subset=SUBSETS)
+	input: 
+		results = expand(DSIM_VALIDATION + "subset{subset}/{sentinel}.txt", sentinel=MEQTL_SIM, subset=SUBSETS)
 	output:
-		DSIM + "validation-subsets.txt"		
+		combined = DSIM + "validation-subsets.txt"		
 	resources:
 		mem_mb = 1000
-	threads: 16
+	threads: 1
 	log: "logs/validate_subsets.log"
-	shell:
-		"""
-		sort --parallel={threads} -r {input} | uniq > {output}
-		"""
+	script:
+		"../scripts/simulation/reorder_columns.R"
 
 rule validate_all_prior_completeness:
 	input: expand(DSIM_VALIDATION + "prior_completeness/{sentinel}.txt", sentinel=MEQTL_SIM)

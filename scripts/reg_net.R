@@ -207,7 +207,9 @@ reg_net <- function(data,
       gl_out <- glasso_cv(data, NULL, nodes, 
                           threads = threads, verbose = verbose)
     }
+    if(!is.null(gl_out)) {
     class(gl_out) <- c(class(gl_out), "glasso")
+    }
     fit <- gl_out
   } else if ("genie3" %in% model) {
     require(GENIE3)
@@ -221,6 +223,7 @@ reg_net <- function(data,
     stop("Sorry, custom model is not yet implemented.")
   }
   
+if(is.null(fit)) return(NULL)
   # now get the graph object
   g <- graph_from_fit(fit, nodes, annotate = F, verbose = verbose)
   
@@ -687,9 +690,13 @@ glasso_cv <- function(data,
   
   # get the ll progression for all CV folds
   loglikes <- lapply(1:k, function(ki) {
-    S_train <- cov(data[folds$which != ki,], use = "na.or.complete")
-    S_test  <-
-      cov(data[folds$which == ki,], use = "na.or.complete")
+    dtrain <- data[folds$which != ki,]
+    #if(length(unique(dtrain[,1])) < 2) {
+    #  return c(NA,NA,NA)
+    #}
+    dtest <- data[folds$which == ki,]
+    S_train <- cov(dtrain, use = "na.or.complete")
+    S_test  <- cov(dtest, use = "na.or.complete")
     
     # get the number of variables
     p <- ncol(S_test)
@@ -713,7 +720,6 @@ glasso_cv <- function(data,
       
       # get log likelihood, number of edges and BIC
       ll <- loglik(gl$wi, S_test, n, p)
-      
       g <- graph_from_fit(gl, nodes, annotate = F)
       ne <- numEdges(g)
       
@@ -724,16 +730,31 @@ glasso_cv <- function(data,
       
     }, mc.cores = threads))
   })
+
   loglikes <- do.call(rbind, loglikes)
+
+  if(all(is.na(loglikes[,1]))) {
+    warning("Error with current split, couldn't determine lolikelihoods in CV")
+    return(NULL)
+
+  }
+
   colnames(loglikes) <-
     paste0(c("rho_rho=", "bic_rho=", "edgeNum_rho="),
            rep(rholist, each = 3))
   rownames(loglikes) <- paste0("k=", 1:k)
   
   # get the 'best' rho according to the BIC
-  bic_sub <- colMeans(loglikes[, grepl("bic", colnames(loglikes))])
+  bic_sub <- colMeans(loglikes[, grepl("bic", colnames(loglikes))], na.rm=T)
   ind <- which.min(bic_sub)
-  
+
+print("ind")
+print(ind)
+print("bic_sub")
+print(bic_sub)
+print("loglikes")
+print(loglikes)
+
   # retrieve rho from the name
   rho <- as.numeric(strsplit(names(ind), "=")[[1]][2])
   

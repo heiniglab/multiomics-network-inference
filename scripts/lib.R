@@ -236,6 +236,12 @@ get_tfbs_context <- function(entities, fcontext) {
 #'
 #' -----------------------------------------------------------------------------
 annotate.graph <- function(g, ranges, ppi_db, fcontext){
+
+  if(is.null(g)) {
+    warning("Graph g is null.")
+    return(NULL)
+  }
+
   # work on all graph nodes
   gn <- nodes(g)
 

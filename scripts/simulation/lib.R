@@ -626,7 +626,6 @@ get_validation_table <- function(result, iteration) {
       rdegree = as.character(r$rdegree),
       snp = r$snp,
       iteration = iteration,
-      comparison = names(gs),
       density_true =
         edge_density(igraph.from.graphNEL(r$graph.observed))
     )
@@ -650,19 +649,26 @@ get_performance_table <- function(graph_list, data_sim) {
   require(igraph)
   
   perf <- lapply(names(graph_list), function(g) {
+
+    current_graph <- graph_list[[g]]
+    if(is.null(current_graph)) {
     
+      return(NULL)
+
+    }
+
     # we need the adjacency matrix for comparison
-    perf <- t(BDgraph::compare(data_sim, as(graph_list[[g]], "matrix")))
+    perf <- t(BDgraph::compare(data_sim, as(current_graph, "matrix")))
     comparisons <- c("True", g)
     perf <- as.data.frame(perf)
     rownames(perf) <- paste(g, comparisons, sep = "_")
     perf <- perf[!grepl("True", rownames(perf)), ]
     
     # annotate density for comparison
-    ig <- igraph::igraph.from.graphNEL(graph_list[[g]])
+    ig <- igraph::igraph.from.graphNEL(current_graph)
     dens <- edge_density(ig)
     perf$density_model <- dens
-    perf
+    perf %>% mutate(comparison = g)
     
   }) %>% bind_rows()
   

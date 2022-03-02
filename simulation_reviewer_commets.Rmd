@@ -65,7 +65,7 @@ TODO: update once all runs are finished.
 
 ```{r minimal_subset}
 # minimal subset size, prior noise progression
-res <- read_tsv("temp") %>%
+res <- read_tsv("results/current/biogrid_stringent/simulation/validation-subsetminimal.txt") %>%
   mutate(R = paste0("R=", rdegree))
 
 # create nicer method names
@@ -139,6 +139,78 @@ simulation_mcc <- ggplot(tab,
   )
 simulation_mcc
 ```
+
+## Low /high noise scenario over all subset sizes
+
+Here we plot the performance for a low and high noise scenario (0.1 and 0.7) for all sample subset sizes available.
+
+```{r low_high_noise_all_subsets}
+# minimal subset size, prior noise progression
+res <- read_tsv("results/current/biogrid_stringent/simulation/validation-subsets.txt") %>%
+  mutate(R = paste0("R=", rdegree)) %>% 
+  filter(R %in% "R=0.8")
+
+# create nicer method names
+tab <- res %>% 
+  mutate(comparison = gsub("bdgraph$", "bdgraph (priors)", comparison),
+         comparison = gsub("glasso$", "glasso (priors)", comparison),
+         comparison = gsub("bdgraph_no_priors$", "bdgraph (empty)", comparison),
+         comparison = gsub("bdgraph_no_priors_full$", "bdgraph (full)", comparison),
+         comparison = gsub("glasso_no_priors","glasso", comparison)) %>%
+  filter(comparison != "bdgraph (full)") %>%
+  dplyr::rename(method=comparison) %>%
+  mutate(method = gsub("bdgraph \\(empty\\)", "bdgraph", method)) %>%
+  mutate(method = factor(
+    method,
+    ordered = T,
+    levels = c(
+      "bdgraph",
+      "bdgraph (priors)",
+      "glasso",
+      "glasso (priors)",
+      "irafnet",
+      "genie3",
+      "genenet"
+    )
+  ))
+
+# sample subset size plot with high noise level
+simulation_sample_size_mcc <- ggplot(tab,
+                                     aes(y = MCC,
+                                         x = factor(subset),
+                                         color = method)) +
+  scb_graphs +
+  stat_boxplot(geom = "errorbar", width = .75) +
+  geom_boxplot(
+    outlier.size = 0,
+    alpha = 0.5,
+    coef = 0,
+    outlier.shape = NA
+  ) +
+  stat_summary(
+    fun.y = median,
+    geom = "smooth",
+    position = position_dodge(0.75),
+    aes(group = method),
+    lwd = 0.8
+  ) +
+  scale_y_continuous(
+    limits = c(min(tab$MCC), 1),
+    breaks = c(0, 0.25, 0.5, 0.75, 1)
+    
+  ) +
+  labs(color = "method",
+       x = "subset size") + 
+  theme(axis.text.x = element_text(hjust=0, vjust=0.5, angle=-45, size=12))
+
+simulation_sample_size_mcc
+
+#save_plot("results/current/figures/thesis/simulation_performance_sample_size_thesis.pdf",
+#          simulation_sample_size_mcc + theme(legend.position = "bottom"), base_asp = 2)
+
+```
+Caption: Analysis of the effect of sample subset size on inference performance in a high prior noise setting (R=0.8).
+Y-axis shows the MCC of inferred graphs VS the simulated ground truth, x-axis indicates the different sample sizes for inference increasing from left to right. Colors indicate the different models. 50 iterations of sampling were performed. Boxplots show medians (horizontal line) and first and third quartiles (lower/upper box borders). Whiskers show 1.5*IQR (inter-quartile range).
 
 ## Prior completeness
 
@@ -218,6 +290,11 @@ simulation_mcc
 Caption: Analysis of the effect of 'prior completeness' on inference performance.
 Y-axis shows the MCC of inferred graphs VS the simulated ground truth, x-axis indicates the fraction
 of prior information retained for inference, increasing from left to right. Colors indicate the different models. Boxplots show medians (horizontal line) and first and third quartiles (lower/upper box borders). Whiskers show 1.5*IQR (inter-quartile range).
+
+```{r}
+print(length(unique(tab$snp)))
+print(length(unique(tab$iteration)))
+```
 
 ```{r prior_completeness_stat}
 #' method: e.g. "glasso" or "bdgraph"

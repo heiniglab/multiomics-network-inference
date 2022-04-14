@@ -9,6 +9,7 @@
 # ------------------------------------------------------------------------------
 print("Load libraries and source scripts")
 # ------------------------------------------------------------------------------
+library(tidyverse)
 library(igraph)
 library(graph)
 library(Rgraphviz)
@@ -37,9 +38,9 @@ parse_dot <- function(dot_file) {
 
 # load our graphs
 g1 <- sapply(loci, function(l) {
-  parse_dot(paste0("results/current/biogrid_stringent/graph_plots_tfa/_rerun/",
+  readRDS(paste0("results/current/biogrid_stringent/graph_plots_tfa/_rerun/",
                    l,
-                   "_meqtl/glasso_combined.dot"))
+                   "_meqtl/glasso_combined.rds"))
 })
 
 # load the ones from the meQTL paper
@@ -49,10 +50,61 @@ g2 <- sapply(loci, function(l) {
                    "/graph-final.dot"))
 })
 
+parse_edge_data <- function(graph) {
+    chip_seq <- edgeData(graph, attr = "isChipSeq") %>% as_tibble()
+    ppi <- edgeData(graph, attr = "isPPI") %>% as_tibble() 
+    
+    d <- data.frame(bind_rows(chip_seq, ppi) %>% t())
+    edges <- rownames(d)
+    colnames(d) <- c("isChipSeq", "isPPI")
+    d <- d %>%
+      as_tibble() %>%
+      mutate(edge = edges) %>%
+      dplyr::select(edge, everything())
+    
+    d <- mutate(d,
+                isGeneGene = !grepl("^rs|\\|rs|^cg|\\|cg", edge, ignore.case = FALSE))
+    
+    d <- dplyr::filter(d, isChipSeq | isPPI | isGeneGene)
+    
+    return(d)
+}
+
 # compare graphs
 tab <- lapply(loci, function(l) {
   g2m <- as(g2[[l]], "matrix")
   g1m <- as(g1[[l]], "matrix")
+  
+  # NOTE: edges will occur twice(!) (once for each possible 'direction') when
+  # using graph::edgeData(). So we devide by 2 to get proper counts
+  
+  edge_data <- parse_edge_data(g1[[l]])
+  total_chip <- filter(edge_data, isChipSeq) %>% tally() %>% pull(n) / 2
+  total_ppi <- filter(edge_data, isPPI) %>% tally() %>% pull(n) / 2
+  total_gg <- filter(edge_data, isGeneGene) %>% tally() %>% pull(n) / 2
+  
+  edge_names_g1 <- names(edgeData(g1[[l]]))
+  edge_names_g2 <- names(edgeData(g2[[l]]))
+  
+  edge_overlap <- intersect(edge_names_g1, edge_names_g2)
+  total_overlap <- length(edge_overlap) / 2
+  
+  edge_overlap_chip <- edge_overlap[edge_overlap %in% 
+                                      (dplyr::filter(edge_data, isChipSeq) %>% pull(edge))]
+  total_edge_overlap_chip <- length(edge_overlap_chip) / 2
+  
+  edge_overlap_ppi <- edge_overlap[edge_overlap %in% 
+                                      (dplyr::filter(edge_data, isPPI) %>% pull(edge))]
+  total_edge_overlap_ppi <- length(edge_overlap_ppi) / 2
+  
+  edge_overlap_gg <- edge_overlap[edge_overlap %in% 
+                                     (dplyr::filter(edge_data, isGeneGene) %>% pull(edge))]
+  total_edge_overlap_gg <- length(edge_overlap_gg) / 2
+  
+  fraction_overlap_chip <- total_edge_overlap_chip / total_overlap
+  fraction_overlap_ppi <- total_edge_overlap_ppi / total_overlap
+  fraction_overlap_gg <- total_edge_overlap_gg / total_overlap
+  
   nodes_g2 <- colnames(g2m)
   nodes_g1 <- colnames(g1m)
   total_edges_g2 <- graph::numEdges(g2[[l]])
@@ -83,10 +135,37 @@ tab <- lapply(loci, function(l) {
     snp_genes_reference=length(snp_genes_in_ref),
     snp_genes_estimate=length(snp_genes_in_est),
     snp_genes_recovered=length(snp_genes_recovered),
-    mcc=comp["MCC", "estimate1"]))
-})
-tab <- do.call(rbind, tab) %>% 
-  as_tibble()
+    total_chip = total_chip,
+    total_ppi = total_ppi,
+    total_gg = total_gg,
+    total_edge_overlap_chip = total_edge_overlap_chip,
+    total_edge_overlap_ppi = total_edge_overlap_ppi,
+    total_edge_overlap_gg = total_edge_overlap_gg,
+    fraction_overlap_chip = fraction_overlap_chip,
+    fraction_overlap_ppi = fraction_overlap_ppi,
+    fraction_overlap_gg = fraction_overlap_gg,
+    MCC=comp["MCC", "estimate1"])) %>%
+    as_tibble() %>%
+    mutate(
+      nodes = paste0(nodes_in_estimate, " (", nodes_in_reference, ")"),
+      edges = paste0(edges_in_estimate, " (", edges_in_reference, ")"),
+      common_edges = edge_overlap,
+      overlap_chip = paste0(total_edge_overlap_chip, " (", round(as.numeric(fraction_overlap_chip) * 100, 2), "%)"),
+      overlap_ppi = paste0(total_edge_overlap_ppi, " (", round(as.numeric(fraction_overlap_ppi) * 100, 2), "%)"),
+      overlap_gg = paste0(total_edge_overlap_gg, " (", round(as.numeric(fraction_overlap_gg) * 100, 2), "%)")
+    )
+}) %>% bind_rows()
+
+tab %>%
+  dplyr::select(locus, nodes, edges, overlap_edges = common_edges, 
+         total_chip, overlap_chip, 
+         total_ppi, overlap_ppi,
+         total_gg, overlap_gg, 
+         MCC) %>%
+  xtable::xtable(
+    label = "stab:network_comparison",
+    align = c("l", rep("|c", 11)),
+    caption = "Comparison of the networks inferred in this study to the networks extracted from \\citep{HaweMEQTL2020}. Numbers in brackets indicate statistics for the networks from the original publication.")
 
 # ------------------------------------------------------------------------------
 # Generate the supplementary tables

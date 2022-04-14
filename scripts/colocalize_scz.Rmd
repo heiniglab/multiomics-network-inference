@@ -16,7 +16,7 @@ library(tidyverse)
 library(IRanges)
 library(cowplot)
 theme_set(theme_cowplot() + background_grid(major="xy"))
-threads <- 6
+threads <- 12
 ```
 
 Load the eQTL and GWAS results.
@@ -373,11 +373,11 @@ write_tsv(results_cis, "results/current/colocalization_scz/results_cis.tsv")
 write_tsv(results_trans, "results/current/colocalization_scz/results_trans.tsv")
 
 # the trans genes selected in our network
-selected_trans <- c("CD6", "B9D2", "PSEN1", "DEF8", 
+selected_trans <- c("CD6", "B9D2", "PSEN1", "DEF8", "TMEM44", 
                     "DNAJB2", "ZNF672", "SH3BGRL3", "CXCR5", "RNF114")
 
 # cis genes directly connected to the SNP
-selected_cis <- c("RNF5", "PBX2", "HLA-DQA1")
+selected_cis <- c("RNF5", "PBX2", "HLA-DQA1", "AGPAT1")
 
 results_trans_filtered <- results_trans %>% filter(trait %in% selected_trans)
 results_cis_filtered <- results_cis %>% filter(trait %in% selected_cis)
@@ -422,8 +422,8 @@ save_plot("results/current/figures/scz_colocalization_trans.pdf",
           final_trans, ncol=1, nrow=1)
 
 # plot showing the gwas and trans eQTL results
-toplot <- bind_rows(select(gwas_roi, snp=SNP, pos=BP, P=P) %>% mutate(trait="SCZ"),
-                    select(eqtl_trans_roi, snp=SNP, pos=SNPPos, P=Pvalue) %>% mutate(trait="eQTL"))
+toplot <- bind_rows(dplyr::select(gwas_roi, snp=SNP, pos=BP, P=P) %>% mutate(trait="SCZ"),
+                    dplyr::select(eqtl_trans_roi, snp=SNP, pos=SNPPos, P=Pvalue) %>% mutate(trait="eQTL"))
 
 toplot %>%
   ggplot(aes(x=pos, y=-log10(P), color=trait)) + 

@@ -77,6 +77,13 @@ biogrid_ranges <-
                  locus,
                  ".rds"))
 
+# get MCC
+common_nodes <- intersect(nodes(huri), nodes(biogrid))
+huri_sub <- subGraph(common_nodes, huri)
+biogrid_sub <- subGraph(common_nodes, biogrid)
+print("Comparison between HuRI and BioGrid:")
+BDgraph::compare(as(huri_sub, "matrix"), as(biogrid_sub, "matrix"))
+
 merged <- merge_graph(huri, biogrid)
 
 plot_graph(merged, 

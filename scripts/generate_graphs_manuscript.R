@@ -45,7 +45,7 @@ merged <- lapply(loci, function(l) {
  lggm <- ggm[[l]]
  lrw <- rw[[l]]
  
- g <- merge_graph(g1, g2)
+ g <- merge_graph(lggm, lrw)
  g
 })
 

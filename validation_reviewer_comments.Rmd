@@ -22,7 +22,7 @@ theme_set(theme_cowplot() + background_grid(major="xy"))
 source("scripts/validation_methods.R")
 source("scripts/lib.R")
 
-threads <- 4
+threads <- 20
 
 knitr::opts_chunk$set(echo = FALSE)
 
@@ -446,17 +446,30 @@ result_table <- mclapply(sentinels, function(sentinel) {
 }, mc.cores = threads) %>% bind_rows()
 
 result_table <- filter(result_table, 
-                       
                        graph_model %in% c("glasso", "glasso_no_priors",
                                           "bdgraph", "bdgraph_no_priors"))
 
-summary_table <- group_by(result_table, graph_model, prior_replicated) %>%
-  dplyr::summarize(total_edges = n(),
-                   cor_upper_quart = quantile(abs(corr), 0.75))
+write_tsv(result_table, "results/current/prior_replication_main.tsv")
+
+result_table <- result_table %>%
+  mutate(graph_model = gsub("^(bdgraph|glasso)$", "\\1 (priors)", graph_model)) %>%
+  mutate(graph_model = gsub("_no_priors", "", graph_model))
+
+summary_table <-
+  group_by(result_table, graph_model) %>%
+  mutate(total_by_graph_model = n()) %>%
+  ungroup() %>%
+  group_by(graph_model, prior_replicated) %>%
+  dplyr::mutate(
+    total_edges = n(),
+    fraction = n() / total_by_graph_model,
+    cor_upper_quart = quantile(abs(corr), 0.75,
+                               na.rm = T)
+  ) %>%
+  distinct(graph_model, prior_replicated, total_edges, fraction, cor_upper_quart)
 
 colors <- RColorBrewer::brewer.pal(4, "Paired")
 
-# discuss
 category_colors <- c("prior_and_replicated" = colors[2],
                      "only_replicated" = colors[4],
                      "only_prior" = colors[1],
@@ -468,7 +481,7 @@ gp <- result_table %>%
   geom_boxplot(outlier.shape = NA) + 
   geom_label(data=summary_table,
              position=position_dodge(1),
-             aes(label=total_edges, 
+             aes(label=round(fraction,2),
                  y=cor_upper_quart+0.1, 
                  x=graph_model, group=prior_replicated)) +
   scale_fill_manual(values = category_colors) +
@@ -483,6 +496,8 @@ gp <- result_table %>%
         legend.title = element_text(size=15))
 gp
 
+save_plot("results/current/revisions/figures/prior_replication_supplement.pdf", gp, 
+          ncol = 1.6, nrow = 1.6)
 ```
 
 ## Prior importance inferred edge set

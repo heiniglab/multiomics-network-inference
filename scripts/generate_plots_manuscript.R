@@ -729,14 +729,13 @@ print("Sample size simulation plot")
 finput <- file.path(RESULT_PATH, "simulation/validation-subsets.txt")
 
 tab <- read_tsv(finput) %>% 
+  filter(rdegree == 0) %>%
   mutate(comparison = gsub("bdgraph$", "bdgraph (priors)", comparison),
          comparison = gsub("glasso$", "glasso (priors)", comparison),
          comparison = gsub("bdgraph_no_priors$", "bdgraph (empty)", comparison),
          comparison = gsub("bdgraph_no_priors_full$", "bdgraph (full)", comparison),
          comparison = gsub("glasso_no_priors","glasso", comparison)) %>%
   dplyr::rename(method=comparison) %>%
-  separate(iteration, into=c("iteration", "subset"), sep = "-") %>%
-  mutate(subset = gsub("subset([0-9]+).RData", "\\1", subset)) %>%
   mutate(subset = factor(subset, level=c(seq(50,600,by=50)), ordered = T))
 
 toplot <- tab %>%
@@ -841,7 +840,7 @@ tfa_expr_plot <- data %>%
   #geom_point(position=position_jitterdodge(jitter.width = 0.15,
   #                                         dodge.width = 0.75),
   #           alpha=0.2) +
-  scb_binary + 
+  scale_color_grey(start = 0.2, end = 0.7) + 
   #stat_summary(fun.y="median", geom = "line", aes(group=type), size=1)+
   geom_hline(yintercept = 0, linetype="dotted", color="black") +
   labs(title="",
@@ -858,7 +857,7 @@ tfa_expr_plot <- data %>%
         plot.margin = margin(0.2,1,0.2,0.2,"cm")) + 
   stat_compare_means(aes(group=type), size = 10, method="wilcox.test", 
                      hide.ns=T, label = "p.signif", show.legend = F)
-
+tfa_expr_plot
 # possible alternatives?
 data %>% ggplot(aes(x=cross_cohort_mcc)) + 
   geom_freqpoly(aes(color=type), stat = "density") +
@@ -869,7 +868,6 @@ data %>% ggplot(aes(x=reorder(graph_type, -cross_cohort_mcc, median),
   geom_boxplot(position="dodge") + 
   stat_summary(fun.y="mean", geom = "line", aes(group=type))
 
-tfa_expr_plot
 save_plot("results/current/figures/thesis/tfa_vs_expr_thesis.pdf", 
           tfa_expr_plot + 
             scale_color_grey(start = 0.3, end = 0.6) + 
@@ -914,9 +912,8 @@ figure2 <- ggarrange(simulation_mcc,
 figure2_alt <- ggarrange(ggarrange(simulation_sample_size_mcc, 
                                    simulation_mcc,  ncol=2, common.legend = T,
                                    legend="right", labels=c("A", "B"), align = "h"),
-                         ggarrange(expr_plot, 
-                                   tfa_expr_plot + 
-                                     scale_color_grey(start = 0.3, end = 0.6), 
+                         ggarrange(expr_plot,
+                                   tfa_expr_plot,
                                    ncol=2, 
                                    common.legend = T, 
                                    legend="right", 
@@ -928,7 +925,7 @@ save_plot("results/current/figures/figure2.pdf",
           plot=figure2, nrow = 2, ncol = 2, 
           base_aspect_ratio = 2.5)
 
-save_plot("results/current/figures/figure2_alternative.pdf",
+save_plot("results/current/revisions/figures/figure2_alternative.pdf",
           plot=figure2_alt, nrow = 2, ncol = 2, 
           base_aspect_ratio = 2)
 

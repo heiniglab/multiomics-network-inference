@@ -153,7 +153,7 @@ gp2 <- plot_progression(mutate(subset_progression_results,
 ga <- ggarrange(gp1, gp2, nrow = 1, ncol = 2, common.legend = T,
                 legend = "bottom", labels = "AUTO")
 
-save_plot("results/current/figures/simulation_rho_progression.pdf",
+save_plot("results/current/revisions/figures/simulation_rho_progression.pdf",
           ga, ncol = 2, nrow = 1)
 
 ga

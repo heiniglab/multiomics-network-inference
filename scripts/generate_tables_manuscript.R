@@ -423,7 +423,7 @@ tab2 <- lapply(eqtl_sentinels, function(s) {
 data <- bind_rows(tab,tab2) %>% 
   dplyr::select(sentinel, seed, graph_type, everything())
 
-write_tsv(path="results/current/supplement/all_graphs.tsv", data)
+write_tsv(path="results/current/revisions/supplement/all_graphs.tsv", data)
 
 # ----------------------------------------------------------------------------
 print("SessionInfo:")

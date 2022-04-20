@@ -61,8 +61,6 @@ COLORS <- list(MEQTL = group_cols[1],
 Here we plot the progression of performance for increasing noise in the priors
 for the 'minimal subset' of data, i.e. for a total of only 70 samples.
 
-TODO: update once all runs are finished.
-
 ```{r minimal_subset}
 # minimal subset size, prior noise progression
 res <- read_tsv("results/current/biogrid_stringent/simulation/validation-subsetminimal.txt") %>%
@@ -138,6 +136,86 @@ simulation_mcc <- ggplot(tab,
     plot.margin = margin(0.2, 1, 0.2, 0.2, "cm")
   )
 simulation_mcc
+```
+
+For the response we combine the above plot with the original from the MS:
+
+```{r}
+finput <- paste0("results/current/biogrid_stringent/simulation/validation-subsetall.txt")
+
+# create data-matrix
+res <- read_tsv(finput) %>%
+  mutate(R = paste0("R=", rdegree))
+
+
+# create nicer method names
+tab <- res %>% 
+  mutate(comparison = gsub("bdgraph$", "bdgraph (priors)", comparison),
+         comparison = gsub("glasso$", "glasso (priors)", comparison),
+         comparison = gsub("bdgraph_no_priors$", "bdgraph (empty)", comparison),
+         comparison = gsub("bdgraph_no_priors_full$", "bdgraph (full)", comparison),
+         comparison = gsub("glasso_no_priors","glasso", comparison)) %>%
+  dplyr::rename(method=comparison)
+toplot <- tab %>%
+  filter(method != "bdgraph (full)") %>%
+  mutate(is_prior_based = method %in% c("bdgraph (priors)", 
+                                        "glasso (priors)",
+                                        "irafnet")) %>%
+  mutate(method = gsub("bdgraph \\(empty\\)", "bdgraph", method)) %>%
+  mutate(method = factor(
+    method,
+    ordered = T,
+    levels = c(
+      "bdgraph",
+      "bdgraph (priors)",
+      "glasso",
+      "glasso (priors)",
+      "irafnet",
+      "genie3",
+      "genenet"
+    )
+  ))
+  
+# get the MCC plot
+simulation_mcc_orig <- ggplot(toplot,
+                         aes(y=MCC, 
+                             x=R, 
+                             color=method)) +
+  stat_boxplot(geom="errorbar", width=.75)+
+  geom_boxplot(outlier.size=0, alpha=0.5, coef=0, outlier.shape = NA, ) + 
+  stat_summary(fun.y=median, geom="smooth", 
+               position=position_dodge(0.75),
+               aes(group=method),lwd=0.8) +
+  scb_graphs +
+  #geom_boxplot(data = tab, alpha=0.5, aes(y=density_true, x=R), 
+  #             fill="#666666", color="#666666",
+  #             inherit.aes = FALSE,
+  #             width=.3) +
+  #scale_y_continuous(limits=c(min(tab$MCC),1), 
+  #                   breaks=c(0,0.25,0.5,0.75,1),
+  #                   sec.axis = sec_axis(trans = ~ ., 
+  #                                       name="true graph density",
+  #                                       breaks=seq(0,0.7,by=0.1))) +
+  background_grid(major="x") +
+  geom_vline(xintercept = 11.5, size=1.5, color="black", linetype="dashed") + 
+  labs(x="prior error",
+       y="MCC",
+       fill="") + 
+  theme(legend.position = "right",
+        legend.text = element_text(size=12),
+        legend.title = element_text(size=14), 
+        axis.text.x = element_text(hjust=0, vjust=0.5, angle=-45, size=12),
+        axis.title.x = element_text(size=14, 
+                                    margin = margin(-1, 0, 0, 0, unit = "lines")),
+        plot.margin = margin(0.2,1,0.2,0.2,"cm"))
+
+ga <- ggarrange(simulation_mcc, simulation_mcc_orig, nrow = 2, 
+                labels = "AUTO", common.legend = T, legend = "right")
+
+ga
+
+save_plot("results/current/revisions/figures/simulation_minimal_vs_maximial_subset_size.pdf",
+          ga, nrow = 1.8, ncol = 1.6)
 ```
 
 ## Low /high noise scenario over all subset sizes
@@ -216,8 +294,6 @@ Y-axis shows the MCC of inferred graphs VS the simulated ground truth, x-axis in
 
 Here we plot the progression of method performance for dropping an increasing amount of information from the prior matrix (10%, 20%,... 90%).
 
-TODO: update once all results/iterations are done.
-
 ```{r prior_completeness}
 # minimal subset size, prior noise progression
 res <- read_tsv("results/current/biogrid_stringent/simulation/validation-prior-completeness.txt") %>%
@@ -286,6 +362,10 @@ simulation_mcc <- ggplot(tab,
   )
 
 simulation_mcc
+save_plot(file="results/current/revisions/figures/simulation_prior_completeness.pdf",
+          simulation_mcc,
+          ncol = 1.6,
+          nrow = 1.2)
 ```
 Caption: Analysis of the effect of 'prior completeness' on inference performance.
 Y-axis shows the MCC of inferred graphs VS the simulated ground truth, x-axis indicates the fraction

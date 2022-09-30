@@ -362,10 +362,10 @@ simulation_mcc <- ggplot(tab,
   )
 
 simulation_mcc
-save_plot(file="results/current/revisions/figures/simulation_prior_completeness.pdf",
-          simulation_mcc,
-          ncol = 1.6,
-          nrow = 1.2)
+# save_plot(file="results/current/revisions/figures/simulation_prior_completeness.pdf",
+#           simulation_mcc,
+#           ncol = 1.6,
+#           nrow = 1.2)
 ```
 Caption: Analysis of the effect of 'prior completeness' on inference performance.
 Y-axis shows the MCC of inferred graphs VS the simulated ground truth, x-axis indicates the fraction
@@ -398,5 +398,263 @@ compare_wilcoxon <- function(method, fraction) {
 
 compare_wilcoxon("glasso", "F=0.1")
 compare_wilcoxon("bdgraph", "F=0.1")
+```
+
+## Prior completeness and noise
+
+Here we plot the progression of method performance for prior comleteness and prior noise simulateneously.
+
+```{r prior_completeness_and_noise}
+# prior_completeness
+completeness <- read_tsv("results/current/biogrid_stringent/simulation/validation-prior-completeness.txt") %>%
+  mutate(completeness = as.numeric(gsub("fraction", "", fraction_to_keep))) %>%
+  mutate(comparison = gsub("bdgraph$", "bdgraph (priors)", comparison),
+         comparison = gsub("glasso$", "glasso (priors)", comparison),
+         comparison = gsub("bdgraph_no_priors$", "bdgraph (empty)", comparison),
+         comparison = gsub("bdgraph_no_priors_full$", "bdgraph (full)", comparison),
+         comparison = gsub("glasso_no_priors","glasso", comparison)) %>%
+  filter(comparison != "bdgraph (full)") %>%
+  dplyr::rename(method=comparison) %>%
+  mutate(method = gsub("bdgraph \\(empty\\)", "bdgraph", method)) %>%
+  mutate(method = factor(
+    method,
+    ordered = T,
+    levels = c(
+      "bdgraph",
+      "bdgraph (priors)",
+      "glasso",
+      "glasso (priors)",
+      "irafnet",
+      "genie3",
+      "genenet"
+    )
+  ))
+
+noise <- read_tsv("results/current/biogrid_stringent/simulation/validation-subsetall.txt") %>%
+  filter(rdegree != "rbinom") %>%
+  mutate(noise = as.numeric(rdegree)) %>%
+  mutate(iteration = as.numeric(gsub("-.*", "", iteration))) %>%
+  mutate(comparison = gsub("bdgraph$", "bdgraph (priors)", comparison),
+         comparison = gsub("glasso$", "glasso (priors)", comparison),
+         comparison = gsub("bdgraph_no_priors$", "bdgraph (empty)", comparison),
+         comparison = gsub("bdgraph_no_priors_full$", "bdgraph (full)", comparison),
+         comparison = gsub("glasso_no_priors","glasso", comparison)) %>%
+  filter(comparison != "bdgraph (full)") %>%
+  dplyr::rename(method=comparison) %>%
+  mutate(method = gsub("bdgraph \\(empty\\)", "bdgraph", method)) %>%
+  mutate(method = factor(
+    method,
+    ordered = T,
+    levels = c(
+      "bdgraph",
+      "bdgraph (priors)",
+      "glasso",
+      "glasso (priors)",
+      "irafnet",
+      "genie3",
+      "genenet"
+    )
+  ))
+
+
+toplot <-
+  bind_rows(
+    select(completeness, value = completeness, method, iteration, MCC) %>%
+      mutate(variable = "missingness", 
+             value = 1-value),
+    select(noise, value = noise, method, iteration, MCC) %>%
+      mutate(variable = "error")
+  )
+
+
+greens <- RColorBrewer::brewer.pal(3, "Greens")
+blues <- RColorBrewer::brewer.pal(3, "Blues")
+
+# get the MCC plot
+noise_vs_completeness <-
+  filter(toplot, method %in% c("bdgraph (priors)", "glasso (priors)")) %>%
+  filter(value != 0 & value != 1) %>%
+  mutate(group = paste0(method, " / ", variable)) %>%
+  ggplot(aes(
+    y = MCC,
+    x = as.factor(value),
+    color = group
+  )) +
+  stat_boxplot(geom = "errorbar", width = .75) +
+  geom_boxplot(
+    outlier.size = 0,
+    alpha = 0.5,
+    coef = 0,
+    outlier.shape = NA,
+    
+  ) +
+  stat_summary(
+    fun.y = median,
+    geom = "smooth",
+    position = position_dodge(0.75),
+    aes(group = group),
+    lwd = 0.8
+  ) +
+  scale_color_manual(values = c("bdgraph (priors) / missingness" = greens[1],
+                                "bdgraph (priors) / error" = greens[2],
+                                "glasso (priors) / missingness" = blues[1],
+                                "glasso (priors) / error" = blues[2])) +
+  background_grid("none") +
+  labs(x = "amount of error / missing priors",
+       y = "MCC",
+       color = "") +
+  theme(
+    legend.position = "top",
+    legend.text = element_text(size = 12),
+    legend.title = element_text(size = 14),
+    axis.text.x = element_text(
+      hjust = 0,
+      vjust = 0.5,
+      angle = -45,
+      size = 14
+    ),
+    plot.margin = margin(0.2, 0.5, 0.2, 0.5, "cm")
+  )
+
+noise_vs_completeness
+
+cowplot::save_plot("simulation_completeness_vs_noise.pdf",
+                   noise_vs_completeness, ncol = 1.7, nrow = 1.7)
+
+# save_plot(file="results/current/revisions/figures/simulation_prior_completeness.pdf",
+#           simulation_mcc,
+#           ncol = 1.6,
+#           nrow = 1.2)
+```
+
+## Sensititivy tables as graphs
+
+```{r}
+RESULT_PATH <- "results/current/biogrid_stringent/"
+# generate the supplementary performance tables
+finput <-
+  paste0(RESULT_PATH, "simulation_rerun/validation-subsetall.txt")
+
+priornoise_results <- read_tsv(finput) %>%
+  mutate(R = paste0("R=", rdegree)) %>%
+  mutate(
+    comparison = gsub("bdgraph$", "bdgraph (priors)", comparison),
+    comparison = gsub("glasso$", "glasso (priors)", comparison),
+    comparison = gsub("bdgraph_no_priors$", "bdgraph (empty)", comparison),
+    comparison = gsub("bdgraph_no_priors_full$", "bdgraph (full)", comparison),
+    comparison = gsub("glasso_no_priors", "glasso", comparison)
+  ) %>%
+  filter(comparison != "bdgraph (full)") %>%
+  dplyr::rename(method = comparison) %>%
+  mutate(method = gsub("bdgraph \\(empty\\)", "bdgraph", method)) %>%
+  mutate(method = factor(
+    method,
+    ordered = T,
+    levels = c(
+      "bdgraph",
+      "bdgraph (priors)",
+      "glasso",
+      "glasso (priors)",
+      "irafnet",
+      "genie3",
+      "genenet"
+    )
+  ))
+
+# sensititivity table as graph
+sens_noise <- priornoise_results %>%
+  group_by(method, R) %>%
+  summarise(n = mean(`sensitivity`)) %>%
+  ggplot(aes(x = factor(R), y = n, color = method)) +
+  geom_point() +
+  geom_line(aes(group = method)) +
+  scb_graphs +
+  cowplot::theme_cowplot() +
+  cowplot::background_grid() +
+  geom_vline(
+    xintercept = 11.5,
+    size = 1.5,
+    color = "black",
+    linetype = "dashed"
+  ) +
+  theme(
+    legend.position = "right",
+    legend.text = element_text(size = 14),
+    legend.title = element_text(size = 14),
+    axis.text.x = element_text(
+      hjust = 0,
+      vjust = 0.5,
+      angle = -45,
+      size = 14
+    ),
+    plot.margin = margin(0.2, 1, 0.2, 0.2, "cm")
+  ) +
+labs(y = "",
+     x = "prior error")
+
+# also create graph for the sample size simulation
+finput <- file.path(RESULT_PATH, "simulation_rerun/validation-subsets.tsv")
+subsets_results <- read_tsv(finput) %>%
+  mutate(
+    comparison = gsub("bdgraph$", "bdgraph (priors)", comparison),
+    comparison = gsub("glasso$", "glasso (priors)", comparison),
+    comparison = gsub("bdgraph_no_priors$", "bdgraph (empty)", comparison),
+    comparison = gsub("bdgraph_no_priors_full$", "bdgraph (full)", comparison),
+    comparison = gsub("glasso_no_priors", "glasso", comparison)
+  ) %>%
+  filter(comparison != "bdgraph (full)") %>%
+  dplyr::rename(method = comparison) %>%
+  mutate(method = gsub("bdgraph \\(empty\\)", "bdgraph", method)) %>%
+  mutate(method = factor(
+    method,
+    ordered = T,
+    levels = c(
+      "bdgraph",
+      "bdgraph (priors)",
+      "glasso",
+      "glasso (priors)",
+      "irafnet",
+      "genie3",
+      "genenet"
+    )
+  )) %>%
+  mutate(subset = factor(subset, level = c(seq(50, 600, by = 50)), ordered = T))
+
+# Sensitivity table
+sens_subset <- subsets_results %>%
+  group_by(method, subset) %>%
+  summarise(n = mean(`sensitivity`)) %>%
+  ggplot(aes(x = factor(subset), y = n, color = method)) +
+  geom_point() +
+  geom_line(aes(group = method)) +
+  scb_graphs +
+  cowplot::theme_cowplot() +
+  cowplot::background_grid() +
+  theme(
+    legend.position = "top",
+    legend.text = element_text(size = 14),
+    legend.title = element_text(size = 14),
+    axis.text.x = element_text(
+      hjust = 0,
+      vjust = 0.5,
+      angle = -45,
+      size = 14
+    ),
+    plot.margin = margin(0.2, 1, 0.2, 0.2, "cm")
+  ) +
+labs(y = "sensititvy",
+     x = "subset size")
+
+ga <- ggarrange(
+    sens_subset,
+    sens_noise,
+    ncol = 2,
+    legend = "right",
+    common.legend = T, align = "h", labels = "AUTO"
+) + 
+  theme(plot.margin = margin(0,0.5,0,0,"cm"))
+
+cowplot::save_plot("simulation_sensitivity.pdf",
+                   ga, ncol = 2, nrow = 1)
 ```
 

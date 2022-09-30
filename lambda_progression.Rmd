@@ -8,7 +8,8 @@ output: html_document
 ```{r setup, include=FALSE}
 library(tidyverse)
 library(cowplot)
-
+library(reshape2)
+library(ggpubr)
 theme_set(theme_cowplot())
 
 knitr::opts_chunk$set(echo = TRUE)

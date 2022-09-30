@@ -182,15 +182,6 @@ simulation_mcc_orig <- ggplot(toplot,
                position=position_dodge(0.75),
                aes(group=method),lwd=0.8) +
   scb_graphs +
-  #geom_boxplot(data = tab, alpha=0.5, aes(y=density_true, x=R), 
-  #             fill="#666666", color="#666666",
-  #             inherit.aes = FALSE,
-  #             width=.3) +
-  #scale_y_continuous(limits=c(min(tab$MCC),1), 
-  #                   breaks=c(0,0.25,0.5,0.75,1),
-  #                   sec.axis = sec_axis(trans = ~ ., 
-  #                                       name="true graph density",
-  #                                       breaks=seq(0,0.7,by=0.1))) +
   background_grid(major="x") +
   geom_vline(xintercept = 11.5, size=1.5, color="black", linetype="dashed") + 
   labs(x="prior error",
@@ -277,10 +268,6 @@ simulation_sample_size_mcc <- ggplot(tab,
   theme(axis.text.x = element_text(hjust=0, vjust=0.5, angle=-45, size=12))
 
 simulation_sample_size_mcc
-
-#save_plot("results/current/figures/thesis/simulation_performance_sample_size_thesis.pdf",
-#          simulation_sample_size_mcc + theme(legend.position = "bottom"), base_asp = 2)
-
 ```
 Caption: Analysis of the effect of sample subset size on inference performance in a high prior noise setting (R=0.8).
 Y-axis shows the MCC of inferred graphs VS the simulated ground truth, x-axis indicates the different sample sizes for inference increasing from left to right. Colors indicate the different models. 50 iterations of sampling were performed. Boxplots show medians (horizontal line) and first and third quartiles (lower/upper box borders). Whiskers show 1.5*IQR (inter-quartile range).

@@ -153,6 +153,9 @@ result <- lapply(names(networks), function(n) {
 }) %>% bind_rows()
 result
 
+result %>%
+  xtable::xtable(auto = T,
+                 caption = "Comparison of reference networks in human")
 ```
 
 ## SessionInfo

@@ -748,13 +748,6 @@ glasso_cv <- function(data,
   bic_sub <- colMeans(loglikes[, grepl("bic", colnames(loglikes))], na.rm=T)
   ind <- which.min(bic_sub)
 
-print("ind")
-print(ind)
-print("bic_sub")
-print(bic_sub)
-print("loglikes")
-print(loglikes)
-
   # retrieve rho from the name
   rho <- as.numeric(strsplit(names(ind), "=")[[1]][2])
   

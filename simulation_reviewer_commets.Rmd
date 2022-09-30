@@ -521,13 +521,9 @@ noise_vs_completeness
 cowplot::save_plot("simulation_completeness_vs_noise.pdf",
                    noise_vs_completeness, ncol = 1.7, nrow = 1.7)
 
-# save_plot(file="results/current/revisions/figures/simulation_prior_completeness.pdf",
-#           simulation_mcc,
-#           ncol = 1.6,
-#           nrow = 1.2)
 ```
 
-## Sensititivy tables as graphs
+## Sensititivy figure
 
 ```{r}
 RESULT_PATH <- "results/current/biogrid_stringent/"
@@ -658,3 +654,96 @@ cowplot::save_plot("simulation_sensitivity.pdf",
                    ga, ncol = 2, nrow = 1)
 ```
 
+## Specificity figure
+
+```{r}
+# specificity table as graph
+spec_noise <- priornoise_results %>%
+  group_by(method, R) %>%
+  summarise(n = mean(`specificity`)) %>%
+  ggplot(aes(x = factor(R), y = n, color = method)) +
+  geom_point() +
+  geom_line(aes(group = method)) +
+  scb_graphs +
+  cowplot::theme_cowplot() +
+  cowplot::background_grid() +
+  geom_vline(
+    xintercept = 11.5,
+    size = 1.5,
+    color = "black",
+    linetype = "dashed"
+  ) +
+  theme(
+    legend.position = "right",
+    legend.text = element_text(size = 14),
+    legend.title = element_text(size = 14),
+    axis.text.x = element_text(
+      hjust = 0,
+      vjust = 0.5,
+      angle = -45,
+      size = 14
+    ),
+    plot.margin = margin(0.2, 1, 0.2, 0.2, "cm")
+  ) +
+labs(y = "",
+     x = "prior error")
+
+# specificity table as graph
+spec_subset <- subsets_results %>%
+  group_by(method, subset) %>%
+  summarise(n = mean(`specificity`)) %>%
+  ggplot(aes(x = factor(subset), y = n, color = method)) +
+  geom_point() +
+  geom_line(aes(group = method)) +
+  scb_graphs +
+  cowplot::theme_cowplot() +
+  cowplot::background_grid() +
+  theme(
+    legend.position = "top",
+    legend.text = element_text(size = 14),
+    legend.title = element_text(size = 14),
+    axis.text.x = element_text(
+      hjust = 0,
+      vjust = 0.5,
+      angle = -45,
+      size = 14
+    ),
+    plot.margin = margin(0.2, 1, 0.2, 0.2, "cm")
+  ) +
+labs(y = "specificity",
+     x = "subset size")
+
+ga <- ggarrange(
+    spec_subset,
+    spec_noise,
+    ncol = 2,
+    legend = "right",
+    common.legend = T, align = "h", labels = "AUTO"
+) + 
+  theme(plot.margin = margin(0,0.5,0,0,"cm"))
+
+cowplot::save_plot("simulation_specificity.pdf",
+                   ga, ncol = 2, nrow = 1)
+```
+
+
+## Sensitivity and specificty figures combined
+
+```{r}
+ga <- ggarrange(
+  sens_subset + scale_y_continuous(limits = c(0,1)) + labs(x = ""),
+  sens_noise + scale_y_continuous(limits = c(0,1)) + labs(x = ""),
+  spec_subset + scale_y_continuous(limits = c(0,1)),
+  spec_noise + scale_y_continuous(limits = c(0,1)),
+  ncol = 2,
+  nrow = 2,
+  legend = "right",
+  common.legend = T,
+  align = "h",
+  labels = "AUTO"
+) +
+  theme(plot.margin = margin(0, 0.5, 0, 0, "cm"))
+
+cowplot::save_plot("simulation_sensitivity_specificity.pdf",
+                   ga, ncol = 2, nrow = 2)
+```

@@ -1,6 +1,4 @@
-## Table of Contents
-
-[[_TOC_]]
+# Hawe et al. 2022 - Network reconstruction for trans acting genetic loci using multi-omics data and prior information
 
 ## Snakemake pipeline: cohort study, simulation and benchmark
 

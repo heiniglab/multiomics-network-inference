@@ -1,36 +1,38 @@
-<<<<<<< HEAD
 ## Table of Contents
 
 [[_TOC_]]
 
-## Online collaboration resources:
-
-- [Paper on overleaf](https://www.overleaf.com/2873145782fcvqtppkhgdb)
-- [Reviewer comments on google sheets](https://docs.google.com/spreadsheets/d/1rtgCK2rgXGBGJyT-Xg43TGysO_0IBbDzELT9FNgs7do/edit?usp=sharing)
-- [Response to reviewer comments on google docs](https://docs.google.com/document/d/1x9KLl1AKVdHe64g4aDI2arbfn_9Jjp2zWgFmfdooiMs/edit?usp=sharing)
-
------
-
-- [seal python package](https://github.com/muhanzhang/SEAL/tree/master/Python)
-- [scanpy in R](https://lazappi.id.au/project/scanpy-in-r/)
-- [reticulate R package](https://cran.r-project.org/web/packages/reticulate/index.html)
-
-## Getting the randwom_walk data:
-
-Currently we are using some precalculated information which we at the moment
-cannot reproduce in full using this specific workflow (as the data originate from the original meQTL
-project from which we obtained the trans-meQTL hotspots). While this is not strictly
-necessary, we use these data to be 100% in line with the previous study.
-the data is contained [this file](rw_string_v9_ld_wb_prioritize_full_with_empirical_p_lte_0.05.txt)
-
 ## Snakemake pipeline: cohort study, simulation and benchmark
 
-The analysis is implemented as a snakemake pipeline.
+The [snakemake workflow](Snakefile) first defines a set of trans-QTL hotspots from available QTL results (i.e. genetic variants with 5+ trans associations).
+For each hotspot, a 'locus set' of entities is defined (see Methods in the manuscript) and cohort/simulated data collected.
+On each of these datasets, different network inference methods are applied and evaluated.
+
+### Main scripts
+
+The most important script for the analyses are listed here:
+
+- 
+
+### Configuration
+
+There are few configuration options for the workflow. These can be adjusted 
+in the (configs/workflow.json)[configs/workflow.json] file. 
+Here is the list of options:
+
+* hots_thres - Threshold for the number of trans entities to define a hotspot
+* ppi_db - Either 'string', 'biogrid' or 'biogrid_stringent'
+* suffix_tfa_expr - Whether to use expression or TF activities for TFs
+* eqtl_prior_type - eQTL prior to be used, either 'eqtlgen' or 'gtex'
+
+### Preprocessing 
+
 Both the simulation and the cohort-data based analyses are integrated in a single workflow,
 although split into separate snakemake files, and both rely on the subworkflow located under
-'workflows/1_extract_hotspts.sm'. This workflow needs to be run before everything else, since
-it extracts the hotspot loci (as dummy sentinel files) on which the rest of the pipeline
-is based. Although this is automatically done when calling any downstream rules, the hotspot
+'workflows/1_extract_hotspts.sm'. 
+This workflow needs to be run before everything else as it extracts the hotspot loci (as dummy sentinel files) on which the rest of the pipeline
+is based. 
+Although this is automatically done when calling any downstream rules, the hotspot
 extraction can also be done individually:
 
 ```{bash}
@@ -40,6 +42,89 @@ snakemake --profile default -s workflows/1_extract_hotspots.sm all
 > NOTE: For some of the hotspots, none of the respective SNP genes have any expression
 > probes in our data. We have to remove them manually. The list of SNPs is:
 > rs57743634,rs17420384,rs2295981,rs7924137,rs1570038,rs57743634,rs2685252
+
+### Cohort data pipeline
+
+The below code can be used to run the full network inference pipeline on a SLURM cluster on the cohort data.
+The snakemake rules for this part of the pipeline are defined in (`workflow/2_1_cohort_data.sm`)(workflow/2_1_cohort_data.sm).
+
+> NOTE: Cohort and simulation study can be run separately by using either the 
+*all_cohort* or *all_simulation* (see below) rule/commands, respectively.
+
+To execute the cohort study using the SLURM cluster (using the `./profiles/slurm` profile, see below), call:
+
+```{bash}
+./submit_slurm_cohort_study.sh
+```
+
+See script contents for more details.
+
+#### Replication analysis with prior noise
+
+Based on cohort replication, we also investigate the effect of noisy priors.
+To run all needed model fits including systematic creation of erroneous priors, simply call:
+
+```{bash}
+./submit_slurm_cohort_replication_prior_noise.sh
+```
+
+To investigate the results, you can have a look at the Rmarkdown document under [validation_reviewer_comments.Rmd](validation_reviewer_comments.Rmd).
+
+> The markdown is not yet implemented in the snakemake workflow
+
+### Method benchmarking
+
+We implemented a benchmarking procedure to formally test runtimes for all applied models.
+The complete benchmark can be run using the following call:
+
+```
+./submit_slurm_benchmark.sh
+```
+
+The above script implicetely calls snakemake with the `all_benchmark` rule and submits all SLURM jobs to the same compute node (needs to be adjusted for different clusters) to achieve comparable performance estimates.
+Results are summarized under `results/current/benchmark/summary.pdf`.
+
+### Simulation study
+
+We implemented a simulation study, were we generate ground truth graphs as well
+as erroneous priors in order to compare inference methods with respect to 
+  1) their general performance to recover the ground truth network 
+  2) how much they are influenced by the exisiting prior information and noise therein and 
+  3) the effect of sample size on inference performance. 
+As we simulate data such that they match the properties of the original data (genotype frequencies,
+sample size and number of nodes per locus), this is coupled to the original data 
+workflow. 
+Simulation specific rules can be found under [`workflows/2_2_simulation.sm`](workflows/2_2_simulation.sm).
+The target rule for this simulation study is `all_simulation`.
+
+```{bash}
+./submit_slurm_simulation.sh
+```
+
+The above command will execute the simulation study using the SLURM cluster.
+
+### Available target rules
+
+There are several meta targets in the workflow to obtain intermediate results.
+Call `snakemake <target-name>` to execute the specific part of the workflow.
+
+* all_ranges - The call below creates a locus set for each hotspot as GenomicRanges objects/files and generates
+a summary plot.
+* all_data - This call collects and normalized all cohort data for the created ranges objects
+* all_ggm - This generates all ranges and data collections and fits different network models to the data.
+* plot_relevant_graphs - Generates *dot* based plots for some of the networks with desireable properties.
+* all_cohort - Run the full cohort data analysis.
+* all_simulation - Run full simulation study (see also below)
+
+**Example: Generate ranges overview**
+
+Use snakemake to create all 'ranges' (hotspot based locus sets) collections:
+
+```{bash}
+snakemake --profile=./profiles/default all_ranges
+```
+
+## Additional information
 
 ### Snakemake profiles
 
@@ -92,119 +177,7 @@ parameter in the snakemake call (done by default in the `./profiles/default` sna
 > NOTE 2: Be aware that if you set any repository paths on startup of R 
 > you might want to adjust that for usage with the conda environment
 
+### Getting the random walk data:
 
-### Configuration
-
-There are few configuration options for the workflow. These can be adjusted 
-in the (configs/workflow.json)[configs/workflow.json] file. 
-Here is the list of options:
-
-* hots_thres - Threshold for the number of trans entities to define a hotspot
-* ppi_db - Either 'string', 'biogrid' or 'biogrid_stringent'
-* suffix_tfa_expr - Whether to use expression or TF activities for TFs
-* eqtl_prior_type - eQTL prior to be used, either 'eqtlgen' or 'gtex'
-
-### Meta target rules
-
-There are several meta targets in the workflow to obtain intermediate results.
-Call `snakemake <target-name>` to execute the specific part of the workflow.
-
-* all_ranges - The call below creates all hotspots networks as 'ranges' objects/files and generates
-a summary plot.
-* all_data - This call collects and normalized all cohort data for the created ranges objects and
-* all_ggm - This generates all ranges and data collections and fits different network models to the data.
-* plot_relevant_graphs - Generates *dot* based plots for some of the networks with desireable properties.
-* all_cohort - Run the full cohort data analysis.
-* all_simulation - Run full simulation study (see also below)
-
-#### Generate ranges overview
-
-Create all 'ranges' (hotspot entitiy) collections:
-
-```{bash}
-snakemake --profile=./profiles/default all_ranges
-```
-
-#### Generate data overview
-
-This call collects and normalized all cohort data for the created ranges objects and
-generates an overview plot.
-
-```{bash}
-snakemake --profile=./profiles/default all_data
-```
-
-#### Generate overview on GGM fits
-
-This generates all ranges and data collections and fits different GGMs to the data. Note that we use the SLURM profile, as running this locally is not entirely sensible.
-
-```{bash}
-snakemake --profile=./profiles/slurm/ all_ggm &
-```
-
-### Cohort data pipeline
-
-The below code can be used to run the full network inference pipeline on our SLURM cluster on the cohort data.
-
-> NOTE: Cohort and simulation study can be run separately by using either the 
-*all_cohort* or *all_simulation* (see below) rule/commands, respectively.
-
-To execute the cohort study using the SLURM cluster (using the `./profiles/slurm` profile), call:
-
-```{bash}
-./submit_slurm_cohort_study.sh
-```
-
-#### Replication analysis with prior noise
-
-Based on cohort replication, we also investigate the effect of noisy priors.
-To run all needed model fits including systematic creation of noise priors, simply call:
-
-```{bash}
-./submit_slurm_cohort_replication_prior_noise.sh
-```
-
-To investigate the results, you can have a look at the Rmarkdown document under [validation_reviewer_comments.Rmd](validation_reviewer_comments.Rmd).
-
-> The markdown is not yet implemented in the snakemake workflow but should ultimately be automatically generated once everything is in place.
-
-### Method benchmarking
-
-We implemented a benchmarking procedure to formally test runtimes for all applied models.
-The complete benchmark can be run using the following call:
-
-```
-./submit_slurm_benchmark.sh
-```
-
-The above script implicetely calls snakemake with the `all_benchmark` rule and submits all SLURM jobs to the same compute node (currently: `icb-neu-001`) to achieve comparable performance estimates.
-Results are summarized under `results/current/benchmark/summary.pdf`.
-
-### Simulation study
-
-We implemented a simulation study, were we generate ground truth graphs as well
-as noisy priors in order to compare inference methods with respect to 1) their 
-general performance to recover the ground truth network 2) how much they are 
-influenced by the exisiting prior information and noise therein and 3) the effect of
-sample size on inference performance. 
-As we simulate data such that they match the properties of the original data (genotype frequencies,
-sample size and number of nodes per locus), this is coupled to the original data 
-workflow. Simulation specific rules can be found under [workflows/2_2_simulation.sm](workflows/2_2_simulation.sm) 
-in the repository. The target rule for this simulation study is `all_simulation`.
-
-```{bash}
-./submit_slurm_simulation.sh
-```
-
-The above command will execute the simulation study using the SLURM cluster.
-
-## DEPRECATED: LRZ specific submit (simulations)
-
-At some point we had to run our simulation studies on the LRZ cluster. As this is not necessary anymore, below code is merely here for documentation purposes.
-
-```{bash}
-module load python/3.6_intel
-nohup nice snakemake --use-conda -u configs/slurm.json --jobs=1000 --local-cores=1 --cluster \
-  "sbatch --time=24:00:00 --ntasks 1 --clusters=mpp2 -c {cluster.cpu} --mem-per-cpu={cluster.mem} \
-      -o {cluster.log} -e {cluster.log}" all_simulation &> all_simulation.out &
-```
+We use some previously established results (results from the random walk analysis) from the [Hawe et al. 2022](https://www.nature.com/articles/s41588-021-00969-x) publication.
+The data are provided in this file](rw_string_v9_ld_wb_prioritize_full_with_empirical_p_lte_0.05.txt) of this repository.

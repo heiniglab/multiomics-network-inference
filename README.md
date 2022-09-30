@@ -8,9 +8,18 @@ On each of these datasets, different network inference methods are applied and e
 
 ### Main scripts
 
-The most important script for the analyses are listed here:
+The most important script for the analyses are listed here (located under `scripts/`):
 
-- 
+- [collect_ranges.R](scripts/collect_ranges.R): The main script to collect all entities in a locus set for a given hotspot.
+- [collect_ranges_methods.R](scripts/collect_ranges_methods.R): Defines helper methods for collecting locus sets.
+- [collect_priors.R](scripts/collect_priors.R): Main script to collect all prior information for a given hotspot locus. Utilizes helper methods defined in [scripts/priors.R](scripts/priors.R)
+- [benchmark.R](scripts/benchmark.R): This script and its corresponding [methods script](scripts/benchmark_methods.R) gathers all code for generating the runtime benchmarks.
+- [create_priors.R](scripts/create_priors.R): Main script to create the global eQTL and gene-gene prior informartion
+- [apply_ggm.R](scripts/apply_ggm.R): Main script to run GGM inference for a specific hotspot locus set.
+- [simulation/simulate_data.R](scripts/simulation/simulate_data.R): Main script for generating simulated data for individual hotspots, including erroneous graphs/priors.
+- [simulation/run_ggm.R](scripts/simulation/run_ggm.R): Main script to run the GGM inference on simulated data.
+
+> NOTE: general helper methods are defined in separate `lib.R` scripts (main [lib.R](scripts/lib.R), simulation [lib.R](scripts/simulation/lib.R))
 
 ### Configuration
 

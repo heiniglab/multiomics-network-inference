@@ -194,4 +194,4 @@ parameter in the snakemake call (done by default in the `./profiles/default` sna
 ### Getting the random walk data:
 
 We use some previously established results (results from the random walk analysis) from the [Hawe et al. 2022](https://www.nature.com/articles/s41588-021-00969-x) publication.
-The data are provided in this file](rw_string_v9_ld_wb_prioritize_full_with_empirical_p_lte_0.05.txt) of this repository.
+The data are provided in [this file](rw_string_v9_ld_wb_prioritize_full_with_empirical_p_lte_0.05.txt) of this repository.

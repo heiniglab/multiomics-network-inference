@@ -10,6 +10,7 @@ On each of these datasets, different network inference methods are applied and e
 
 The most important script for the analyses are listed here (located under `scripts/`):
 
+- [reg_net.R](scripts/reg_net.R): Main script containing methods for inferring regulatory networks given the collected data and locus set information. Relies on helper methods defined in [reg_net_utils.R](scripts/reg_net_utils.R)
 - [collect_ranges.R](scripts/collect_ranges.R): The main script to collect all entities in a locus set for a given hotspot.
 - [collect_ranges_methods.R](scripts/collect_ranges_methods.R): Defines helper methods for collecting locus sets.
 - [collect_priors.R](scripts/collect_priors.R): Main script to collect all prior information for a given hotspot locus. Utilizes helper methods defined in [scripts/priors.R](scripts/priors.R)
@@ -21,6 +22,13 @@ The most important script for the analyses are listed here (located under `scrip
 
 > NOTE: general helper methods are defined in separate `lib.R` scripts (main [lib.R](scripts/lib.R), simulation [lib.R](scripts/simulation/lib.R))
 
+Generally, to implement your own analysis you'd want to
+
+1) collect a set of trans QTLs
+2) curate prior information as needed (e.g. utilizing the [priors.R](scripts/priors.R) script)
+3) use the 'collect_ranges' methods to define locus sets
+4) on the defined locus sets, follow the 'apply_ggm' script to infer GGM networks (this heavily utilizes the functions in [reg_net.R](scripts/reg_net.R) and [reg_net_utils.R](scripts/reg_net_utils.R)) 
+  
 ### Configuration
 
 There are few configuration options for the workflow. These can be adjusted 

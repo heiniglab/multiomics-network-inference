@@ -34,16 +34,11 @@ theme_update(legend.text = element_text(size=11),
 # prior/non prior versions)
 paired <- brewer.pal(4, "Paired")
 names(paired) <- c("glasso", "glasso (priors)", "bdgraph", "bdgraph (priors)")
-#paired <- c(paired, "#66D35F")
-#names(paired) <- c("glasso", "glasso (priors)", 
-#                   "bdgraph (empty)", "bdgraph (priors)", "bdgraph (full)")
 unpaired <- brewer.pal(7, "Dark2")[c(2,3,7)]
 names(unpaired) <- c("irafnet", "genie3", "genenet")
 graph_cols <- c(paired, unpaired)
 
 sfb_graphs <- scale_fill_manual(values=graph_cols)
-#sfb_graphs <- scale_fill_brewer(palette="Set2")
-#scb_graphs <- scale_color_brewer(palette="Set2")
 scb_graphs <- scale_color_manual(values=graph_cols)
 sfb_binary <- scale_fill_brewer(palette = "Accent")
 scb_binary <- scale_color_brewer(palette = "Accent")

@@ -27,10 +27,10 @@ There are few configuration options for the workflow. These can be adjusted
 in the (configs/workflow.json)[configs/workflow.json] file. 
 Here is the list of options:
 
-* hots_thres - Threshold for the number of trans entities to define a hotspot
-* ppi_db - Either 'string', 'biogrid' or 'biogrid_stringent'
-* suffix_tfa_expr - Whether to use expression or TF activities for TFs
-* eqtl_prior_type - eQTL prior to be used, either 'eqtlgen' or 'gtex'
+* `hots_thres` - Threshold for the number of trans entities to define a hotspot
+* `ppi_db` - Either 'string', 'biogrid' or 'biogrid_stringent'
+* `suffix_tfa_expr` - Whether to use expression or TF activities for TFs
+* `eqtl_prior_type` - eQTL prior to be used, either 'eqtlgen' or 'gtex'
 
 ### Preprocessing 
 
@@ -68,7 +68,7 @@ See script contents for more details.
 
 #### Replication analysis with prior noise
 
-Based on cohort replication, we also investigate the effect of noisy priors.
+Based on cohort replication, we also investigate the effect of erroneous priors.
 To run all needed model fits including systematic creation of erroneous priors, simply call:
 
 ```{bash}
@@ -140,7 +140,7 @@ We use profiles to handle local and cluster execution (saved under [./profiles/]
 - `default` profile: available under `./profiles/default/`, use `--profile profiles/default` for snakemake
 - `slurm` profile: available under `./profiles/slurm/`, use `--profile profiles/slurm` for snakemake
 
-Both profiles specify some default snakemake parameters. The SLURM profile also specifies necessary SLURM parameters specific to the ICB queue. The SLURM profile was installed using cookiecutter (compare [this link](https://github.com/Snakemake-Profiles/slurm)) then modified to fit our queue:
+Both profiles specify some default snakemake parameters. The SLURM profile also specifies necessary SLURM parameters specific to the ICB queue. The SLURM profile was installed using cookiecutter (compare [this link](https://github.com/Snakemake-Profiles/slurm)), then modified to fit our queue:
 
 ```
 # install cookiecutter if not yet available
@@ -158,13 +158,12 @@ cookiecutter https://github.com/Snakemake-Profiles/slurm.git
 
 ### Charliecloud image and conda environment usage
 
-At the moment of creating the workflow, the only option of using containers
-on the cluster was via charliecloud, which unfortunately is not supported by snakemake.
-To make it work, we manually edited the `jobscript.sh` from snakemake to extract the
+We were only able to use charliecloud on our HPC which is unfortunately not supported by snakemake.
+To make it work, we manually edited the `jobscript.sh` from `snakemake` to extract the
 image if needed. In addition, we edited the `script.py` from snakemake to wrap any Rscript
 calls in a `ch-run` call with our specific charliecloud container. This is not ideal and not
 very portable, but allows as to have a simple software container in place which we can use on 
-other systems, too (such as MARCC from JHU).
+other systems, too.
 
 The [Dockerfile](Dockerfile) for this container is provided in this repository.
 Generally, if e.g. Docker or Singularity is available on the system the workflow is executed, a standard 
@@ -172,9 +171,9 @@ installation of *Snakemake* can be used to exeucted the workflow in the respecti
 Otherwise, one needs to modify the *script.py* script of *Snakemake* to execute all scripts within the
 provided container.
 
-In addition, a general conda environment is defined in *envs/bioR.yaml". This environment
+**Deprecated** In addition, a general conda environment is defined in *envs/bioR.yaml*. This environment
 has been linked to all rules which are based on R scripts. In principle, this conda env could be
-used instead of the charliecloud image, but it is **deprecated** now.
+used instead of the charliecloud image.
 To execute the pipelin using conda, you have to specify the *--use-conda*
 parameter in the snakemake call (done by default in the `./profiles/default` snakemake profile).
 

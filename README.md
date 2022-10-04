@@ -29,7 +29,7 @@ Generally, to implement your own analysis you'd want to
 3) use the 'collect_ranges' methods to define locus sets
 4) on the defined locus sets, follow the 'apply_ggm' script to infer GGM networks (this utilizes the main functions in [reg_net.R](scripts/reg_net.R)
 
-As an example, here we provide a code snippet to run a simple network inference:
+As an example, here we provide a code snippet to run a simple network inference (toy data sampled from rs9859077 locus):
 
 ```
 
@@ -38,10 +38,11 @@ source("scripts/simulation/lib.R")
 source("scripts/reg_net.R")
 
 # in test_data/locus.RData we provide some toy data.
+# sample is from rs9859077 locus,
 # The call below loads the following variables:
 # sentinel: name of the locus
 # data: NxP matrix for an example locus
-# ranges: List of genomic ranges containing the entities collected for the example locus
+# ranges: List of genomic ranges containing the entities collected for the example locus. Not used in this snippet, but here for reference
 # priors: Symmetric PxP prior matrix collected for the locus
 # threads: Number of threads to use
 load("test_data/locus.RData")

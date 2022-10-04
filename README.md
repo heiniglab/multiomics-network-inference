@@ -28,7 +28,39 @@ Generally, to implement your own analysis you'd want to
 2) curate prior information as needed (e.g. utilizing the [priors.R](scripts/priors.R) script)
 3) use the 'collect_ranges' methods to define locus sets
 4) on the defined locus sets, follow the 'apply_ggm' script to infer GGM networks (this utilizes the main functions in [reg_net.R](scripts/reg_net.R)
-  
+
+As an example, here we provide a code snippet to run a simple network inference:
+
+```
+
+source("scripts/lib.R")
+source("scripts/simulation/lib.R")
+source("scripts/reg_net.R")
+
+# in data/test_data.RData we provide some toy data.
+# The call below loads the following variables:
+# sentinel: name of the locus
+# data: NxP matrix for an example locus
+# ranges: List of genomic ranges containing the entities collected for the example locus
+# priors: Symmetric PxP prior matrix collected for the locus
+# threads: Number of threads to use
+load("data/test_data.RData")
+
+# fit the BDgraph model
+bdgraph <- reg_net(data, priors, "bdgraph", threads = threads)
+
+# ... or the glasso model
+glasso <- reg_net(data, priors, "glasso", threads = threads)
+
+## generate simulated data
+
+# create prior graphs
+graphs <- create_prior_graphs(priors, sentinel, threads=threads)
+
+# simulate data for ggm
+simulated <- simulate_data(graphs, sentinel, data, nodes, threads=threads)
+
+```
 ### Configuration
 
 There are few configuration options for the workflow. These can be adjusted 

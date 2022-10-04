@@ -37,14 +37,14 @@ source("scripts/lib.R")
 source("scripts/simulation/lib.R")
 source("scripts/reg_net.R")
 
-# in data/test_data.RData we provide some toy data.
+# in test_data/locus.RData we provide some toy data.
 # The call below loads the following variables:
 # sentinel: name of the locus
 # data: NxP matrix for an example locus
 # ranges: List of genomic ranges containing the entities collected for the example locus
 # priors: Symmetric PxP prior matrix collected for the locus
 # threads: Number of threads to use
-load("data/test_data.RData")
+load("test_data/locus.RData")
 
 # ... or the glasso model
 glasso <- reg_net(data, priors, "glasso", threads = threads)

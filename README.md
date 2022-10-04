@@ -50,7 +50,7 @@ load("test_data/locus.RData")
 # fit the glasso model
 glasso <- reg_net(data, priors, "glasso", threads = threads)
 
-# fit the BDgraph model (takes a while)
+# fit the BDgraph model
 bdgraph <- reg_net(data, priors, "bdgraph", threads = threads)
 
 # fit the genenet model

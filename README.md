@@ -46,11 +46,11 @@ source("scripts/reg_net.R")
 # threads: Number of threads to use
 load("data/test_data.RData")
 
-# fit the BDgraph model
-bdgraph <- reg_net(data, priors, "bdgraph", threads = threads)
-
 # ... or the glasso model
 glasso <- reg_net(data, priors, "glasso", threads = threads)
+
+# fit the BDgraph model (takes a while)
+bdgraph <- reg_net(data, priors, "bdgraph", threads = threads)
 
 ## generate simulated data
 

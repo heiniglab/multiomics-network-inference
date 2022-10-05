@@ -207,12 +207,12 @@ To make it work, we manually edited the `jobscript.sh` from `snakemake` to extra
 image if needed. In addition, we edited the `script.py` from snakemake to wrap any Rscript
 calls in a `ch-run` call with our specific charliecloud container. This is not ideal and not
 very portable, but allows as to have a simple software container in place which we can use on 
-other systems, too. If you have any questions on this, please contact [the first author](johann.hawe@gmail.com).
+other systems, too. If you have any questions on this, please contact [the first author](mailto:johann.hawe@gmail.com).
 
 The respective [Dockerfile](Dockerfile) for this container is provided in this repository and the 'ready-to-use' image also via docker hub at [https://hub.docker.com/r/jhawe/r3.5.2_custom](https://hub.docker.com/r/jhawe/r3.5.2_custom).
 Generally, if e.g. Docker or Singularity is available on the system the workflow is executed, a standard 
 installation of *Snakemake* could be used to execute the workflow in the respective environment. 
-The workflow only needs to be adjusted to use the container, e.g. by setting 1) `use-singulatiry=True` and 2) the `container` variable at the beginning of the Snakefile to the corresponding container (possibly also using the `singularity-args` option to provide custom directory bindings).
+The workflow only needs to be adjusted to use the container, e.g. by setting 1) `use-singularity=True` and 2) the `container:` variable at the beginning of the Snakefile to the corresponding container (possibly also using the `singularity-args` option to provide custom directory bindings).
 
 **Deprecated** In addition, a general conda environment is defined in *envs/bioR.yaml*. This environment
 has been linked to all rules which are based on R scripts. In principle, this conda env could be
@@ -230,3 +230,7 @@ parameter in the snakemake call (done by default in the `./profiles/default` sna
 
 We use some previously established results (results from the random walk analysis) from the [Hawe et al. 2022](https://www.nature.com/articles/s41588-021-00969-x) publication.
 The data are provided in [this file](rw_string_v9_ld_wb_prioritize_full_with_empirical_p_lte_0.05.txt) of this repository.
+
+## Contact
+
+For any questions regarding this repository you can contact the first author of the paper via [email](mailto:johann.hawe@gmail.com) or find him on [twitter](https://twitter.com/johannhawe).

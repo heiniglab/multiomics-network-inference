@@ -33,19 +33,25 @@ As an example, here we provide a code snippet to run a simple network inference 
 
 ```
 
+# also loads the needed libraries
 source("scripts/lib.R")
 source("scripts/simulation/lib.R")
 source("scripts/reg_net.R")
 
-# in test_data/locus.RData we provide some toy data.
-# sample is from rs9859077 locus,
-# The call below loads the following variables:
+# ----------------------------------------------------------------
+# in test_data/locus.RData we provide some toy data sampled from the rs9859077 locus.
+# The call to 'load' below loads the following variables in the environment:
+#
 # sentinel: name of the locus
 # data: NxP matrix for an example locus
-# ranges: List of genomic ranges containing the entities collected for the example locus. Not used in this snippet, but here for reference
+# ranges: List of genomic ranges containing the entities collected for the example locus. Not used in this snippet, but provided here for reference
 # priors: Symmetric PxP prior matrix collected for the locus
-# threads: Number of threads to use
+# threads: Number of threads to use (set to 4)
+
 load("test_data/locus.RData")
+
+# ----------------------------------------------------------------
+# individual model fitting
 
 # fit the glasso model
 glasso <- reg_net(data, priors, "glasso", threads = threads)
@@ -56,7 +62,8 @@ bdgraph <- reg_net(data, priors, "bdgraph", threads = threads)
 # fit the genenet model
 genenet <- reg_net(data, NULL, "genenet", threads = threads)
 
-## generate simulated data
+# ----------------------------------------------------------------
+# Generate simulated data
 
 # create prior graphs
 graphs <- create_prior_graphs(priors, sentinel, threads=threads)

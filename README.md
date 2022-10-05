@@ -200,20 +200,19 @@ cookiecutter https://github.com/Snakemake-Profiles/slurm.git
 # modify profiles/slurm/* as needed...
 ```
 
-### Charliecloud image and conda environment usage
+### Docker/charliecloud image and conda environment usage
 
-We were only able to use charliecloud on our HPC which is unfortunately not supported by snakemake.
+We were only able to use charliecloud on our HPC which is unfortunately not supported by snakemake, hence we couldn't use snakemake internal mechanisms to use our image.
 To make it work, we manually edited the `jobscript.sh` from `snakemake` to extract the
 image if needed. In addition, we edited the `script.py` from snakemake to wrap any Rscript
 calls in a `ch-run` call with our specific charliecloud container. This is not ideal and not
 very portable, but allows as to have a simple software container in place which we can use on 
-other systems, too.
+other systems, too. If you have any questions on this, please contact [the first author](johann.hawe@gmail.com).
 
-The [Dockerfile](Dockerfile) for this container is provided in this repository.
+The respective [Dockerfile](Dockerfile) for this container is provided in this repository and the 'ready-to-use' image also via docker hub at [https://hub.docker.com/r/jhawe/r3.5.2_custom](https://hub.docker.com/r/jhawe/r3.5.2_custom).
 Generally, if e.g. Docker or Singularity is available on the system the workflow is executed, a standard 
-installation of *Snakemake* can be used to exeucted the workflow in the respective environment.
-Otherwise, one needs to modify the *script.py* script of *Snakemake* to execute all scripts within the
-provided container.
+installation of *Snakemake* could be used to execute the workflow in the respective environment. 
+The workflow only needs to be adjusted to use the container, e.g. by setting 1) `use-singulatiry=True` and 2) the `container` variable at the beginning of the Snakefile to the corresponding container (possibly also using the `singularity-args` option to provide custom directory bindings).
 
 **Deprecated** In addition, a general conda environment is defined in *envs/bioR.yaml*. This environment
 has been linked to all rules which are based on R scripts. In principle, this conda env could be
